@@ -417,6 +417,9 @@ smoothed strength (0x870900) and a full-backbuffer StretchRect (0x5CC760).
   (players + 1) / 2 and 11 MB × players / 2. The exe is not large-address-aware; a 4P race uses about 380 MB.
 
 ## 9. HUD
+**Map mode.** Gameplay > Map mode (0x83AA1B: Off/Static/Rotate, handler 0x49AFE0) only offers Off/Static in split mode
+(max = (mode != 4) + 1). With per-player minimaps Rotate works, so `setne cl` at 0x49AFF9 is patched to `mov cl, 1`.
+
 **FE objects.** The relevant FE object fields are:
 
 | offset | field |

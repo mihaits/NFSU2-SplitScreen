@@ -79,7 +79,7 @@ Players 1 and 2's settings, bindings and last cars are saved in the game profile
 **HUD**
 - [x] 2P HUD widened to the screen edges in widescreen
 - [x] Full HUDs for players 3/4 (private copies of the HUD packages), with a consistent quadrant layout
-- [x] Per-player minimaps showing every car's marker
+- [x] Per-player minimaps showing every car's marker; Map mode Rotate available in split screen (the console offered Off/Static only)
 - [x] Single-player gauges for every player, using each car's custom tachometer, boost and nitrous gauges
 - [x] Single-player drag HUD in drag races
 - [x] Live leaderboard gap (circuit, sprint, Street X, URL) and drift score gap for every player

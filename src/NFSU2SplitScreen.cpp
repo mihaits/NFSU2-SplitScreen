@@ -4516,6 +4516,7 @@ static int RelocatePortTables() {
 // screens); the plugin's virtual pads don't, so it is forced selectable while rumble is on.
 #define PLAYER_FEEDBACK    4
 #define FN_FF_CAPABLE      0x5B8240
+#define AT_MAP_MODE_MAX    0x49AFF9      // Map mode option: `setne cl` (split mode -> max Static)
 static uint8_t g_ffShadowChannels[FF_CHANNELS_SIZE], g_ffShadowStrengths[FF_STRENGTHS_SIZE];
 static int g_ffPortBase = 0;                 // 2 while the players 3/4 state is swapped in
 static int g_ffMotor[4];                     // per port: motor value 0..255
@@ -4793,6 +4794,11 @@ static void Install(HMODULE self) {
     WriteJump(FN_RUMBLE, &RumbleHook, 5);
     WriteCall(AT_FF_UPDATE_CALL, &FfUpdate);
     WriteCall(AT_FF_PAD_OUTPUT, &FfPadOutput);
+    {   // Gameplay > Map mode (0x83AA1B, handler 0x49AFE0): the console's split mode offers Off/Static only (max =
+        // (mode != 4) + 1); with per-player minimaps Rotate works in split too -> `setne cl` becomes `mov cl, 1`
+        static const uint8_t setne[3] = {0x0F, 0x95, 0xC1}, movCl1[3] = {0xB1, 0x01, 0x90};
+        if (memcmp(reinterpret_cast<void*>(AT_MAP_MODE_MAX), setne, 3) == 0) Write(AT_MAP_MODE_MAX, movCl1, 3);
+    }
     if (g_rumble) { static const uint8_t kCapable[] = {0xB0, 0x01, 0xC3}; Write(FN_FF_CAPABLE, kCapable, 3); }   // mov al,1; ret
     WriteJump(FN_IMPACT_RUMBLE, &ImpactRumbleHook, 6);
     WriteJump(FN_JOY_SLOT_PRESENT, &JoySlotPresent, 5);
