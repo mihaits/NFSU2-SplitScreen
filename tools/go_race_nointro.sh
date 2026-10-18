@@ -1,7 +1,7 @@
 #!/bin/sh
 # Restart the game and start a split race in quick race mode $1 (number of right presses in the mode list: 0 circuit,
 # 2 drag, 3 drift, 4 Street X ...), skipping the race intro (2P intro filter patched to reject every scene).
-# Players: the [DEBUG] ExtraPlayers default of the Players row (0 -> 2 players). P2..P4 join on virtual pads 2..3.
+# Players: the [DEBUG] ExtraPlayers default of the Players row (0 -> 2 players). P2..P4 join on virtual pads 2, 3, 0 (P1 = pad 1).
 # POKES="addr=value ..." (hex address, decimal value) are written right after boot, e.g. POKES="870CFC=1" (overbright).
 cd "$(dirname "$0")"
 sh restart.sh --noskip
@@ -27,8 +27,8 @@ def wait_top(pred, timeout):
     return fe.top(g) or ''
 if 'dialog' in wait_top(lambda s: 'dialog' in s.lower() or s == '2P_PressStart.fng', 1.5).lower():
     fe.press(g, 1, 'a')
-for pad in (2, 3):
-    if wait_top(lambda s: s == '2P_PressStart.fng', 1.5) != '2P_PressStart.fng': break
+for pad in (2, 3, 0):   # virtual pads of P2, P3, P4 (pad 1 = P1)
+    if wait_top(lambda s: s == '2P_PressStart.fng', 3.0) != '2P_PressStart.fng': break
     fe.press(g, pad, 'start')
     wait_top(lambda s: s != '2P_PressStart.fng', 1.5)
     time.sleep(0.3)

@@ -6,6 +6,8 @@ The PC version still contains the console's two-player split-screen code, but it
 and the per-player input were cut. This plugin restores all of that and extends the game to four local players. Each
 player gets their own view, HUD, minimap, camera, sound, reflections and effects.
 
+![4-player split screen](docs/screenshot-4p.png)
+
 **Status: 0.9 alpha.** All race modes are playable with 2-4 players. See the checklists below.
 
 ## Requirements
