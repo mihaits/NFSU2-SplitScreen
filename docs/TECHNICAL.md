@@ -498,7 +498,13 @@ parked off-screen) are moved 2000 further out. Pivots are scaled too.
   - `IntroContext` (call 0x4368F4) reports 4 racers for a 3-player race, so the 4-car scenes are used.
   - `IntroEmptyHook` (0x4369FE) handles an empty 2P list: the scene loop reruns with `Intro2PFilter` (0x43695F) letting
     everything through, i.e. the single-player scenes.
-  - Without an intro, a 2P race never ran the world render: black screen, HUD only.
+- **Views 4/9 without an intro.** Layouts 1/2 enable view 4 (road reflection; its RT 0x86E784 enabled, 320x240) and
+  view 9 (0x5C233D). Layout 3 has no case, so split races used to inherit them from the intro. With road reflections
+  on (0x870CD4), the main render 0x5CAAD0 returns immediately when view 4 is inactive (0x5CAB35). A race without an
+  intro (the street drift tracks 4174-4179 have none) therefore drew nothing 3D and crashed on quit.
+  `ApplySplitLayout` now enables views 4 and 9 every frame.
+- **Counting extra racers.** Only add up to g_extraPlayers: the street drift tracks add non-human racers (ids 50+) to
+  the race count (+0x74), and counting them overran the standings' static array 0x864640.
 - **Results.** The results builder 0x54CCA0 (call 0x551447) fills its pointer list for 0x89E7C0 + [C4] + [C8] + [CC]
   racers. `RaceResults` counts the extra racers into 0x89E7C8, and they stay counted until the race is left
   (`EndResultsCount`), because the results screen rows (0x4BF0A0 / 0x4BF140 / 0x4BF290) use the same sum. Before the

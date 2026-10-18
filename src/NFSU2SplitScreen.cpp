@@ -1666,6 +1666,14 @@ static void ApplySplitLayout() {
             View& v = GetView(kPlayerViewId[k]);
             if (v.rt == &g_rt[k]) { v.rt = nullptr; v.active = 0; }
         }
+        // Layouts 1/2 enable the road reflection view 4 (its 320x240 target) and the headlight view 9 (0x5C233D); layout
+        // 3 has no case, so a split race inherited them from the intro (layout 1). Without an intro (the street drift
+        // tracks 4174-4179 have no usable scene) they stayed off, and with road reflections on the main render returns
+        // at once when view 4 is inactive (0x5CAB35) -> black world, and quitting crashed in the flare render.
+        View& v4 = GetView(4);
+        if (v4.rt) { v4.rt->enabled = 1; v4.rt->width = 320; v4.rt->height = 240; }
+        v4.active = 1;
+        GetView(9).active = 1;
     } else {
         g_screenViews = 2;
         g_viewTintInit[0] = g_viewTintInit[1] = false;      // per-race copies (they point into track data)
@@ -2976,6 +2984,10 @@ static void __cdecl BuildStandings(int arg) {
     int counted = at<int>(NUM_PLAYERS) + at<int>(RACE_COUNT_B);
     int missing = at<int>(RACE_PARAMS + 0x74) - counted;
     if (missing < 0 || !SplitMode() || g_extraPlayers <= 0) missing = 0;
+    // only the extra human players: the street drift (touge) tracks 4174-4179 add non-human racers (ids 50+) to the
+    // race count, and counting them overran the standings' static entry array 0x864640 (broken list -> crash in the
+    // drift scoring sort 0x56DDD0 / later on the way back to the menus)
+    if (missing > g_extraPlayers) missing = g_extraPlayers;
     at<int>(RACE_COUNT_B) += missing;
     reinterpret_cast<void(__cdecl*)(int)>(FN_BUILD_STANDINGS)(arg);
     at<int>(RACE_COUNT_B) -= missing;
@@ -3002,6 +3014,7 @@ static void __fastcall RaceResults(void* results, void*, void* race) {
     int counted = at<int>(0x89E7C0) + at<int>(0x89E7C4) + at<int>(0x89E7C8) + at<int>(0x89E7CC);
     int missing = at<int>(RACE_PARAMS + 0x74) - counted;
     if (missing < 0 || !SplitMode() || g_extraPlayers <= 0) missing = 0;    // only P3/P4 are missing from the counts
+    if (missing > g_extraPlayers) missing = g_extraPlayers;                 // (touge drift: non-human racers too)
     Log("results: racers %d, counted %d (%d %d %d %d), adding %d", at<int>(RACE_PARAMS + 0x74), counted,
         at<int>(0x89E7C0), at<int>(0x89E7C4), at<int>(0x89E7C8), at<int>(0x89E7CC), missing);
     at<int>(RACE_COUNT_B) += missing;
