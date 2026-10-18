@@ -20,3 +20,10 @@ void XPadSetVirtual(int index, bool connected, uint16_t buttons, uint8_t lt, uin
 
 // Raw state of a pad (real 0..3 or test 4..7); false if not connected.
 bool XPadRawState(int pad, uint16_t* buttons, uint8_t* lt, uint8_t* rt, int16_t* lx);
+
+// Rumble motors of a real pad (0..3): low = left heavy motor, high = right light motor, 0..1. Sent only on change.
+void XPadSetRumble(int pad, float low, float high);
+
+// A pad's state as virtual device 0 reports it to the game (DIJOYSTATE2, with the axis ranges the game set on that
+// device); for pads that have no joystick slot (players 3/4). False if the pad isn't connected or no device exists.
+bool XPadDiState(int pad, void* out, unsigned size);

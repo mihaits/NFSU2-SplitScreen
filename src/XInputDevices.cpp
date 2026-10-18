@@ -29,6 +29,10 @@ struct XPadState {
 };
 typedef DWORD(WINAPI* XInputGetStateFn)(DWORD, XPadState*);
 XInputGetStateFn g_xinputGetState;
+struct XPadVibration { WORD left, right; };
+typedef DWORD(WINAPI* XInputSetStateFn)(DWORD, XPadVibration*);
+XInputSetStateFn g_xinputSetState;
+WORD g_rumbleSent[4][2];
 
 enum : WORD {
     XB_DPAD_UP = 0x0001, XB_DPAD_DOWN = 0x0002, XB_DPAD_LEFT = 0x0004, XB_DPAD_RIGHT = 0x0008,
@@ -154,10 +158,33 @@ const PadObject* FindObject(DWORD obj, DWORD how) {
     return nullptr;
 }
 
+class XInputDevice;
+XInputDevice* g_devices[kVirtualDevices];   // the game's devices (XPadDiState uses device 0's axis ranges)
+
 class XInputDevice final : public IDirectInputDevice8A {
 public:
     explicit XInputDevice(int device) : device_(device) {
         for (auto& r : range_) { r[0] = 0; r[1] = 65535; }
+        if (device >= 0 && device < kVirtualDevices) g_devices[device] = this;
+    }
+    ~XInputDevice() {
+        if (device_ >= 0 && device_ < kVirtualDevices && g_devices[device_] == this) g_devices[device_] = nullptr;
+    }
+
+    // a pad's state in this device's layout and axis ranges
+    void StateOf(const XPadState& s, DIJOYSTATE2* js) const {
+        memset(js, 0, sizeof(*js));
+        js->lX = Scale(s.thumbLX, 32768, range_[0][0], range_[0][1]);
+        js->lY = Scale(-s.thumbLY - 1, 32768, range_[1][0], range_[1][1]);
+        // Windows' DirectInput view of an Xbox pad: both triggers share Z (LT pushes one way, RT the other)
+        js->lZ = Scale((s.leftTrigger - s.rightTrigger) * 128, 32768, range_[2][0], range_[2][1]);
+        js->lRx = Scale(s.thumbRX, 32768, range_[3][0], range_[3][1]);
+        js->lRy = Scale(-s.thumbRY - 1, 32768, range_[4][0], range_[4][1]);
+        js->rgdwPOV[0] = PovFromDpad(s.buttons);
+        js->rgdwPOV[1] = js->rgdwPOV[2] = js->rgdwPOV[3] = 0xFFFFFFFF;
+        static const WORD order[kButtons] = {XB_A, XB_B, XB_X, XB_Y, XB_LB, XB_RB, XB_BACK, XB_START, XB_LTHUMB, XB_RTHUMB};
+        for (int b = 0; b < kButtons; ++b)
+            js->rgbButtons[b] = (s.buttons & order[b]) ? 0x80 : 0;
     }
 
     // IUnknown
@@ -312,18 +339,7 @@ private:
         int pad = g_resolver ? g_resolver(device_) : device_;
         if (GetPad(pad, &s) != ERROR_SUCCESS)
             memset(&s, 0, sizeof(s));                     // no pad: idle, never DIERR_INPUTLOST
-        memset(js, 0, sizeof(*js));
-        js->lX = Scale(s.thumbLX, 32768, range_[0][0], range_[0][1]);
-        js->lY = Scale(-s.thumbLY - 1, 32768, range_[1][0], range_[1][1]);
-        // Windows' DirectInput view of an Xbox pad: both triggers share Z (LT pushes one way, RT the other)
-        js->lZ = Scale((s.leftTrigger - s.rightTrigger) * 128, 32768, range_[2][0], range_[2][1]);
-        js->lRx = Scale(s.thumbRX, 32768, range_[3][0], range_[3][1]);
-        js->lRy = Scale(-s.thumbRY - 1, 32768, range_[4][0], range_[4][1]);
-        js->rgdwPOV[0] = PovFromDpad(s.buttons);
-        js->rgdwPOV[1] = js->rgdwPOV[2] = js->rgdwPOV[3] = 0xFFFFFFFF;
-        static const WORD order[kButtons] = {XB_A, XB_B, XB_X, XB_Y, XB_LB, XB_RB, XB_BACK, XB_START, XB_LTHUMB, XB_RTHUMB};
-        for (int b = 0; b < kButtons; ++b)
-            js->rgbButtons[b] = (s.buttons & order[b]) ? 0x80 : 0;
+        StateOf(s, js);
     }
 
     void Push(DWORD ofs, DWORD value) {
@@ -476,13 +492,30 @@ void XPadSetVirtual(int index, bool connected, uint16_t buttons, uint8_t lt, uin
 
 int XPadMax() { return kMaxPads; }
 
+void XPadSetRumble(int pad, float low, float high) {
+    if (pad < 0 || pad >= kRealPads || !g_xinputSetState) return;     // test pads have no motors
+    auto speed = [](float v) { return static_cast<WORD>((v < 0 ? 0 : v > 1 ? 1 : v) * 65535.0f); };
+    XPadVibration v = {speed(low), speed(high)};
+    if (v.left == g_rumbleSent[pad][0] && v.right == g_rumbleSent[pad][1]) return;   // only changes
+    if (g_xinputSetState(pad, &v) == ERROR_SUCCESS) { g_rumbleSent[pad][0] = v.left; g_rumbleSent[pad][1] = v.right; }
+}
+
 void XPadSetResolver(int (*resolver)(int device)) { g_resolver = resolver; }
+
+bool XPadDiState(int pad, void* out, unsigned size) {
+    XPadState s = {};
+    if (!g_devices[0] || !out || size < sizeof(DIJOYSTATE2) || GetPad(pad, &s) != ERROR_SUCCESS) return false;
+    memset(out, 0, size);
+    g_devices[0]->StateOf(s, static_cast<DIJOYSTATE2*>(out));
+    return true;
+}
 
 bool InstallXInputDevices(uintptr_t importSlot, bool hideRealControllers) {
     static const char* const dlls[] = {"xinput1_4.dll", "xinput1_3.dll", "xinput9_1_0.dll"};
     for (const char* dll : dlls) {
         if (HMODULE m = LoadLibraryA(dll)) {
             g_xinputGetState = reinterpret_cast<XInputGetStateFn>(GetProcAddress(m, "XInputGetState"));
+            g_xinputSetState = reinterpret_cast<XInputSetStateFn>(GetProcAddress(m, "XInputSetState"));
             if (g_xinputGetState) break;
         }
     }

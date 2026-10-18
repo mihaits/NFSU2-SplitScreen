@@ -13,7 +13,7 @@ with a comment block that goes into more detail.
 2. [Core globals](#2-core-globals)
 3. [Frontend: menu, players row, joining, car select](#3-frontend)
 4. [Input](#4-input)
-5. [Players 3/4: relocations and race setup](#5-players-34)
+5. [Players 3/4: relocations, race setup, their own settings, bindings and car](#5-players-34)
 6. [Rendering: views, layout, projection](#6-rendering-core)
 7. [Per-view render passes](#7-per-view-render-passes)
 8. [Track streaming and memory](#8-streaming-and-memory)
@@ -153,8 +153,8 @@ controllers are hidden (ini). Virtual pads 4..7 (after the 4 real XInput pads) a
   static ctor/dtor counts 0x77D9CB/0x782296). This runs before the game's static init.
 - The binding node pool is raised from 0xA0 to 0x140 (0x579559).
 - `InputInit` (call at 0x57ED80) gives ports 2/3 their id and action 1.
-- `PollPortHook` serves ports 2/3 from P3/P4's XInput pads (`PollExtraPort`, using kPadBits = P1's page bindings
-  captured at start-up). Players 3/4 have ports 2/3.
+- `PollPortHook` serves ports 2/3 from P3/P4's XInput pads (`PollExtraPort`) with their own bindings (below).
+  Players 3/4 have ports 2/3.
 - Player port = index 0..3 (0x50D2A0 maps FE masks 1/2/4/8 to 0..3).
 
 **Pause by P3/P4.** The pause ctor 0x4EB410 sets the package input mask to 1 << the pausing port (at 0x4EB469), but
@@ -162,10 +162,47 @@ frontend input only has masks 1/2. `PauseInputMask` maps it to slot (port & 1), 
 the owner's pad until the pause menus close. That pad stays idle until all its buttons are released; otherwise the
 still-held Start closed the menu at once.
 
-**Force feedback** is 2-port (0x5727B0(effect, port, amt), 0x572E50(player, vec), channels 0x865370 stride 0x20).
-`RumbleHook`, `ImpactRumbleHook` and `JoySlotPresent` (0x5BFD70: slot >= 2 → false) block ports/players >= 2; without
-that they wrote out of bounds and crashed. The virtual devices refuse CreateEffect, so there is **no rumble at all**
-yet (to do).
+**Device records and bindings.** A record turns its device's state into action bits (+8, 8 bytes, active low) and
+analog values (+0x10..+0x13) every frame: 0x5CF220 → 0x5C1840. For joysticks it reads the slot's DIJOYSTATE2 at
+0x86FFC0 + slot*0x110 (buttons) and at [0x870760] + slot*0x110 (axes, POV). Bindings: 4 action tables of 32 inputs at
++0x18/+0x98/+0x118/+0x198 (16 buttons, then axis directions/POV), axis setup +0x344..+0x368, POV count +0x36C. The
+profile saves table 0 and the axis setup per device GUID (0x5B9420 called at 0x52A42A; load 0x5B9570 at 0x534660).
+
+**Controls for players 3/4.** They have no joystick slot, so their bindings live in the seat store (section 5).
+- The Controls screen (ctor 0x4ECD10) builds its pages with 0x4ACE00 (call at 0x4ECFD5 → `BuildControlsPages`): table
+  0x835930, stride 12 {type, ?, record}, 6 max, count at screen+0x158, joypad pages at +0x154. Two pages are appended
+  for P3/P4, both on the slot-0 pad record.
+- While one of them is shown (`ControlsPageSeat`: page index and UI_Options_PC_Controller.fng active), that record
+  holds the player's bindings and P1's are kept aside (`SetBindSwap`). The game's editing, capture and "Reset Keys To
+  Default" then work unchanged. The swap is applied when the joypad page is built (`SetJoypadPageTitle`, called at
+  0x4DCA18 inside the builder 0x4DC9F0) and checked every frame. It is undone when the page is left and before the
+  profile saves or loads bindings (`ProfileSaveBindings` / `ProfileLoadBindings`).
+- In the race, `PollExtraPort` runs 0x5C1840 on a private copy of the slot-0 pad record that holds the player's
+  bindings. For the call, the player's pad state (`XPadDiState`: DIJOYSTATE2 with device 0's axis ranges) is put into
+  slot 0's two state buffers and restored right after. The result is merged like the game merges a port's devices.
+
+**Force feedback (rumble).** The rumble engine is shared with the PS2 version (SLUS_210.65), so it was restored from
+there rather than tuned by feel:
+- Events 0x5727B0(type, port, amount) pick an effect from the table 0x7FB7D8 (PS2 0x523070, same parameter blocks) and
+  queue its curve on the port's channel (0x5726D0 → 0x572390).
+- Channels 0x8653B0 + port*0x60: 2 sub-channels of 0x30, each summing up to 3 curves into an int 0..255 at +0x28
+  (0x572470).
+- The per-frame update 0x572610 (called at 0x5814AD) hands the values to the pad. On PS2 that is 0x333530(port, v, v)
+  with v = sub-channel 0's value (DualShock: small motor on when v > 0x80, large motor = v). On PC it is an empty stub
+  (0x4022C0 at 0x57266E).
+- `FfPadOutput` (replaces the stub call) records v per port. `FfUpdate` (call at 0x5814AD) runs the update and sends
+  large motor = v/255 and small motor = v > 128 to the player's own XInput pad (`XPadSetRumble`), scaled by
+  RumbleStrength.
+- Rumble is off in the pause menus, outside racing, when the player's Feedback option is off (player settings +4) or
+  with Rumble=0. The Feedback option is greyed unless the last DirectInput device enumerated reported
+  DIDC_FORCEFEEDBACK (0x5B8240 returns 0x87078C, set at 0x5C1221; only the two option screens read it); it is forced
+  selectable while rumble is on.
+- The channel state exists for 2 ports (channels 0xC0 bytes, strengths 0x864728, 0x60 bytes indexed type*2 + port).
+  P3/P4 (ports 2/3) get a shadow copy that `RumbleExtraPort` swaps in for their events and for a second run of the
+  update.
+- Collisions (0x572E50 → 0x865360) only drive the wheels' constant force, as on PS2 (`ImpactRumbleHook` ignores
+  players >= 2). `JoySlotPresent` (0x5BFD70: slot >= 2 → false) guards the driving force feedback 0x406460, which read
+  past the 2-slot array.
 
 ## 5. Players 3/4
 **Local player arrays.** These are 0x8900AC byIndex[2], 0x8900B4 inOrder[2] and 0x8900BC count, with about 300 code
@@ -191,11 +228,23 @@ uses P3/P4's car and name. The human component manager capacity (type 1) imm at 
    loaded 2P HUD package is used.
 4. byIndex is fixed up; +0x10 = k, +0x18 = view 5/6, +0x1C = 0 (no mirror); `0x5F3E10(player, car)` attaches it.
 
-**Per-player settings.** Table 0x83AA64 + i*0x28 has 2 entries, so P3 read race data as its settings (e.g. camera 0
-instead of P1's drift camera). The 27 in-race readers (kSettingsReaders) now use a 4-entry mirror `g_settings`. P1/P2
-are synced both ways each frame: menus write the game's table, while the in-race camera change 0x5F2FA0 → 0x502540
-writes the mirror. P3/P4 are copies of P1/P2 made at CreatePlayers. HUD state 0x600090 (call 0x600595, `HudStateOf`)
-reads the options with index & 1.
+**Per-player settings.** Table 0x83AA64 + i*0x28 has 2 entries (camera +0x10, Feedback +4, HUD options, ...), so P3
+read race data as its settings (e.g. camera 0 instead of P1's drift camera). The 27 in-race readers (kSettingsReaders)
+now use a 4-entry mirror `g_settings`. P1/P2 are synced both ways each frame: menus write the game's table, while the
+in-race camera change 0x5F2FA0 → 0x502540 writes the mirror. P3/P4's entries are their own (seat store; the first race
+without one copies P1's / P2's). HUD state 0x600090 (call 0x600595, `HudStateOf`) reads the options with index & 1.
+
+**Pause menu settings.** The pause menu's player options edit the entry of 0x4A7AE0, the pausing player's index among
+P1/P2 (0 for anyone else). While P3/P4 owns the pause (`g_pauseOwner`), `SyncPlayerSettings` swaps their entry into the
+game's table at entry owner & 1, and `PausingPlayer` (jump at 0x4A7AE0) returns that entry. The menus then show and
+change the pausing player's own settings; the table goes back to P1/P2 when the pause menus close.
+
+**Seat store (players 3/4's own data).** The game keeps per-player data for 2 players only. P3/P4's settings entry,
+joypad bindings (record tables + axis setup, section 4) and last car are kept in `g_seatStore` and saved to
+`NFSU2SplitScreen_Players.ini` ([Player3] / [Player4], hex) whenever they change.
+- Last car: `SwitchSeat` opens a P3/P4 pick on the stored car if it is still in the garage (`GarageHasCar`: P1's
+  quick race car list 0x844968, 0x5B entry pointers, car id at +8, as the lookup at 0x525FBB). Each pick is stored
+  (`SaveSeat`). P1/P2's last cars are the game's (0x83AAB8 in their profile blocks).
 
 **Names.** Racer names come from the per-player block, so P3/P4 got P1/P2's. They now get P2's name with its digit
 swapped ("Player 3/4", `g_extraNames`, spec +0x90C). Results and labels read the player object's name +0x30 (copied in
@@ -529,14 +578,8 @@ parked off-screen) are moved 2000 further out. Pivots are scaled too.
   `SoundFsClose` serialize them.
 
 ## 13. Open issues and leads
-- **Force feedback.** Implement DirectInput effect objects in XInputDevices → XInputSetState on the player's own pad.
-  Route P3/P4's rumble straight to their pads (the game side is 2-port, see section 4).
-- **Controls for P3/P4.** kPadBits is captured from P1's page at start-up (device record +0x18 int[32] maps DI buttons
-  to action ids). Pages table 0x835930, page switch 0x4ACAA0, rebuild message 0xAF0BBD92, joypad page builder
-  0x4DC9F0.
 - **Catch-up with 3-4 players.** Not investigated. Only the FE label MOCatchUp has been found. Suspected: it reads the
   race's 2 human slots (0x89E808).
-- **Default car per seat.** Seats store cars in 0x83AAB8[2] per seat (`UpdateSeats`); persisting the picks is to do.
 - **Light streaks without overbright** in split views (section 7).
 - **Streamer with 4 positions** (section 8).
 - **Results ambient sound stutter (3P).** Continuous ~2 Hz gating, music off. Not frame hitches, sound fs handles, the

@@ -274,18 +274,22 @@ static __declspec(naked) void MainMenuHook() {
 }
 
 // Controls: both joypad pages are titled "Joypad Configuration"; append the player the page belongs to (page N
-// edits joystick slot N = the pad player N joins with).
+// edits joystick slot N = the pad player N joins with; the extra pages of players 3/4, see ControlsPageSeat).
+static int ControlsPageSeat();
+static void UpdateBindSwap();
 static void __cdecl SetJoypadPageTitle(void* title, uint32_t hash) {
     using SetHashFn = void(__cdecl*)(void*, uint32_t);
     using SetFmtFn = int(__cdecl*)(void*, const char*, ...);
     using LocalizeFn = const char*(__cdecl*)(uint32_t);
+    UpdateBindSwap();                    // the page is being built: its record must hold its player's bindings now
     reinterpret_cast<SetHashFn>(FN_SET_TEXT_HASH)(title, hash);
     int device = at<int>(CONTROLS_PAGE_DEV + at<int>(CONTROLS_PAGE) * 12);
     if (!title || device < 0 || device >= INPUT_DEVICE_MAX) return;
-    int slot = at<int>(INPUT_DEVICES + device * 0x370 + 0x230);
+    int seat = ControlsPageSeat();
+    if (seat < 0) seat = at<int>(INPUT_DEVICES + device * 0x370 + 0x230);
     const char* text = reinterpret_cast<LocalizeFn>(FN_LOCALIZE)(hash);
-    if (slot >= 0 && text)
-        reinterpret_cast<SetFmtFn>(FN_SET_TEXT_FMT)(title, "%s - P%d", text, slot + 1);
+    if (seat >= 0 && text)
+        reinterpret_cast<SetFmtFn>(FN_SET_TEXT_FMT)(title, "%s - P%d", text, seat + 1);
 }
 
 static void WriteCall(uintptr_t where, const void* to) {
@@ -912,6 +916,80 @@ static void RunMailbox() {
     g_mailbox.done = seq;
 }
 
+// ---------------------------------------------------------------- players 3/4: their own data
+// The game keeps per-player data for 2 players only (profile blocks, player options, joypad records, picked car).
+// Players 3/4 get their own copy of each, kept in NFSU2SplitScreen_Players.ini next to the plugin:
+//  - player options: an entry like the game's per-player settings (0x83AA64 + i*0x28: camera, HUD, feedback, ...);
+//  - joypad bindings: the binding part of a joypad device record (action tables +0x18 and axis setup +0x344, the
+//    data the profile saves per device, see the Controls section);
+//  - the car they picked last.
+// A seat with nothing stored yet starts from player 1's / player 2's (settings) or player 1's (bindings).
+#define PLAYER_SETTING_SIZE 0x28
+#define REC_BIND_TABLES    0x18          // 4 action tables x 32 inputs (16 buttons, then axis directions / POV)
+#define REC_BIND_TABLES_SIZE 0x200
+#define REC_BIND_AXES      0x344         // axis offsets / scales / enable flags (+0x344..+0x368)
+#define REC_BIND_AXES_SIZE 0x25
+struct SeatStore {
+    bool hasSettings, hasBindings;
+    uint8_t settings[PLAYER_SETTING_SIZE];
+    uint8_t tables[REC_BIND_TABLES_SIZE];
+    uint8_t axes[REC_BIND_AXES_SIZE];
+    int car;                             // garage car id (0 = none)
+};
+static SeatStore g_seatStore[2];         // players 3, 4
+static char g_playersPath[MAX_PATH];
+
+static void ToHex(const uint8_t* p, size_t n, char* out) {
+    static const char digits[] = "0123456789ABCDEF";
+    for (size_t i = 0; i < n; ++i) { out[2 * i] = digits[p[i] >> 4]; out[2 * i + 1] = digits[p[i] & 15]; }
+    out[2 * n] = 0;
+}
+
+static bool FromHex(const char* s, uint8_t* p, size_t n) {
+    auto nibble = [](char c) { return c >= '0' && c <= '9' ? c - '0' : c >= 'A' && c <= 'F' ? c - 'A' + 10 :
+                                      c >= 'a' && c <= 'f' ? c - 'a' + 10 : -1; };
+    if (strlen(s) != 2 * n) return false;
+    for (size_t i = 0; i < n; ++i) {
+        int hi = nibble(s[2 * i]), lo = nibble(s[2 * i + 1]);
+        if (hi < 0 || lo < 0) return false;
+        p[i] = static_cast<uint8_t>(hi << 4 | lo);
+    }
+    return true;
+}
+
+static void LoadSeatStore() {
+    static char buf[2 * REC_BIND_TABLES_SIZE + 16];
+    for (int i = 0; i < 2; ++i) {
+        SeatStore& s = g_seatStore[i];
+        char section[16];
+        sprintf_s(section, "Player%d", i + 3);
+        GetPrivateProfileStringA(section, "Settings", "", buf, sizeof(buf), g_playersPath);
+        s.hasSettings = FromHex(buf, s.settings, sizeof(s.settings));
+        GetPrivateProfileStringA(section, "JoypadTables", "", buf, sizeof(buf), g_playersPath);
+        bool tables = FromHex(buf, s.tables, sizeof(s.tables));
+        GetPrivateProfileStringA(section, "JoypadAxes", "", buf, sizeof(buf), g_playersPath);
+        s.hasBindings = tables && FromHex(buf, s.axes, sizeof(s.axes));
+        GetPrivateProfileStringA(section, "Car", "0", buf, sizeof(buf), g_playersPath);
+        s.car = static_cast<int>(strtoul(buf, nullptr, 16));
+    }
+}
+
+static void SaveSeatStore(int i) {
+    static char buf[2 * REC_BIND_TABLES_SIZE + 16];
+    const SeatStore& s = g_seatStore[i];
+    char section[16];
+    sprintf_s(section, "Player%d", i + 3);
+    if (s.hasSettings) { ToHex(s.settings, sizeof(s.settings), buf); WritePrivateProfileStringA(section, "Settings", buf, g_playersPath); }
+    if (s.hasBindings) {
+        ToHex(s.tables, sizeof(s.tables), buf);
+        WritePrivateProfileStringA(section, "JoypadTables", buf, g_playersPath);
+        ToHex(s.axes, sizeof(s.axes), buf);
+        WritePrivateProfileStringA(section, "JoypadAxes", buf, g_playersPath);
+    }
+    sprintf_s(buf, "%08X", static_cast<unsigned>(s.car));
+    WritePrivateProfileStringA(section, "Car", buf, g_playersPath);
+}
+
 // ---------------------------------------------------------------- controller assignment
 // Console-style: every "Player N Press START" popup waits for Start on a pad that hasn't joined yet; that pad
 // becomes player N's controller (the virtual joystick slot N reads it, see PadForDevice). Keyboard Enter may
@@ -942,10 +1020,12 @@ static void ResetAssignments() {
 // that slot never saw it held, so the menu took it as a new Start and closed again (user: P3's pause opened and closed
 // at once). The owner's pad stays idle on the menu until all its buttons are released.
 static bool g_pauseOwnerReleased = false;
+static void SyncPlayerSettings(bool newRace);
 static int __cdecl PauseInputMask(int port) {
     g_pauseOwner = SplitRacing() && port >= 2 && port < MAX_LOCAL_PLAYERS ? port : -1;
     g_pauseOwnerReleased = false;
     g_pauseSeen = false;
+    SyncPlayerSettings(false);           // the pause menus show the pausing player's own settings
     if (g_pauseOwner >= 0) Log("pause: player %d's pad drives the menu as slot %d", port + 1, port & 1);
     return reinterpret_cast<int(__cdecl*)(int)>(FN_PORT_MASK)(g_pauseOwner >= 0 ? port & 1 : port);
 }
@@ -1111,9 +1191,25 @@ static const uintptr_t kCarselStartCalls[] = {0x4FC3BE, 0x4FC9C2};
 #define AT_CARSEL_BACK_TO_P1 0x4FC723
 static int g_seatCar[MAX_LOCAL_PLAYERS], g_seatPort[MAX_LOCAL_PLAYERS];
 
+// Players 1/2's last cars are kept by the game (CAR_IDS in their profile blocks); players 3/4's in their seat store.
+// A car id is only used while it is still in the (shared) garage: P1's quick race garage car list, entries with the
+// id at +8 (the lookup of 0x525FBB).
+#define GARAGE_CARS        0x844968      // P1's block 0x83A9E0 + garage 0x3B0 + car list 0x9BD8: entry* [0x5B]
+static bool GarageHasCar(int id) {
+    for (int i = 0; id && i < 0x5B; ++i) {
+        const uint8_t* car = reinterpret_cast<const uint8_t* const*>(GARAGE_CARS)[i];
+        if (car && *reinterpret_cast<const int*>(car + 8) == id) return true;
+    }
+    return false;
+}
+
 static void SaveSeat(int seat) {
     g_seatCar[seat] = at<int>(CAR_IDS + (seat & 1) * 4);
     g_seatPort[seat] = at<int>(PLAYER_PORTS + (seat & 1) * 4);
+    if (seat >= 2 && g_seatStore[seat - 2].car != g_seatCar[seat]) {
+        g_seatStore[seat - 2].car = g_seatCar[seat];
+        SaveSeatStore(seat - 2);
+    }
     Log("player %d picked car %08X (port %d)", seat + 1, g_seatCar[seat], g_seatPort[seat]);
 }
 
@@ -1125,6 +1221,8 @@ static void RestoreSeat(int seat) {            // players 1/2's picks back into 
 static void SwitchSeat(uint8_t* carsel, int seat) {
     g_seat = seat;
     g_carsel = carsel;
+    if (seat >= 2 && GarageHasCar(g_seatStore[seat - 2].car))   // the list opens on the seat's last car
+        at<int>(CAR_IDS + (seat & 1) * 4) = g_seatStore[seat - 2].car;
     reinterpret_cast<void(__thiscall*)(void*, int)>(FN_CARSEL_SWITCH)(carsel, seat & 1);
     if (seat >= 2) {                           // title: "PLAYER 3" / "PLAYER 4"
         using HashFn = uint32_t(__cdecl*)(const char*);
@@ -1204,6 +1302,7 @@ static bool __stdcall CarselFilter(uint8_t* carsel, uint32_t msg) {
         g_customizeSeat = g_seat;
         g_customizeLeft = false;
         if (g_seat == 1) SaveSeat(0);
+        if (g_seat >= 2) g_seatStore[g_seat - 2].car = at<int>(CAR_IDS + (g_seat & 1) * 4);   // back on this car
         // the shop shows the car in its FE player's display slot: as FE player 2 it alternated between the
         // customised car and player 1's (user: RX-7 / Supra flipping) -> the shop always opens as player 1 (shared
         // garage); player 1's own pick is restored when the round goes on
@@ -1369,45 +1468,161 @@ static void MergeDevice(uint8_t* out, const uint8_t* dev) {
         if (abs(dev[0x12 + axis] - 0x80) > abs(out[10 + axis] - 0x80)) out[10 + axis] = dev[0x12 + axis];
 }
 
-// Ports 2/3 (players 3/4) have no DirectInput slot: their state is built from the XInput pad directly, with the
-// action bits player 1's joypad page produces (captured from the game's conversion; P3/P4 use P1's bindings).
-struct PadBits { uint16_t button; uint8_t mask[5]; };
-static const PadBits kPadBits[] = {
-    {0x1000, {0x7E, 0xFF, 0xFF, 0x7F, 0xFF}},  // A
-    {0x2000, {0xDE, 0xFF, 0xFF, 0xFF, 0xFB}},  // B
-    {0x4000, {0xFE, 0xFE, 0xFF, 0xFF, 0xF7}},  // X
-    {0x8000, {0xFE, 0xFB, 0xFF, 0xFF, 0xEF}},  // Y
-    {0x0100, {0xBE, 0xFF, 0xFF, 0xFF, 0xDF}},  // LB
-    {0x0200, {0xFE, 0xBF, 0xFF, 0xFF, 0xFF}},  // RB
-    {0x0020, {0xFE, 0x7F, 0xFF, 0xFF, 0xFF}},  // Back
-    {0x0010, {0xFE, 0xEF, 0xFF, 0xFF, 0xFF}},  // Start
-    {0x0040, {0xFE, 0xFF, 0xBF, 0xFF, 0xFF}},  // LS
-    {0x0080, {0xFE, 0xFF, 0xF7, 0xFF, 0xFF}},  // RS
-    {0x0001, {0xFE, 0xFF, 0xFD, 0xF7, 0xFF}},  // up
-    {0x0002, {0xFE, 0xFD, 0xFF, 0xEF, 0xFF}},  // down
-    {0x0004, {0xF7, 0xFF, 0xFB, 0xDF, 0xFF}},  // left
-    {0x0008, {0xEF, 0xFF, 0xFE, 0xBF, 0xFF}},  // right
-};
+// ---------------------------------------------------------------- joypad bindings of players 3/4
+// Device records (6 x 0x370 at 0x874C40; +0x230 joystick slot or -1, +0x234 type: 0x13 keyboard, 0x15 our pads) turn
+// their device's state into action bits (+8, 8 bytes, active low) and analog values (+0x10..+0x13) every frame:
+// 0x5CF220 -> 0x5C1840 (joysticks: DIJOYSTATE2 of the slot at 0x86FFC0 + slot*0x110 for the buttons and at
+// [0x870760] + slot*0x110 for axes/POV; action tables +0x18/+0x98/+0x118/+0x198, 32 inputs each; axis setup +0x344..
+// +0x368, +0x36C POV count). The profile saves table 0 and the axis setup per device GUID (0x5B9420 save at 0x52A42A,
+// 0x5B9570 load at 0x534660); the Controls screen edits the record of the page's device.
+// Players 3/4 have no joystick slot. Their bindings live in the seat store and are applied by running 0x5C1840 on a
+// private copy of the slot-0 pad record holding their bindings, with their pad's state put into slot 0's state
+// buffers for the call (restored right after).
+// Controls screen (ctor 0x4ECD10; pages 0x835930, stride 12 {type, ?, record}, 6 max, count screen+0x158, joypad pages
+// +0x154, built by 0x4ACE00 at 0x4ECFD5; page switch 0x4ACAA0; joypad page builder 0x4DC9F0): two pages are added for
+// players 3/4, both on the slot-0 pad record. While one of them is shown, that record holds the player's bindings (the
+// game's own editing, defaults and capture work on it) and player 1's are kept aside; they go back when the page is
+// left and before the profile is saved or loaded.
+#define FN_RECORD_CONVERT  0x5C1840      // void __thiscall (record)
+#define DI_STATE_LIVE      0x86FFC0      // DIJOYSTATE2 [2]
+#define DI_STATE_COPY_PTR  0x870760      // -> DIJOYSTATE2 [2] (+ more)
+#define DI_STATE_SIZE      0x110
+#define DEVICE_RECORD_SIZE 0x370
+#define AT_CONTROLS_PAGES_CALL 0x4ECFD5  // call 0x4ACE00 (thiscall screen)
+#define FN_CONTROLS_PAGES  0x4ACE00
+#define CONTROLS_PAGES     0x835930
+#define CONTROLS_PAGE_MAX  6
+#define AT_PROFILE_SAVE_BINDINGS 0x52A42A  // call 0x5B9420 (cdecl (out) -> end)
+#define FN_PROFILE_SAVE_BINDINGS 0x5B9420
+#define AT_PROFILE_LOAD_BINDINGS 0x534660  // call 0x5B9570 (cdecl (in) -> end)
+#define FN_PROFILE_LOAD_BINDINGS 0x5B9570
+static int g_ctrlPageBase = -1;          // index of player 3's page on the open Controls screen (-1: none)
+static int g_bindSwap = -1;              // player 3/4 whose bindings are in the slot-0 pad record
+static uint8_t g_p1Tables[REC_BIND_TABLES_SIZE], g_p1Axes[REC_BIND_AXES_SIZE];   // player 1's, kept aside meanwhile
 
+static uint8_t* PadRecord(int slot) {
+    for (int d = 0; d < INPUT_DEVICE_MAX; ++d) {
+        auto* rec = reinterpret_cast<uint8_t*>(INPUT_DEVICES + d * DEVICE_RECORD_SIZE);
+        if (*reinterpret_cast<int*>(rec + 0x230) == slot && *reinterpret_cast<int*>(rec + 0x234) != 0x13) return rec;
+    }
+    return nullptr;
+}
+
+static int ControlsPageSeat() {
+    int page = at<int>(CONTROLS_PAGE);
+    if (g_ctrlPageBase < 0 || page < g_ctrlPageBase || page >= g_ctrlPageBase + 2) return -1;
+    using ActiveFn = bool(__cdecl*)(const char*);
+    if (!reinterpret_cast<ActiveFn>(FN_FE_PACKAGE_ACTIVE)("UI_Options_PC_Controller.fng")) return -1;
+    return 2 + page - g_ctrlPageBase;
+}
+
+// Player 1's bindings as the game has them (also while a player 3/4 page holds the record).
+static void P1Bindings(const uint8_t* rec, const uint8_t** tables, const uint8_t** axes) {
+    *tables = g_bindSwap >= 0 ? g_p1Tables : rec + REC_BIND_TABLES;
+    *axes = g_bindSwap >= 0 ? g_p1Axes : rec + REC_BIND_AXES;
+}
+
+static void EnsureSeatBindings(int seat, const uint8_t* rec) {
+    SeatStore& st = g_seatStore[seat - 2];
+    if (st.hasBindings || !rec) return;
+    const uint8_t *tables, *axes;
+    P1Bindings(rec, &tables, &axes);
+    memcpy(st.tables, tables, REC_BIND_TABLES_SIZE);
+    memcpy(st.axes, axes, REC_BIND_AXES_SIZE);
+    st.hasBindings = true;
+    SaveSeatStore(seat - 2);
+}
+
+static void SetBindSwap(int seat) {
+    if (seat == g_bindSwap) return;
+    uint8_t* rec = PadRecord(0);
+    if (!rec) { g_bindSwap = -1; return; }
+    if (g_bindSwap >= 0) {               // the page's edits go to the player, player 1's come back
+        SeatStore& st = g_seatStore[g_bindSwap - 2];
+        bool changed = memcmp(st.tables, rec + REC_BIND_TABLES, REC_BIND_TABLES_SIZE) != 0 ||
+                       memcmp(st.axes, rec + REC_BIND_AXES, REC_BIND_AXES_SIZE) != 0;
+        memcpy(st.tables, rec + REC_BIND_TABLES, REC_BIND_TABLES_SIZE);
+        memcpy(st.axes, rec + REC_BIND_AXES, REC_BIND_AXES_SIZE);
+        if (changed) SaveSeatStore(g_bindSwap - 2);
+        memcpy(rec + REC_BIND_TABLES, g_p1Tables, REC_BIND_TABLES_SIZE);
+        memcpy(rec + REC_BIND_AXES, g_p1Axes, REC_BIND_AXES_SIZE);
+        Log("joypad record: player 1's bindings back (player %d's %s)", g_bindSwap + 1, changed ? "saved" : "unchanged");
+        g_bindSwap = -1;
+    }
+    if (seat >= 0) {
+        EnsureSeatBindings(seat, rec);
+        memcpy(g_p1Tables, rec + REC_BIND_TABLES, REC_BIND_TABLES_SIZE);
+        memcpy(g_p1Axes, rec + REC_BIND_AXES, REC_BIND_AXES_SIZE);
+        memcpy(rec + REC_BIND_TABLES, g_seatStore[seat - 2].tables, REC_BIND_TABLES_SIZE);
+        memcpy(rec + REC_BIND_AXES, g_seatStore[seat - 2].axes, REC_BIND_AXES_SIZE);
+        g_bindSwap = seat;
+        Log("joypad record: player %d's bindings in for their Controls page", seat + 1);
+    }
+}
+
+static void UpdateBindSwap() { SetBindSwap(ControlsPageSeat()); }
+
+static void __fastcall BuildControlsPages(uint8_t* screen) {
+    g_ctrlPageBase = -1;
+    reinterpret_cast<void(__thiscall*)(void*)>(FN_CONTROLS_PAGES)(screen);
+    int& count = *reinterpret_cast<int*>(screen + 0x158);
+    int record = -1;
+    for (int d = 0; d < INPUT_DEVICE_MAX; ++d)
+        if (reinterpret_cast<uint8_t*>(INPUT_DEVICES + d * DEVICE_RECORD_SIZE) == PadRecord(0)) record = d;
+    if (!g_xinputPads || record < 0 || count + 2 > CONTROLS_PAGE_MAX) return;
+    g_ctrlPageBase = count;
+    for (int k = 0; k < 2; ++k) {
+        int* entry = reinterpret_cast<int*>(CONTROLS_PAGES + (count + k) * 12);
+        entry[0] = 1;                    // joypad page
+        entry[1] = 0;
+        entry[2] = record;
+    }
+    count += 2;
+    *reinterpret_cast<int*>(screen + 0x154) += 2;
+    Log("controls: pages %d/%d for players 3/4 (record %d)", g_ctrlPageBase, g_ctrlPageBase + 1, record);
+}
+
+static uint8_t* __cdecl ProfileSaveBindings(uint8_t* out) {
+    SetBindSwap(-1);                     // player 1's bindings into the profile (the page puts them back next frame)
+    return reinterpret_cast<uint8_t*(__cdecl*)(uint8_t*)>(FN_PROFILE_SAVE_BINDINGS)(out);
+}
+
+static uint8_t* __cdecl ProfileLoadBindings(uint8_t* in) {
+    SetBindSwap(-1);
+    return reinterpret_cast<uint8_t*(__cdecl*)(uint8_t*)>(FN_PROFILE_LOAD_BINDINGS)(in);
+}
+
+// Ports 2/3 (players 3/4) have no DirectInput slot: their state is built from their own XInput pad with their own
+// bindings (see above), merged like the game merges a port's devices.
 static void* PollExtraPort(int port, int* type, void** prev) {
     static const uint8_t idle[12] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0x80, 0x7F};
+    static uint8_t record[DEVICE_RECORD_SIZE], state[DI_STATE_SIZE], live[DI_STATE_SIZE], copy[DI_STATE_SIZE];
     uint8_t* cur = g_portCur[port];
     memcpy(g_portPrev[port], cur, 16);
     memcpy(cur, idle, 12);
     memcpy(cur + 12, g_portCur[0] + 12, 4);
     *type = g_port0Type;
     *prev = g_portPrev[port];
-    uint16_t buttons; uint8_t lt, rt; int16_t lx;
-    if (!SplitRacing() || port - 2 >= g_extraPlayers || !at<int>(INPUT_FOCUS) ||
-        !XPadRawState(g_assignedPad[port], &buttons, &lt, &rt, &lx))
+    uint8_t* pad0 = PadRecord(0);
+    auto* copyState = at<uint8_t*>(DI_STATE_COPY_PTR);
+    if (!SplitRacing() || port - 2 >= g_extraPlayers || !at<int>(INPUT_FOCUS) || !pad0 || !copyState ||
+        !XPadDiState(g_assignedPad[port], state, sizeof(state)))
         return cur;
-    for (const PadBits& b : kPadBits)
-        if (buttons & b.button)
-            for (int i = 0; i < 5; ++i) cur[i] &= b.mask[i];
-    int x = 128 + lx / 256;
-    cur[10] = static_cast<uint8_t>(x < 1 ? 1 : x > 254 ? 254 : x);
-    int z = 127 + (lt - rt) * 126 / 255;
-    cur[11] = static_cast<uint8_t>(z < 1 ? 1 : z > 253 ? 253 : z);
+    EnsureSeatBindings(port, pad0);
+    const SeatStore& st = g_seatStore[port - 2];
+    memcpy(record, pad0, sizeof(record));
+    memcpy(record + REC_BIND_TABLES, st.tables, REC_BIND_TABLES_SIZE);
+    memcpy(record + REC_BIND_AXES, st.axes, REC_BIND_AXES_SIZE);
+    *reinterpret_cast<int*>(record + 0x33C) = 0;     // not capturing a binding
+    auto* liveState = reinterpret_cast<uint8_t*>(DI_STATE_LIVE);    // slot 0's
+    memcpy(live, liveState, DI_STATE_SIZE);
+    memcpy(copy, copyState, DI_STATE_SIZE);
+    memcpy(liveState, state, DI_STATE_SIZE);
+    memcpy(copyState, state, DI_STATE_SIZE);
+    reinterpret_cast<void(__thiscall*)(void*)>(FN_RECORD_CONVERT)(record);
+    memcpy(liveState, live, DI_STATE_SIZE);
+    memcpy(copyState, copy, DI_STATE_SIZE);
+    MergeDevice(cur, record);
     return cur;
 }
 
@@ -1785,6 +2000,7 @@ static void __cdecl LayoutApplyHook() {
     ++g_mmFrame;
     if (g_vpLogFrames > 0 && --g_vpLogFrames == 0) Log("vp log end");
     UpdateEditingSlot2();
+    UpdateBindSwap();
     UpdateSeats();
     RunMailbox();
     UpdateModeTransitions();
@@ -3968,36 +4184,74 @@ static uint64_t __fastcall HudStateOf(uint8_t* player) {
     return state;
 }
 
-// Per-player settings (camera, HUD options, input/feedback...: 0x83AA64 + index*0x28, 2 entries; the race data follows
-// at 0x83AAB4) -> players 3/4 read race data as settings (e.g. camera 0 instead of P1's drift camera). The menus keep
-// the game's table; the in-race readers use a 4-entry mirror: entries 0/1 synced both ways with the game's every frame
-// (pause/options menus write the table, the in-race camera change 0x5F2FA0 writes the mirror), entries 2/3 copied from
-// P1/P2 when the race creates its players.
+// Per-player settings (camera, HUD options, feedback...: 0x83AA64 + index*0x28, 2 entries; the race data follows at
+// 0x83AAB4) -> players 3/4 read race data as settings (e.g. camera 0 instead of P1's drift camera). The in-race readers
+// use a 4-entry mirror instead: entries 0/1 synced both ways with the game's table every frame (options/pause menus
+// write the table, the in-race camera change 0x5F2FA0 writes the mirror), entries 2/3 are players 3/4's own (seat
+// store; the first race without any copies P1's / P2's).
+// The pause menu's player options edit the pausing player's entry (0x4A7AE0: index of the pausing player among
+// players 1/2, 0 for anyone else). While player 3/4 owns the pause, their entry is swapped into the game's table
+// (entry owner & 1, which 0x4A7AE0 then returns), so the menus show and change their settings.
 #define PLAYER_SETTINGS    0x83AA64
-#define PLAYER_SETTING_SIZE 0x28
+#define FN_PAUSING_PLAYER  0x4A7AE0      // int __cdecl (): 5 bytes stolen (mov eax, [0x8900D8])
 static uint8_t g_settings[MAX_LOCAL_PLAYERS][PLAYER_SETTING_SIZE];
-static uint8_t g_settingsSeen[2][PLAYER_SETTING_SIZE];   // the mirror's P1/P2 entries as last synced
+static uint8_t g_settingsSeen[MAX_LOCAL_PLAYERS][PLAYER_SETTING_SIZE];   // the mirror as last synced
+static int g_settingsSwap = -1;          // player 3/4 whose entry sits in the game's table (entry & 1)
 static const uintptr_t kSettingsReaders[] = {
     0x41E23E, 0x41E245, 0x41E28D, 0x497D59, 0x4DA0F1, 0x4DA8DA, 0x5EA7DD, 0x5EA8C7, 0x5EB406, 0x5EB426, 0x5F17E9,
     0x5F17F2, 0x5F2A93, 0x5F2FB6, 0x5F2FC8, 0x5F325F, 0x5F32AA, 0x5F33CE, 0x5F33DD, 0x5F3402, 0x5F345E, 0x5F3A33,
     0x5F6388, 0x5FFE31, 0x6001FB, 0x600497, 0x60353D};
+static int SettingsSeat(int entry) { return g_settingsSwap >= 0 && entry == (g_settingsSwap & 1) ? g_settingsSwap : entry; }
+
 static void SyncPlayerSettings(bool newRace) {
     auto* game = reinterpret_cast<uint8_t*>(PLAYER_SETTINGS);
     for (int k = 0; k < 2; ++k) {
         uint8_t* g = game + k * PLAYER_SETTING_SIZE;
-        if (memcmp(g_settings[k], g_settingsSeen[k], PLAYER_SETTING_SIZE) != 0)
-            memcpy(g, g_settings[k], PLAYER_SETTING_SIZE);          // changed in race (camera) -> keep it
+        int seat = SettingsSeat(k);
+        if (memcmp(g_settings[seat], g_settingsSeen[seat], PLAYER_SETTING_SIZE) != 0)
+            memcpy(g, g_settings[seat], PLAYER_SETTING_SIZE);       // changed in race (camera) -> keep it
         else
-            memcpy(g_settings[k], g, PLAYER_SETTING_SIZE);          // menus may have changed the game's
-        memcpy(g_settingsSeen[k], g_settings[k], PLAYER_SETTING_SIZE);
+            memcpy(g_settings[seat], g, PLAYER_SETTING_SIZE);       // menus may have changed the game's
+        memcpy(g_settingsSeen[seat], g_settings[seat], PLAYER_SETTING_SIZE);
     }
-    if (newRace)
-        for (int k = 2; k < MAX_LOCAL_PLAYERS; ++k) memcpy(g_settings[k], g_settings[k & 1], PLAYER_SETTING_SIZE);
+    int swap = SplitRacing() && g_pauseOwner >= 2 ? g_pauseOwner : -1;
+    if (swap != g_settingsSwap) {
+        int entries[2] = {g_settingsSwap & 1, swap & 1};
+        g_settingsSwap = swap;
+        for (int e : entries) {
+            if (e < 0) continue;
+            int seat = SettingsSeat(e);
+            memcpy(game + e * PLAYER_SETTING_SIZE, g_settings[seat], PLAYER_SETTING_SIZE);
+            memcpy(g_settingsSeen[seat], g_settings[seat], PLAYER_SETTING_SIZE);
+        }
+        Log("player settings: %s", swap >= 0 ? "pause menu edits player 3/4" : "game table back to players 1/2");
+    }
+    for (int k = 2; k < MAX_LOCAL_PLAYERS; ++k) {
+        SeatStore& st = g_seatStore[k - 2];
+        if (!st.hasSettings) {
+            if (!newRace) continue;
+            memcpy(g_settings[k], g_settings[k & 1], PLAYER_SETTING_SIZE);   // first race: start from P1's / P2's
+            memcpy(g_settingsSeen[k], g_settings[k], PLAYER_SETTING_SIZE);
+        } else if (memcmp(st.settings, g_settings[k], PLAYER_SETTING_SIZE) == 0) {
+            continue;
+        }
+        memcpy(st.settings, g_settings[k], PLAYER_SETTING_SIZE);
+        st.hasSettings = true;
+        SaveSeatStore(k - 2);
+    }
 }
+
+static void* g_origPausingPlayer;
+static int __cdecl PausingPlayer() {
+    if (g_settingsSwap >= 0) return g_settingsSwap & 1;
+    return reinterpret_cast<int(__cdecl*)()>(g_origPausingPlayer)();
+}
+
 static int RedirectPlayerSettings() {
     memcpy(g_settings, reinterpret_cast<void*>(PLAYER_SETTINGS), 2 * PLAYER_SETTING_SIZE);
+    for (int k = 2; k < MAX_LOCAL_PLAYERS; ++k)
+        if (g_seatStore[k - 2].hasSettings) memcpy(g_settings[k], g_seatStore[k - 2].settings, PLAYER_SETTING_SIZE);
     memcpy(g_settingsSeen, g_settings, sizeof(g_settingsSeen));
-    SyncPlayerSettings(true);
     int n = 0;
     for (uintptr_t at : kSettingsReaders)
         for (uintptr_t a = at; a < at + 8; ++a) {
@@ -4228,14 +4482,102 @@ static int RelocatePortTables() {
     return patched;
 }
 
-// Force feedback keeps per-port state for 2 ports (0x864728, 0x8651B0, effects near 0x865470): ignore ports 2/3.
-#define FN_RUMBLE          0x5727B0          // void __cdecl (effect, port, amount); entry 5 bytes: mov eax,[esp+4]; push esi
+// Rumble, as on the console. The game's rumble engine is shared with the PS2 version (SLUS_210.65): events
+// 0x5727B0(type, port, amount) pick an effect from the table 0x7FB7D8 (PS2 0x523070; same parameter blocks
+// 0x79DC6C.. = PS2 0x487148..) and queue its curve on that port's channel (0x5726D0 -> 0x572390; PS2 0x2E89D8 ->
+// 0x2E8888 -> 0x2E8388). Channels: 0x8653B0 + port * 0x60 = 2 sub-channels of 0x30 (PS2 0x5231C0), each summing up to
+// 3 running curves into an int 0..255 at +0x28 every frame (0x572470; PS2 0x2E8510). The per-frame update 0x572610
+// (PS2 0x2E8748) then hands the port's values to the pad: on PS2 0x333530(port, sub0, sub1) -> DualShock actuators
+// (0x333530(port, v, v), v = sub-channel 0's value); on PC that call is an empty stub (0x4022C0 at 0x57266E).
+// Both actuators get sub-channel 0's value v (large motor = v, small motor on when v > 128); restored here with that
+// conversion on the player's own XInput pad (large -> left motor, small -> right motor at full speed). Collisions (0x572E50 -> 0x865360) only drive the wheels' constant force, as on PS2.
+// The channel state exists for 2 ports (channels 0x8653B0 [0xC0], effect strengths 0x864728 [0x60, indexed type * 2 +
+// port]); players 3/4 (ports 2/3) get a shadow copy that is swapped in for their events and for a second run of the
+// per-frame update.
+#define FN_RUMBLE          0x5727B0          // void __cdecl (type, port, amount); entry 5 bytes: mov eax,[esp+4]; push esi
 #define FN_RUMBLE_RET      0x5727B5
+#define AT_FF_UPDATE_CALL  0x5814AD          // `call 0x572610` (per frame)
+#define FN_FF_UPDATE       0x572610
+#define AT_FF_PAD_OUTPUT   0x57266E          // `call 0x4022C0` (stub; cdecl (port, value, value))
+#define FF_CHANNELS        0x8653B0
+#define FF_CHANNELS_SIZE   0xC0
+#define FF_STRENGTHS       0x864728
+#define FF_STRENGTHS_SIZE  0x60
+// Player options "Feedback" = per-player settings +4 (byte; toggled by 0x49B260). The menu greys it unless the last
+// DirectInput device enumerated reported DIDC_FORCEFEEDBACK (0x5B8240 returns 0x87078C, only read by the 2 option
+// screens); the plugin's virtual pads don't, so it is forced selectable while rumble is on.
+#define PLAYER_FEEDBACK    4
+#define FN_FF_CAPABLE      0x5B8240
+static uint8_t g_ffShadowChannels[FF_CHANNELS_SIZE], g_ffShadowStrengths[FF_STRENGTHS_SIZE];
+static int g_ffPortBase = 0;                 // 2 while the players 3/4 state is swapped in
+static int g_ffMotor[4];                     // per port: motor value 0..255
+static bool g_rumble = true;
+static float g_rumbleStrength = 1.0f;
+static int g_rumblePad[MAX_LOCAL_PLAYERS] = {-1, -1, -1, -1};   // pad last sent to (to silence it)
+static void* g_origRumble;
+
+static void SwapFfShadow() {
+    auto swap = [](uint8_t* a, uint8_t* b, size_t n) { for (size_t i = 0; i < n; ++i) { uint8_t t = a[i]; a[i] = b[i]; b[i] = t; } };
+    swap(reinterpret_cast<uint8_t*>(FF_CHANNELS), g_ffShadowChannels, FF_CHANNELS_SIZE);
+    swap(reinterpret_cast<uint8_t*>(FF_STRENGTHS), g_ffShadowStrengths, FF_STRENGTHS_SIZE);
+}
+
+static void __cdecl RumbleExtraPort(int type, int port, float amount) {
+    if (g_extraPlayers <= 0 || port > 3) return;
+    SwapFfShadow();
+    g_ffPortBase = 2;
+    reinterpret_cast<void(__cdecl*)(int, int, float)>(g_origRumble)(type, port - 2, amount);
+    g_ffPortBase = 0;
+    SwapFfShadow();
+}
+
+// the stub's arguments: (port, value, value) - sub-channel 0's motor value twice (the PS2 passes the same byte for
+// both actuators too: 0x2E87E4 / 0x2E87EC load +0x28 of the same sub-channel)
+static void __cdecl FfPadOutput(int port, int value, int) {
+    g_ffMotor[((port & 1) + g_ffPortBase) & 3] = value;
+}
+
+static bool PauseMenuOpen() {
+    using ActiveFn = bool(__cdecl*)(const char*);
+    auto active = reinterpret_cast<ActiveFn>(FN_FE_PACKAGE_ACTIVE);
+    return active("UI_Pause.fng") || active("UI_PauseOptions.fng") || active("UI_PauseOptionsMain.fng") ||
+           active("UI_PC_Customize_Options.fng");
+}
+
+void* GetLocalPlayer(int k);
+static void __cdecl FfUpdate() {
+    reinterpret_cast<void(__cdecl*)()>(FN_FF_UPDATE)();
+    if (g_extraPlayers > 0 && SplitMode()) {
+        SwapFfShadow();
+        g_ffPortBase = 2;
+        reinterpret_cast<void(__cdecl*)()>(FN_FF_UPDATE)();
+        g_ffPortBase = 0;
+        SwapFfShadow();
+    }
+    bool on = g_rumble && at<int>(GAME_STATE) == 6 && !PauseMenuOpen() &&
+              (!SplitMode() || SplitRacing());
+    int players = SplitMode() ? 2 + g_extraPlayers : 1;
+    for (int k = 0; k < MAX_LOCAL_PLAYERS; ++k) {
+        int pad = -1;
+        auto* player = static_cast<uint8_t*>(k < players ? GetLocalPlayer(k) : nullptr);
+        bool feedback = SplitMode() ? g_settings[k][PLAYER_FEEDBACK] != 0
+                                    : at<uint8_t>(PLAYER_SETTINGS + PLAYER_FEEDBACK) != 0;
+        if (on && player && feedback) pad = SplitMode() ? g_assignedPad[k] : (k == 0 ? XPadLastActive() : -1);
+        if (g_rumblePad[k] >= 0 && g_rumblePad[k] != pad) XPadSetRumble(g_rumblePad[k], 0, 0);
+        g_rumblePad[k] = pad;
+        if (pad < 0) continue;
+        int port = *reinterpret_cast<int*>(player + 8) & 3;
+        int v = g_ffMotor[port] < 0 ? 0 : g_ffMotor[port] > 255 ? 255 : g_ffMotor[port];
+        float largeMotor = v / 255.0f, smallMotor = v > 128 ? 1.0f : 0.0f;   // PS2 0x333530: act[1] = v, act[0] = v > 0x80
+        XPadSetRumble(pad, largeMotor * g_rumbleStrength, smallMotor * g_rumbleStrength);
+    }
+}
+
 static __declspec(naked) void RumbleHook() {
     __asm {
         cmp dword ptr [esp + 8], 2       // port
         jb play
-        ret
+        jmp RumbleExtraPort              // players 3/4: their shadow state (cdecl, same arguments)
     play:
         mov eax, dword ptr [esp + 4]
         push esi
@@ -4396,9 +4738,14 @@ static void LoadConfig(HMODULE self) {
     g_splitPlayers = 2 + (g_extraPlayers < 0 ? 0 : g_extraPlayers > 2 ? 2 : g_extraPlayers);   // debug default
     g_spGauges = GetPrivateProfileIntA("HUD", "SinglePlayerGauges", 1, path) != 0;
     g_gaugeScale = GetPrivateProfileIntA("HUD", "GaugeScalePercent", 60, path) / 100.0f;
+    g_rumble = GetPrivateProfileIntA("INPUT", "Rumble", 1, path) != 0;
+    g_rumbleStrength = GetPrivateProfileIntA("INPUT", "RumbleStrength", 100, path) / 100.0f;
     g_xinputPads = GetPrivateProfileIntA("INPUT", "XInputPads", 1, path) != 0;
     g_hideDirectInputPads = GetPrivateProfileIntA("INPUT", "HideDirectInputControllers", 1, path) != 0;
     strcpy_s(g_iniPath, path);
+    strcpy_s(g_playersPath, path);
+    strcpy_s(g_playersPath + (dot - path), MAX_PATH - (dot - path), "_Players.ini");
+    LoadSeatStore();
     strcpy_s(g_logPath, path);
     strcpy_s(g_logPath + (dot - path), MAX_PATH - (dot - path), ".log");
 }
@@ -4434,7 +4781,11 @@ static void Install(HMODULE self) {
     int portRefs = RelocatePortTables();
     Log("port tables relocated: %d refs%s", portRefs, tablesBuilt ? " (WARNING: already constructed)" : "");
     WriteCall(AT_INPUT_INIT_CALL, &InputInit);
+    g_origRumble = MakeTrampoline(FN_RUMBLE, 5);
     WriteJump(FN_RUMBLE, &RumbleHook, 5);
+    WriteCall(AT_FF_UPDATE_CALL, &FfUpdate);
+    WriteCall(AT_FF_PAD_OUTPUT, &FfPadOutput);
+    if (g_rumble) { static const uint8_t kCapable[] = {0xB0, 0x01, 0xC3}; Write(FN_FF_CAPABLE, kCapable, 3); }   // mov al,1; ret
     WriteJump(FN_IMPACT_RUMBLE, &ImpactRumbleHook, 6);
     WriteJump(FN_JOY_SLOT_PRESENT, &JoySlotPresent, 5);
     int relocated = RelocateLocalPlayers();
@@ -4475,6 +4826,9 @@ static void Install(HMODULE self) {
     WriteJump(FN_NEAREST_PLAYER, &NearestPlayer, 5);
     WriteJump(AT_MAINMENU_QR, &MainMenuHook, 5);
     WriteCall(AT_JOYPAD_TITLE, &SetJoypadPageTitle);
+    WriteCall(AT_CONTROLS_PAGES_CALL, &BuildControlsPages);
+    WriteCall(AT_PROFILE_SAVE_BINDINGS, &ProfileSaveBindings);
+    WriteCall(AT_PROFILE_LOAD_BINDINGS, &ProfileLoadBindings);
     WriteJump(AT_FE_OBJ_XFORM, &FeObjXformHook, 6);
     WriteJump(AT_QR_SET_MODE, &QuickRaceModeHook, 10);
     WriteJump(AT_PRESSSTART, &PressStartHook, 9);
@@ -4534,6 +4888,8 @@ static void Install(HMODULE self) {
     WriteCall(AT_TRACK_POOL_CALL, &CreateTrackStreamingPool);
     WriteCall(AT_SECOND_POOL_CALL, &CreateSecondStreamingPool);
     WriteCall(AT_PAUSE_MASK_CALL, &PauseInputMask);
+    g_origPausingPlayer = MakeTrampoline(FN_PAUSING_PLAYER, 5);
+    WriteJump(FN_PAUSING_PLAYER, &PausingPlayer, 5);
     InitializeCriticalSection(&g_soundFsLock);
     {
         g_soundFsOpen = *reinterpret_cast<uintptr_t*>(SOUND_FS_VT_OPEN);

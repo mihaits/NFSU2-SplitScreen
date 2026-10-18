@@ -27,14 +27,20 @@ Copy `NFSU2SplitScreen.asi` and `NFSU2SplitScreen.ini` from the release into the
    Back returns to the previous player.
 4. Any player can pause.
 
-Players 1 and 2 have their own joypad pages under Options > Controls (**Joypad Configuration - P1 / P2**). Players 3
-and 4 use player 1's bindings. Outside split screen, the pad you used last drives and can edit either page.
+Every player has their own joypad page under Options > Controls (**Joypad Configuration - P1** to **P4**). Outside
+split screen, the pad you used last drives and can edit any page. Each player also has their own player options
+(camera, HUD, Feedback, ...): pausing opens the pausing player's options.
+
+Players 1 and 2's settings, bindings and last cars are saved in the game profile. Players 3 and 4's are saved in
+`NFSU2SplitScreen_Players.ini` next to the plugin; until they have their own, they start from player 1's / player 2's.
 
 ## Settings (`NFSU2SplitScreen.ini`)
 | key | default | |
 |---|---|---|
 | `[INPUT] XInputPads` | 1 | XInput pads are the game's gamepads |
 | `[INPUT] HideDirectInputControllers` | 1 | hide raw DirectInput controllers so they don't take controller slots |
+| `[INPUT] Rumble` | 1 | rumble on each player's own pad |
+| `[INPUT] RumbleStrength` | 100 | rumble strength in percent |
 | `[HUD] SinglePlayerGauges` | 1 | each player's single-player gauges (custom tachs, drag HUD) |
 | `[HUD] GaugeScalePercent` | 60 | gauge size |
 | `[MAIN] Debug` | 0 | write `NFSU2SplitScreen.log` and enable the debug mailbox |
@@ -47,7 +53,11 @@ and 4 use player 1's bindings. Outside split screen, the pad you used last drive
 - [x] Players row (2-4) on the race options screen (Outrun is always 2 players)
 - [x] Console-style "Player N Press START" joining on each player's own pad, with Back to the previous seat
 - [x] Per-player input from XInput pads (virtual DirectInput gamepads); disconnect and reconnect work mid-race and in menus
-- [x] Joypad pages per player for P1/P2 in Options > Controls; rebinding works
+- [x] Joypad pages for all 4 players in Options > Controls; rebinding works
+- [x] Own player options for every player (camera, HUD, Feedback, ...); the pause menu edits the pausing player's
+- [x] Each player's last car is remembered (P3/P4 included)
+- [x] Rumble on each player's own pad, restored from the PS2 version (same effects and curves); per-player Feedback
+  option
 - [x] Shared garage ("My Cars") for every player; Customize from any seat on the split car select
 - [x] Pause from any player's pad, including P3/P4
 - [x] Clean return to single player (garage backup, frontend state reset)
@@ -84,10 +94,6 @@ and 4 use player 1's bindings. Outside split screen, the pad you used last drive
 - [x] Stability fixes for audio-thread races in the game's memory pools and sound file system
 
 ### To do
-- [ ] Force feedback / rumble. It has never worked through the virtual pads; P3/P4 game-side rumble is blocked.
-- [ ] Controls pages for players 3/4. They copy player 1's page at start-up, so later rebinds don't reach them.
-  Undecided: always 4 pages, or one page per connected pad.
-- [ ] Remember the last car per seat (P3/P4 start on P1/P2's car)
 - [ ] Check catch-up (rubber banding) with 3-4 players
 - [ ] Light streaks without overbright in split screen (currently off in split views)
 - [ ] Streaming with 4 real streamer positions. P3/P4's sections ride on positions 0/1, which is enough in testing.
