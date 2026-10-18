@@ -1,0 +1,129 @@
+[
+ {
+  "t": 0.571,
+  "pad": 1,
+  "btn": "a",
+  "screens": [
+   "Chyron_FE.fng",
+   "Chyron_FE.fng"
+  ]
+ },
+ {
+  "t": 1.136,
+  "pad": 1,
+  "btn": "a",
+  "screens": [
+   "Chyron_FE.fng",
+   "MC_Background.fng",
+   "MC_List.fng",
+   "MC_Main.fng"
+  ]
+ },
+ {
+  "t": 1.575,
+  "pad": 1,
+  "btn": "a",
+  "screens": [
+   "Chyron_FE.fng",
+   "MC_Background.fng",
+   "MC_Main.fng"
+  ]
+ },
+ {
+  "t": 2.365,
+  "pad": 1,
+  "btn": "right",
+  "screens": [
+   "Chyron_FE.fng",
+   "UI_Main.fng"
+  ]
+ },
+ {
+  "t": 3.476,
+  "pad": 1,
+  "btn": "a",
+  "screens": [
+   "Chyron_FE.fng",
+   "UI_Main.fng"
+  ]
+ },
+ {
+  "t": 4.245,
+  "pad": 1,
+  "btn": "a",
+  "screens": [
+   "Chyron_FE.fng",
+   "UI_QRModeSelect.fng"
+  ]
+ },
+ {
+  "t": 4.705,
+  "pad": 1,
+  "btn": "a",
+  "screens": [
+   "Chyron_FE.fng",
+   "UI_QRTrackSelect.fng"
+  ]
+ },
+ {
+  "t": 5.242,
+  "pad": 1,
+  "btn": "a",
+  "screens": [
+   "Chyron_FE.fng",
+   "UI_QRModeOptions.fng"
+  ]
+ },
+ {
+  "t": 6.939,
+  "pad": 1,
+  "btn": "start",
+  "screens": [
+   "2P_PressStart.fng",
+   "UI_QRCarSelect.fng"
+  ]
+ },
+ {
+  "t": 7.675,
+  "pad": 1,
+  "btn": "a",
+  "screens": [
+   "UI_QRCarSelect.fng"
+  ]
+ },
+ {
+  "t": 8.037,
+  "pad": 1,
+  "btn": "a",
+  "screens": [
+   "GenericDialog_SMALL.fng",
+   "UI_QRCarSelect.fng"
+  ]
+ },
+ {
+  "t": 11.233,
+  "pad": 0,
+  "btn": "start",
+  "screens": [
+   "2P_PressStart.fng",
+   "UI_QRCarSelect.fng"
+  ]
+ },
+ {
+  "t": 11.765,
+  "pad": 0,
+  "btn": "a",
+  "screens": [
+   "UI_QRCarSelect.fng"
+  ]
+ },
+ {
+  "t": 12.355,
+  "pad": 0,
+  "btn": "a",
+  "screens": [
+   "GenericDialog_SMALL.fng",
+   "UI_QRCarSelect.fng"
+  ]
+ }
+]
