@@ -4171,19 +4171,6 @@ static void __fastcall IntroContext(int* ctx, void*, int track) {
     if (SplitMode() && ctx[0] == 3) ctx[0] = 4;
 }
 
-// HUD state of a player (which HUD parts show): 0x600090 reads per-player HUD options at 0x83AA64 + index*0x28
-// (2 entries); players 3/4 use player 1's / player 2's options.
-#define AT_HUD_STATE_CALL  0x600595      // `call 0x600090` (uint64 __fastcall (player))
-#define FN_HUD_STATE       0x600090
-static uint64_t __fastcall HudStateOf(uint8_t* player) {
-    int& idx = *reinterpret_cast<int*>(player + 0x10);
-    int saved = idx;
-    if (saved >= 2) idx = saved & 1;
-    uint64_t state = reinterpret_cast<uint64_t(__fastcall*)(uint8_t*)>(FN_HUD_STATE)(player);
-    idx = saved;
-    return state;
-}
-
 // Per-player settings (camera, HUD options, feedback...: 0x83AA64 + index*0x28, 2 entries; the race data follows at
 // 0x83AAB4) -> players 3/4 read race data as settings (e.g. camera 0 instead of P1's drift camera). The in-race readers
 // use a 4-entry mirror instead: entries 0/1 synced both ways with the game's table every frame (options/pause menus
@@ -4239,6 +4226,27 @@ static void SyncPlayerSettings(bool newRace) {
         st.hasSettings = true;
         SaveSeatStore(k - 2);
     }
+}
+
+// HUD state of a player (which HUD parts show): 0x600090 reads the player's HUD options (settings +0, +3, +0x10;
+// readers redirected to the mirror) and has 2-player rules on the index (e.g. index != 0 with 2 players hides a part).
+// Players 3/4 run it as player 1 / player 2 for those rules, with their own options in that mirror entry for the call.
+#define AT_HUD_STATE_CALL  0x600595      // `call 0x600090` (uint64 __fastcall (player))
+#define FN_HUD_STATE       0x600090
+static uint64_t __fastcall HudStateOf(uint8_t* player) {
+    int& idx = *reinterpret_cast<int*>(player + 0x10);
+    int saved = idx;
+    if (saved < 2 || saved >= MAX_LOCAL_PLAYERS)
+        return reinterpret_cast<uint64_t(__fastcall*)(uint8_t*)>(FN_HUD_STATE)(player);
+    uint8_t own[PLAYER_SETTING_SIZE];
+    int as = saved & 1;
+    memcpy(own, g_settings[as], PLAYER_SETTING_SIZE);
+    memcpy(g_settings[as], g_settings[saved], PLAYER_SETTING_SIZE);
+    idx = as;
+    uint64_t state = reinterpret_cast<uint64_t(__fastcall*)(uint8_t*)>(FN_HUD_STATE)(player);
+    idx = saved;
+    memcpy(g_settings[as], own, PLAYER_SETTING_SIZE);
+    return state;
 }
 
 static void* g_origPausingPlayer;

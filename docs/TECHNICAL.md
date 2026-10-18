@@ -232,7 +232,8 @@ uses P3/P4's car and name. The human component manager capacity (type 1) imm at 
 read race data as its settings (e.g. camera 0 instead of P1's drift camera). The 27 in-race readers (kSettingsReaders)
 now use a 4-entry mirror `g_settings`. P1/P2 are synced both ways each frame: menus write the game's table, while the
 in-race camera change 0x5F2FA0 → 0x502540 writes the mirror. P3/P4's entries are their own (seat store; the first race
-without one copies P1's / P2's). HUD state 0x600090 (call 0x600595, `HudStateOf`) reads the options with index & 1.
+without one copies P1's / P2's). HUD state 0x600090 (call 0x600595, `HudStateOf`) has 2-player rules on the index, so P3/P4 run it as P1/P2 with
+their own options put into that mirror entry for the call.
 
 **Pause menu settings.** The pause menu's player options edit the entry of 0x4A7AE0, the pausing player's index among
 P1/P2 (0 for anyone else). While P3/P4 owns the pause (`g_pauseOwner`), `SyncPlayerSettings` swaps their entry into the
