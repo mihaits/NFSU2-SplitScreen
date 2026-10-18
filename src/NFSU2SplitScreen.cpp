@@ -3868,16 +3868,35 @@ static void __cdecl PoolFreeLocked(void* ptr) {
 }
 
 // Track streaming memory: race load (0x57A5E3) sizes the "Track Streaming" pool from a table by race kind
-// (0x79DC54 KB: 60000 normal, 43000 with 2 local players, 36000 special) -> 0x5E4E70(streamer; bytes). Every split race
-// is a 2-player race to the game, so 3-4 players had 43 MB for 3-4 far-apart areas: sections near the players got
-// evicted (black world, user report). Scale the split budget with the number of players.
+// (0x79DC54 KB: 60000 normal, 43000 with 2 local players, 36000 special) -> 0x5E4E70(streamer; bytes), and a second
+// pool (0x7FA9D4 KB: 11000 / 9000 / 16000) -> 0x610750(0x8A3288; bytes). The 2-player sizes were made for the reduced
+// split-screen sections; split races stream the full single-player sections (section remap skipped) for 2-4 far-apart
+// areas, so with 43 MB the sections around a player far from the others went missing (user: Palm Highway, 2P; earlier
+// 3-4P black world). Sized from the single-player budget: track pool 60 MB x (players + 1) / 2, second pool x players / 2.
 #define AT_TRACK_POOL_CALL 0x57A63A
 #define FN_TRACK_POOL_CREATE 0x5E4E70    // void __thiscall (streamer; bytes)
+#define AT_SECOND_POOL_CALL 0x57A62C
+#define FN_SECOND_POOL_CREATE 0x610750   // void __thiscall (0x8A3288; bytes)
+#define TRACK_POOL_KB_1P   0x79DC54      // int[3] KB: normal, 2 players, special
+#define SECOND_POOL_KB_1P  0x7FA9D4
+static bool SplitPools() { return SplitMode() && at<int>(NUM_PLAYERS) == 2; }
 static void __fastcall CreateTrackStreamingPool(void* streamer, void*, int bytes) {
-    int players = 2 + g_extraPlayers;
-    if (SplitMode() && g_extraPlayers > 0 && at<int>(NUM_PLAYERS) == 2) bytes = bytes / 2 * players;
+    if (SplitPools()) {
+        int players = 2 + g_extraPlayers;
+        int split = at<int>(TRACK_POOL_KB_1P) * 1024 / 2 * (players + 1);
+        if (split > bytes) bytes = split;
+    }
     Log("track streaming pool: %d KB", bytes / 1024);
     reinterpret_cast<void(__thiscall*)(void*, int)>(FN_TRACK_POOL_CREATE)(streamer, bytes);
+}
+static void __fastcall CreateSecondStreamingPool(void* pool, void*, int bytes) {
+    if (SplitPools()) {
+        int players = 2 + g_extraPlayers;
+        int split = at<int>(SECOND_POOL_KB_1P) * 1024 / 2 * players;
+        if (split > bytes) bytes = split;
+    }
+    Log("second streaming pool: %d KB", bytes / 1024);
+    reinterpret_cast<void(__thiscall*)(void*, int)>(FN_SECOND_POOL_CREATE)(pool, bytes);
 }
 
 // Race intro (NIS) selection 0x436840: context 0x431F10 (+0 racers, +4 humans, +8 humans' grid-slot mask, +0xC AI
@@ -4508,6 +4527,7 @@ static void Install(HMODULE self) {
     WriteJump(FN_GAME_POOL_FREE, &PoolFreeLocked, 7);
     WriteCall(AT_SOUND_FS_CREATE_CALL, &CreateSoundFs);
     WriteCall(AT_TRACK_POOL_CALL, &CreateTrackStreamingPool);
+    WriteCall(AT_SECOND_POOL_CALL, &CreateSecondStreamingPool);
     WriteCall(AT_PAUSE_MASK_CALL, &PauseInputMask);
     InitializeCriticalSection(&g_soundFsLock);
     {

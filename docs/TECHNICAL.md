@@ -358,9 +358,12 @@ smoothed strength (0x870900) and a full-backbuffer StretchRect (0x5CC760).
   `StreamZonesHook` (0x5E5300) computes P3/P4's zones from the cameras of views 5/6. `StreamSectionsHook` (0x5E5110)
   marks P3's zone sections under position 0 and P4's under position 1 (0x5DACB0(streamer; list, n, pos)). The proper
   fix, 4 positions, is still to do.
-- **Pool.** The race load (0x57A5E3) sizes the "Track Streaming" pool from 0x79DC54 KB {60000 normal, 43000 2 players,
-  36000}. `CreateTrackStreamingPool` (call 0x57A63A) scales it by players/2 with extra players; otherwise the players'
-  sections were evicted and the world went black.
+- **Pools.** The race load (0x57A5E3) sizes the "Track Streaming" pool from 0x79DC54 KB {60000 normal, 43000 two
+  players, 36000} (0x5E4E70, call 0x57A63A), and a second pool from 0x7FA9D4 KB {11000, 9000, 16000} (0x610750 on
+  0x8A3288, call 0x57A62C). The 2-player sizes were made for the reduced split sections. Split races stream full
+  sections for 2-4 far-apart areas, so with them the sections around a distant player went missing.
+  `CreateTrackStreamingPool` / `CreateSecondStreamingPool` size them from the single-player values: 60 MB ×
+  (players + 1) / 2 and 11 MB × players / 2. The exe is not large-address-aware; a 4P race uses about 380 MB.
 
 ## 9. HUD
 **FE objects.** The relevant FE object fields are:
