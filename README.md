@@ -94,6 +94,7 @@ and 4 use player 1's bindings. Outside split screen, the pad you used last drive
 - [ ] Known issues: ambient sound stutter on the results screen (3P); a black results background was seen once
   (not reproduced); a rare 4P quit-to-menu crash in a HUD binding list (mitigated, root cause unknown)
 - [ ] Session results: standings across back-to-back races (design to be discussed)
+- [ ] Replays of split-screen races (to be investigated; the game has a replay viewer, ui_ReplayControl.fng)
 - [ ] Stretch goals: simultaneous split-screen car select; dynamic join (press START to join, layout updates live)
 
 ## Building
