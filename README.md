@@ -44,7 +44,7 @@ and 4 use player 1's bindings. Outside split screen, the pad you used last drive
 ### Working
 **Menus and input**
 - [x] Main menu entry "2 Player Split-Screen", which runs Quick Race in the console's split-screen mode
-- [x] Players row (2-4) on the race options screen
+- [x] Players row (2-4) on the race options screen (Outrun is always 2 players)
 - [x] Console-style "Player N Press START" joining on each player's own pad, with Back to the previous seat
 - [x] Per-player input from XInput pads (virtual DirectInput gamepads); disconnect and reconnect work mid-race and in menus
 - [x] Joypad pages per player for P1/P2 in Options > Controls; rebinding works
@@ -75,7 +75,7 @@ and 4 use player 1's bindings. Outside split screen, the pad you used last drive
 - [x] Live leaderboard gap (circuit, sprint, Street X, URL) and drift score gap for every player
 
 **Races**
-- [x] Race types tested with 3-4 players: circuit, sprint, drag, drift, Street X, URL. Outrun works with 2 players.
+- [x] Race types tested with 3-4 players: circuit, sprint, drag, drift, Street X, URL. Outrun is a 2-player mode.
 - [x] Race intros, with a fallback to the single-player scenes on tracks without a 2-player scene; intro sounds
 - [x] Results and standings with 3-4 players, restart, quit, several races in a row
 - [x] Per-player camera settings (drift camera included)
@@ -88,7 +88,6 @@ and 4 use player 1's bindings. Outside split screen, the pad you used last drive
 - [ ] Controls pages for players 3/4. They copy player 1's page at start-up, so later rebinds don't reach them.
   Undecided: always 4 pages, or one page per connected pad.
 - [ ] Remember the last car per seat (P3/P4 start on P1/P2's car)
-- [ ] Limit Outrun to 2 players in the Players row
 - [ ] Check catch-up (rubber banding) with 3-4 players
 - [ ] Remaining anti-aliasing checks (reflections, overbright, results screen)
 - [ ] Light streaks without overbright in split screen (currently off in split views)

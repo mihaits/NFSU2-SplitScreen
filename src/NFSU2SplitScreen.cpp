@@ -922,6 +922,11 @@ static bool g_keyboardJoinP2 = false;    // debug: Enter may also join player 2 
 
 static int g_seat = 0;                   // car select: whose turn (0..3); the frontend serves FE player seat & 1
 static int g_splitPlayers = 2;           // players chosen on the split-screen options screen (2..4)
+#define QR_RACE_TYPE       0x83AAB4      // quick race type (8 = outrun)
+// Outrun is a 2-player mode (one car chases the other): no Players row and always 2 players; the choice is kept for
+// the other modes.
+static bool OutrunRace() { return at<int>(QR_RACE_TYPE) == 8; }
+static int SplitPlayers() { return OutrunRace() ? 2 : g_splitPlayers; }
 
 static void ResetAssignments() {
     for (int& pad : g_assignedPad) pad = PAD_NONE;
@@ -1132,10 +1137,10 @@ static void SwitchSeat(uint8_t* carsel, int seat) {
 }
 
 static void __fastcall CarselToP2(uint8_t* carsel, void*, int) {      // after FE player 1's pick
-    if (g_splitPlayers > 2 && g_seat == 2) {   // player 3 picked
+    if (SplitPlayers() > 2 && g_seat == 2) {   // player 3 picked
         SaveSeat(2);
         RestoreSeat(0);
-        if (g_splitPlayers == 3) {
+        if (SplitPlayers() == 3) {
             g_seat = 0;
             g_extraPlayers = 1;
             reinterpret_cast<void(__cdecl*)()>(FN_START_RACE)();
@@ -1148,7 +1153,7 @@ static void __fastcall CarselToP2(uint8_t* carsel, void*, int) {      // after F
 }
 
 static void __stdcall CarselStart(uint8_t* carsel) {                   // after FE player 2's pick
-    if (g_splitPlayers > 2 && SplitMode()) {
+    if (SplitPlayers() > 2 && SplitMode()) {
         if (g_seat == 1) {                     // players 1 and 2 picked: on to player 3
             SaveSeat(0);
             SaveSeat(1);
@@ -1160,7 +1165,7 @@ static void __stdcall CarselStart(uint8_t* carsel) {                   // after 
             RestoreSeat(1);
         }
     }
-    g_extraPlayers = SplitMode() ? g_splitPlayers - 2 : 0;
+    g_extraPlayers = SplitMode() ? SplitPlayers() - 2 : 0;
     g_seat = 0;
     reinterpret_cast<void(__cdecl*)()>(FN_START_RACE)();
 }
@@ -1343,7 +1348,7 @@ static void AddPlayersRow(uint8_t* screen) {
 }
 
 static void __fastcall QrFinishRows(uint8_t* screen, void*, int arg) {
-    if (SplitMode()) AddPlayersRow(screen);
+    if (SplitMode() && !OutrunRace()) AddPlayersRow(screen);
     reinterpret_cast<void(__thiscall*)(void*, int)>(FN_QR_FINISH_ROWS)(screen, arg);
 }
 
