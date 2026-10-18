@@ -62,7 +62,7 @@ and 4 use player 1's bindings. Outside split screen, the pad you used last drive
 - [x] Weather per view: falling rain, splashes and lens droplets
 - [x] Speed blur per view
 - [x] Overbright per view, including each player's own nitrous intensity
-- [x] Light glows with anti-aliasing
+- [x] Anti-aliasing (FSAA) in split screen, light glows included
 - [x] Particles and effects (tyre smoke, nitrous flames) for every player
 - [x] Alt-tab / device reset
 
@@ -89,7 +89,6 @@ and 4 use player 1's bindings. Outside split screen, the pad you used last drive
   Undecided: always 4 pages, or one page per connected pad.
 - [ ] Remember the last car per seat (P3/P4 start on P1/P2's car)
 - [ ] Check catch-up (rubber banding) with 3-4 players
-- [ ] Remaining anti-aliasing checks (reflections, overbright, results screen)
 - [ ] Light streaks without overbright in split screen (currently off in split views)
 - [ ] Streaming with 4 real streamer positions. P3/P4's sections ride on positions 0/1, which is enough in testing.
 - [ ] Known issues: ambient sound stutter on the results screen (3P); a black results background was seen once

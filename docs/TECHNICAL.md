@@ -544,7 +544,6 @@ parked off-screen) are moved 2000 further out. Pivots are scaled too.
   listener arrays, or the original 2P behaviour.
 - **Black results background**, seen once after a 2P race. If it happens again, capture state while it is still
   happening (g_currentView, views 1-4 active/rt, viewport).
-- **Anti-aliasing.** Glows are fixed. Reflections, overbright and results with AA are still to check.
 
 ## 14. Gotchas
 - **Inline asm that calls game code must be in a `__declspec(noinline)` function.** If it gets inlined, the compiler
