@@ -13,7 +13,7 @@ player gets their own view, HUD, minimap, camera, sound, reflections and effects
 ## Requirements
 - `speed2.exe` **v1.2**. The plugin checks the code it patches and disables itself on other versions.
 - [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader) (`dinput8.dll` in the game folder).
-- Recommended: [NFSU2 WidescreenFix](https://github.com/ThirteenAG/WidescreenFixesPack). The split-screen HUD is
+- Recommended: [NFSU2 WidescreenFix](https://github.com/ThirteenAG/WidescreenFixesPack/releases/tag/nfsu2). The split-screen HUD is
   widened to match it.
 - One XInput controller per player (Xbox pads). PlayStation pads work through DS4Windows or any other XInput wrapper.
 
