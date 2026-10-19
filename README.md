@@ -89,12 +89,12 @@ Players 1 and 2's settings, bindings and last cars are saved in the game profile
 - [x] Race intros, with a fallback to the single-player scenes on tracks without a 2-player scene; intro sounds
 - [x] Results and standings with 3-4 players, restart, quit, several races in a row
 - [x] Per-player camera settings (drift camera included)
+- [x] Catch-up between the players with 3-4 players (the game only did it with exactly 2)
 - [x] Per-player sound listeners, so every player hears their own surroundings
 - [x] Names "Player 3" / "Player 4" for the extra players
 - [x] Stability fixes for audio-thread races in the game's memory pools and sound file system
 
 ### To do
-- [ ] Check catch-up (rubber banding) with 3-4 players
 - [ ] Light streaks without overbright in split screen (currently off in split views)
 - [ ] Streaming with 4 real streamer positions. P3/P4's sections ride on positions 0/1, which is enough in testing.
 - [ ] Known issues: ambient sound stutter on the results screen (3P); a black results background was seen once

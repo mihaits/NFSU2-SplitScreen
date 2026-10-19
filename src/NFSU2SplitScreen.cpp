@@ -166,7 +166,8 @@ static void Write(uintptr_t addr, const void* data, size_t n) {
 }
 
 static void WriteJump(uintptr_t where, const void* to, size_t len) {
-    uint8_t buf[16];
+    uint8_t buf[64];
+    if (len < 5 || len > sizeof(buf)) return;
     buf[0] = 0xE9;
     int32_t rel = static_cast<int32_t>(reinterpret_cast<uintptr_t>(to) - (where + 5));
     memcpy(buf + 1, &rel, 4);
@@ -4463,6 +4464,64 @@ static void* FindRaceCar(int playerIndex) {
     return nullptr;
 }
 
+// ---------------------------------------------------------------- catch-up with 3-4 players
+// Catch-up (Quick Race option, 0x5028F0 -> race params 0x89E7F8) between the human players: 0x5F6740 (per human driver:
+// +0x18 player, +0x1C racer, factor at +0x468) makes the factor a curve (0x81CB60 + 0xA6C) of (own progress - the
+// other human's progress) * 0x88F2B0, progress = racer +0x14 (other: player +4 -> car +0x1C). It only ran with exactly 2
+// local players (0x5F676A) -> no catch-up at all with 3-4. Now it runs with 2 or more, and each human measures against
+// the furthest ahead other human (with 2 players: the other one, as before).
+// (The AI rubber-banding at 0x4173ED is also 1-2 players only, but split-screen races have no AI opponents.)
+#define AT_HUMAN_CATCHUP_COUNT 0x5F6771  // jne (count != 2) -> jl
+#define AT_HUMAN_CATCHUP_OTHER 0x5F6773  // other human -> edx, ecx = [esi+0x1C]                      (25 bytes)
+#define HUMAN_CATCHUP_OTHER_RET 0x5F678C
+
+static const uint8_t* RacerOfLocalPlayer(void* player) {
+    auto* car = player ? *reinterpret_cast<uint8_t**>(static_cast<uint8_t*>(player) + 4) : nullptr;
+    return car ? *reinterpret_cast<uint8_t**>(car + 0x1C) : nullptr;
+}
+
+static void* __cdecl CatchupOtherHuman(const uint8_t* driver) {
+    void* self = *reinterpret_cast<void* const*>(driver + 0x18);
+    void* other = nullptr;
+    float best = -1e30f;
+    for (int k = 0; k < g_localPlayers.count && k < MAX_LOCAL_PLAYERS; ++k) {
+        void* p = GetLocalPlayer(k);
+        const uint8_t* racer = RacerOfLocalPlayer(p);
+        if (!p || p == self || !racer) continue;
+        float progress = *reinterpret_cast<const float*>(racer + 0x14);
+        if (!other || progress > best) { best = progress; other = p; }
+    }
+    static DWORD logged[MAX_LOCAL_PLAYERS];
+    int me = self ? *reinterpret_cast<int*>(static_cast<uint8_t*>(self) + 0x10) & 3 : 0;
+    if (g_debug && other && GetTickCount() - logged[me] > 3000) {
+        logged[me] = GetTickCount();
+        const uint8_t* mine = *reinterpret_cast<uint8_t* const*>(driver + 0x1C);
+        Log("catch-up: P%d (progress %.3f) vs P%d (progress %.3f), factor %.3f", me + 1,
+            mine ? *reinterpret_cast<const float*>(mine + 0x14) : 0.0f,
+            *reinterpret_cast<int*>(static_cast<uint8_t*>(other) + 0x10) + 1, best,
+            *reinterpret_cast<const float*>(driver + 0x468));
+    }
+    return other ? other : GetLocalPlayer(0);
+}
+
+static __declspec(naked) void HumanCatchupOtherHook() {
+    __asm {
+        push esi
+        call CatchupOtherHuman
+        add esp, 4
+        mov edx, eax
+        mov ecx, dword ptr [esi + 0x1C]
+        push HUMAN_CATCHUP_OTHER_RET
+        ret
+    }
+}
+
+static void InstallCatchup() {
+    const uint8_t jl = 0x7C;
+    Write(AT_HUMAN_CATCHUP_COUNT, &jl, 1);
+    WriteJump(AT_HUMAN_CATCHUP_OTHER, &HumanCatchupOtherHook, 25);
+}
+
 static void __cdecl CreatePlayers() {
     SyncPlayerSettings(true);
     reinterpret_cast<void(__cdecl*)()>(FN_CREATE_PLAYERS)();
@@ -4885,6 +4944,7 @@ static void Install(HMODULE self) {
     uint32_t inOrderMinus1 = reinterpret_cast<uint32_t>(&g_localPlayers.inOrder[0]) - 4;
     Write(AT_PLAYERS_TEARDOWN_DISP, &inOrderMinus1, 4);
     Log("local player arrays relocated: %d refs", relocated);
+    InstallCatchup();
     PatchViewUpdateLoop();
     Log("sound listener arrays relocated: %d refs", RelocateListenerArrays());
     WriteCall(AT_LISTENER_UPDATE_CALL, &ListenerUpdate);

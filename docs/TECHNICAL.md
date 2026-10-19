@@ -252,6 +252,13 @@ swapped ("Player 3/4", `g_extraNames`, spec +0x90C). Results and labels read the
 the player ctor at 0x5F17B3), which is set for P3/P4 in CreatePlayers. The in-race labels at 0x4C7006 / 0x4C93CF are
 patched to read player+0x30.
 
+**Catch-up.** The Quick Race option (0x5028F0, copied to race params 0x89E7F8) drives 0x5F6740, run per human driver
+(+0x18 player, +0x1C racer): its factor (+0x468) is a curve (table 0x81CB60 + 0xA6C) of (own progress − the other
+human's progress) × 0x88F2B0, progress = racer +0x14. It only ran with exactly 2 local players (`cmp [count], 2` at
+0x5F676A), so 3-4 player races had no catch-up. The `jne` at 0x5F6771 becomes `jl`, and the "other human" choice
+(0x5F6773, 25 bytes) is `CatchupOtherHuman`: the furthest ahead other human (with 2 players, the other one). The AI
+rubber-banding (0x4173ED, target in AI +0x748) is also limited to 1-2 players, but split-screen races have no AI.
+
 **Nearest player / racer.**
 - 0x459AC0 (player) and 0x459A50 (player's car) compared players 1/2 only. They are replaced by `NearestPlayer` /
   `NearestPlayerCar`, which consider every local player.
@@ -582,8 +589,6 @@ parked off-screen) are moved 2000 further out. Pivots are scaled too.
   `SoundFsClose` serialize them.
 
 ## 13. Open issues and leads
-- **Catch-up with 3-4 players.** Not investigated. Only the FE label MOCatchUp has been found. Suspected: it reads the
-  race's 2 human slots (0x89E808).
 - **Light streaks without overbright** in split views (section 7).
 - **Streamer with 4 positions** (section 8).
 - **Results ambient sound stutter (3P).** Continuous ~2 Hz gating, music off. Not frame hitches, sound fs handles, the
