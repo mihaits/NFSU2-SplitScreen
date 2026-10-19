@@ -8,7 +8,7 @@ player gets their own view, HUD, minimap, camera, sound, reflections and effects
 
 ![4-player split screen](docs/screenshot-4p.png)
 
-**Status: 0.9 alpha.** All race modes are playable with 2-4 players. See the checklists below.
+**Status: 0.9.2 alpha.** All race modes are playable with 2-4 players. See the checklists below.
 
 ## Requirements
 - `speed2.exe` **v1.2**. The plugin checks the code it patches and disables itself on other versions.
