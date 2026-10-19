@@ -343,7 +343,7 @@ redirect their view or player choice to the view currently being drawn (`g_curre
 **Car skins.** A car's paint and vinyls are composited into the texture DUMMY_SKIN<n> named by its ride info
 (+0x584, set by 0x61C280(ride; n), composited by 0x61D790). The garage entries choose n from the player index
 (0x503A80: index + 1; 0x503880: 1 or 2), so players 3/4, built with index 0/1, used P1's / P2's skin texture and
-showed that player's paint. `RacerSpecIndexShift` calls `ExtraRacerSkin` before the racer spec copies the ride info:
+rendered with mismatched textures (e.g. a door card texture on the hood). `RacerSpecIndexShift` calls `ExtraRacerSkin` before the racer spec copies the ride info:
 DUMMY_SKIN3/4, the single-player opponents' slots (split races have no AI). Race type 9 sets skin 1 for every human
 (0x526007) and is left alone.
 

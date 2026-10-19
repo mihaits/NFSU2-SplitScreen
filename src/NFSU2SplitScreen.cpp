@@ -3421,8 +3421,8 @@ static void PrepareExtraNames() {
 }
 // Car skins: a car's paint and vinyls are composited into the texture DUMMY_SKIN<n> named by its ride info (+0x584,
 // set by 0x61C280(ride; n)); the garage entries pick n from the player index (0x503A80: index + 1, 0x503880: 1 or 2),
-// so players 3/4 got P1's / P2's skin texture and showed the other player's paint (user: P3's stock 3000GT black with
-// P1's RX-7 stripes). Their ride infos get DUMMY_SKIN3/4 (the single-player opponents' slots; split races have no
+// so players 3/4 got P1's / P2's skin texture and rendered with mismatched skin textures (user: P3's
+// stock 3000GT dark with stray textures, e.g. a door card texture on the hood). Their ride infos get DUMMY_SKIN3/4 (the single-player opponents' slots; split races have no
 // AI) before the racer spec copies them. Race type 9 sets skin 1 for every human (0x526007) and is left as is.
 #define FN_RIDE_SET_SKIN   0x61C280      // void __thiscall (RideInfo*; int n)
 static void __cdecl ExtraRacerSkin(void* ride, int playerIndex) {
