@@ -259,6 +259,17 @@ human's progress) × 0x88F2B0, progress = racer +0x14. It only ran with exactly 
 (0x5F6773, 25 bytes) is `CatchupOtherHuman`: the furthest ahead other human (with 2 players, the other one). The AI
 rubber-banding (0x4173ED, target in AI +0x748) is also limited to 1-2 players, but split-screen races have no AI.
 
+**WidescreenFix free camera.** WidescreenFix's [CAMERA] free look replaces the eCreateLookAtMatrix call in
+CubicCameraMover::Update (0x453B44 → 0x5BA9A0(out, from, to, up); esi = mover: +0x1C camera, +0x48 mode, +0x51 look
+behind) and applies one global yaw/pitch offset from the right stick (the last polled joystick slot) and the mouse, so
+in split screen everyone's camera moved together. Once WidescreenFix has patched the call (checked per frame,
+`UpdateFreeCamHook`), the plugin chains in front of it (`LookAtHook` → `SplitLookAt`). Outside split racing everything
+goes to WidescreenFix. While split racing, the player whose view camera is the mover's camera gets WidescreenFix's
+logic with their own state (offsets, idle timer, car speed): their own right stick (`XPadRightStick`) and, for player
+1, the mouse. The mouse movement is recorded as the game reads the system mouse (`XMouseTakeDelta`, a GetDeviceState
+hook in XInputDevices). Settings are read from WidescreenFix's ini. WidescreenFix's own function still runs once per
+frame on a throwaway copy, because it also hides the mouse cursor while racing.
+
 **Nearest player / racer.**
 - 0x459AC0 (player) and 0x459A50 (player's car) compared players 1/2 only. They are replaced by `NearestPlayer` /
   `NearestPlayerCar`, which consider every local player.

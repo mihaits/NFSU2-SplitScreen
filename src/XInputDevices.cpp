@@ -425,9 +425,40 @@ HRESULT STDMETHODCALLTYPE EnumDevicesHook(IDirectInput8A* self, DWORD type, LPDI
     return g_origEnumDevices(self, type, ForwardRealControllers, &f, flags);
 }
 
+// The system mouse: its movement is recorded as the game reads it (GetDeviceState, DIMOUSESTATE/2), for the plugin's
+// per-player free camera (XMouseTakeDelta). The game still gets the same data.
+const GUID kGuidSysMouse = {0x6F1D2B60, 0xD5A0, 0x11CF, {0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0x00, 0x00}};
+typedef HRESULT(STDMETHODCALLTYPE* GetDeviceStateFn)(IDirectInputDevice8A*, DWORD, LPVOID);
+GetDeviceStateFn g_origMouseGetState;
+IDirectInputDevice8A* g_mouse;
+LONG g_mouseDx, g_mouseDy;
+HRESULT STDMETHODCALLTYPE MouseGetStateHook(IDirectInputDevice8A* dev, DWORD size, LPVOID data) {
+    HRESULT hr = g_origMouseGetState(dev, size, data);
+    if (SUCCEEDED(hr) && dev == g_mouse && data && size >= sizeof(DIMOUSESTATE)) {
+        g_mouseDx += static_cast<const DIMOUSESTATE*>(data)->lX;
+        g_mouseDy += static_cast<const DIMOUSESTATE*>(data)->lY;
+    }
+    return hr;
+}
+
 HRESULT STDMETHODCALLTYPE CreateDeviceHook(IDirectInput8A* self, REFGUID guid, LPDIRECTINPUTDEVICE8A* out,
                                            LPUNKNOWN outer) {
     int pad = PadIndexFromGuid(guid);
+    if (pad < 0 && IsEqualGUID(guid, kGuidSysMouse)) {
+        HRESULT hr = g_origCreateDevice(self, guid, out, outer);
+        if (SUCCEEDED(hr) && out && *out) {
+            g_mouse = *out;
+            void** vt = *reinterpret_cast<void***>(*out);
+            if (vt[9] != reinterpret_cast<void*>(&MouseGetStateHook)) {   // vtable shared by the device class
+                DWORD old;
+                VirtualProtect(vt + 9, sizeof(void*), PAGE_EXECUTE_READWRITE, &old);
+                g_origMouseGetState = reinterpret_cast<GetDeviceStateFn>(vt[9]);
+                vt[9] = reinterpret_cast<void*>(&MouseGetStateHook);
+                VirtualProtect(vt + 9, sizeof(void*), old, &old);
+            }
+        }
+        return hr;
+    }
     if (pad < 0) return g_origCreateDevice(self, guid, out, outer);
     if (!out) return E_POINTER;
     *out = new XInputDevice(pad);
@@ -501,6 +532,18 @@ void XPadSetRumble(int pad, float low, float high) {
 }
 
 void XPadSetResolver(int (*resolver)(int device)) { g_resolver = resolver; }
+
+bool XPadRightStick(int pad, int16_t* rx, int16_t* ry) {
+    XPadState st = {};
+    if (GetPad(pad, &st) != ERROR_SUCCESS) return false;
+    *rx = st.thumbRX; *ry = st.thumbRY;
+    return true;
+}
+
+void XMouseTakeDelta(int* dx, int* dy) {
+    *dx = g_mouseDx; *dy = g_mouseDy;
+    g_mouseDx = g_mouseDy = 0;
+}
 
 bool XPadDiState(int pad, void* out, unsigned size) {
     XPadState s = {};

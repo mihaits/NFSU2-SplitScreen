@@ -89,6 +89,7 @@ Players 1 and 2's settings, bindings and last cars are saved in the game profile
 - [x] Race intros, with a fallback to the single-player scenes on tracks without a 2-player scene; intro sounds
 - [x] Results and standings with 3-4 players, restart, quit, several races in a row
 - [x] Per-player camera settings (drift camera included)
+- [x] WidescreenFix free camera per player: each player's right stick turns their own camera, the mouse turns player 1's
 - [x] Catch-up between the players with 3-4 players (the game only did it with exactly 2)
 - [x] Per-player sound listeners, so every player hears their own surroundings
 - [x] Names "Player 3" / "Player 4" for the extra players

@@ -27,3 +27,9 @@ void XPadSetRumble(int pad, float low, float high);
 // A pad's state as virtual device 0 reports it to the game (DIJOYSTATE2, with the axis ranges the game set on that
 // device); for pads that have no joystick slot (players 3/4). False if the pad isn't connected or no device exists.
 bool XPadDiState(int pad, void* out, unsigned size);
+
+// Right stick of a pad (XInput values); false if not connected.
+bool XPadRightStick(int pad, int16_t* rx, int16_t* ry);
+
+// Mouse movement the game has read since the last call (DirectInput units), then reset.
+void XMouseTakeDelta(int* dx, int* dy);
