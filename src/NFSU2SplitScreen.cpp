@@ -3419,6 +3419,16 @@ static void PrepareExtraNames() {
         else sprintf_s(n, 16, "Player %d", 3 + k);
     }
 }
+// Car skins: a car's paint and vinyls are composited into the texture DUMMY_SKIN<n> named by its ride info (+0x584,
+// set by 0x61C280(ride; n)); the garage entries pick n from the player index (0x503A80: index + 1, 0x503880: 1 or 2),
+// so players 3/4 got P1's / P2's skin texture and showed the other player's paint (user: P3's stock 3000GT black with
+// P1's RX-7 stripes). Their ride infos get DUMMY_SKIN3/4 (the single-player opponents' slots; split races have no
+// AI) before the racer spec copies them. Race type 9 sets skin 1 for every human (0x526007) and is left as is.
+#define FN_RIDE_SET_SKIN   0x61C280      // void __thiscall (RideInfo*; int n)
+static void __cdecl ExtraRacerSkin(void* ride, int playerIndex) {
+    if (at<int>(0x83AAB4) == 9) return;
+    reinterpret_cast<void(__thiscall*)(void*, int)>(FN_RIDE_SET_SKIN)(ride, playerIndex + 1);
+}
 static __declspec(naked) void RacerSpecIndexShift() {
     __asm {
         cmp g_extraRacerPass, 0
@@ -3429,6 +3439,12 @@ static __declspec(naked) void RacerSpecIndexShift() {
         shl eax, 4
         add eax, offset g_extraNames
         mov dword ptr [esp + 0x10], eax  // name (4th argument)
+        push ecx
+        push dword ptr [esp + 8]         // playerIndex
+        push dword ptr [esp + 0x14]      // ride info (3rd argument)
+        call ExtraRacerSkin
+        add esp, 8
+        pop ecx
     ctor:
         mov eax, FN_RACER_SPEC_CTOR
         jmp eax

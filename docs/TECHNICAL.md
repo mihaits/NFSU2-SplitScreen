@@ -340,6 +340,13 @@ redirect their view or player choice to the view currently being drawn (`g_curre
 - The view's own car has its lights flag (+0x550) cleared during that call, as single player shows no pool for the
   own car.
 
+**Car skins.** A car's paint and vinyls are composited into the texture DUMMY_SKIN<n> named by its ride info
+(+0x584, set by 0x61C280(ride; n), composited by 0x61D790). The garage entries choose n from the player index
+(0x503A80: index + 1; 0x503880: 1 or 2), so players 3/4, built with index 0/1, used P1's / P2's skin texture and
+showed that player's paint. `RacerSpecIndexShift` calls `ExtraRacerSkin` before the racer spec copies the ride info:
+DUMMY_SKIN3/4, the single-player opponents' slots (split races have no AI). Race type 9 sets skin 1 for every human
+(0x526007) and is left alone.
+
 **Car detail.** With the split layout (0x5B98A0 == 3) the car renderers 0x620AE0 and 0x6162E0 multiplied the car's
 screen size by 0.7 (0x7A6700) and forced its LOD range to 1..1, the low model, ignoring Car Geometry Detail (0x870CF8
 -> 0x8A1C10/14). The car parts renderer 0x615630 scaled the size too. The `jne` past each block (0x620C8C, 0x616316,
