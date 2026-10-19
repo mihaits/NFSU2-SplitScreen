@@ -100,7 +100,8 @@ Players 1 and 2's settings, bindings and last cars are saved in the game profile
 - [ ] Known issues, shelved until they can be reproduced: ambient sound stutter on the results screen (3P); a black
   results background (seen once); a rare 4P quit-to-menu crash in a HUD binding list (mitigated, root cause unknown);
   a Direct3D device-loss flicker loop (seen in one session; `Debug = 1` logs it)
-- [ ] Session results: standings across back-to-back races (design to be discussed)
+- [ ] Session results: standings across back-to-back races (design parked: scoring by a fixed points table by
+  finishing position; scope, display and extras still open)
 - [ ] Replays of split-screen races (to be investigated; the game has a replay viewer, ui_ReplayControl.fng)
 - [ ] Stretch goals: simultaneous split-screen car select; dynamic join (press START to join, layout updates live)
 
