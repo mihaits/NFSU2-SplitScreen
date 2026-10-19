@@ -1754,6 +1754,81 @@ static void HookDeviceMethod(void* dev, int slotIndex, void* hook, void** orig) 
     Write(reinterpret_cast<uintptr_t>(slot), &hook, sizeof(hook));
 }
 
+// Debug: device lost / reset tracing (the game resets on TestCooperativeLevel == D3DERR_DEVICENOTRESET, 0x5D2AFF /
+// 0x5D2BE2, or after a video option change, 0x5D288B).
+static void* g_origPresent = nullptr;
+static void* g_origReset = nullptr;
+static void* g_origTestCoop = nullptr;
+static HRESULT __stdcall PresentHook(void* dev, const void* a, const void* b, HWND c, const void* d) {
+    HRESULT hr = reinterpret_cast<HRESULT(__stdcall*)(void*, const void*, const void*, HWND, const void*)>(g_origPresent)(dev, a, b, c, d);
+    if (FAILED(hr)) Log("d3d: Present %08X (fg %p)", hr, GetForegroundWindow());
+    return hr;
+}
+static void AddressSpace(unsigned* freeMb, unsigned* largestMb) {
+    MEMORY_BASIC_INFORMATION mbi;
+    uintptr_t total = 0, largest = 0;
+    for (uintptr_t a = 0x10000; a < 0x7FFF0000 && VirtualQuery(reinterpret_cast<void*>(a), &mbi, sizeof(mbi));
+         a = reinterpret_cast<uintptr_t>(mbi.BaseAddress) + mbi.RegionSize)
+        if (mbi.State == MEM_FREE) { total += mbi.RegionSize; if (mbi.RegionSize > largest) largest = mbi.RegionSize; }
+    *freeMb = static_cast<unsigned>(total >> 20);
+    *largestMb = static_cast<unsigned>(largest >> 20);
+}
+static HRESULT __stdcall TestCoopHook(void* dev) {
+    HRESULT hr = reinterpret_cast<HRESULT(__stdcall*)(void*)>(g_origTestCoop)(dev);
+    static HRESULT last = 0;
+    if (hr != last) {
+        unsigned freeMb, largestMb;
+        AddressSpace(&freeMb, &largestMb);
+        Log("d3d: TestCooperativeLevel %08X (caller %p) address space free %u MB, largest %u MB", hr, _ReturnAddress(),
+            freeMb, largestMb);
+    }
+    last = hr;
+    return hr;
+}
+static HRESULT __stdcall ResetHook(void* dev, void* params) {
+    HRESULT hr = reinterpret_cast<HRESULT(__stdcall*)(void*, void*)>(g_origReset)(dev, params);
+    void* stack[12];
+    USHORT n = RtlCaptureStackBackTrace(1, 12, stack, nullptr);
+    char trace[200] = "";
+    for (USHORT i = 0; i < n && strlen(trace) < 180; ++i) sprintf_s(trace + strlen(trace), sizeof(trace) - strlen(trace), " %p", stack[i]);
+    Log("d3d: Reset %08X (fg %p) stack%s", hr, GetForegroundWindow(), trace);
+    return hr;
+}
+
+static WNDPROC g_origWndProc = nullptr;
+static LRESULT CALLBACK DebugWndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
+    switch (msg) {
+    case WM_ACTIVATEAPP: Log("wnd: WM_ACTIVATEAPP %d (other thread %u)", static_cast<int>(wp), static_cast<unsigned>(lp)); break;
+    case WM_ACTIVATE: Log("wnd: WM_ACTIVATE %d (other %p)", LOWORD(wp), reinterpret_cast<void*>(lp)); break;
+    case WM_SETFOCUS: Log("wnd: WM_SETFOCUS (from %p)", reinterpret_cast<void*>(wp)); break;
+    case WM_KILLFOCUS: Log("wnd: WM_KILLFOCUS (to %p)", reinterpret_cast<void*>(wp)); break;
+    case WM_DISPLAYCHANGE: Log("wnd: WM_DISPLAYCHANGE %dx%d %d bpp", LOWORD(lp), HIWORD(lp), static_cast<int>(wp)); break;
+    case WM_SIZE: Log("wnd: WM_SIZE %d %dx%d", static_cast<int>(wp), LOWORD(lp), HIWORD(lp)); break;
+    case WM_WINDOWPOSCHANGED: {
+        auto* wpos = reinterpret_cast<const WINDOWPOS*>(lp);
+        Log("wnd: WM_WINDOWPOSCHANGED %d,%d %dx%d flags %X after %p", wpos->x, wpos->y, wpos->cx, wpos->cy, wpos->flags,
+            reinterpret_cast<void*>(wpos->hwndInsertAfter));
+        break;
+    }
+    case WM_SYSCOMMAND: Log("wnd: WM_SYSCOMMAND %X", static_cast<unsigned>(wp)); break;
+    case WM_NCACTIVATE: Log("wnd: WM_NCACTIVATE %d", static_cast<int>(wp)); break;
+    case WM_DEVICECHANGE: Log("wnd: WM_DEVICECHANGE %X", static_cast<unsigned>(wp)); break;
+    case WM_SETTINGCHANGE: Log("wnd: WM_SETTINGCHANGE %X", static_cast<unsigned>(wp)); break;
+    }
+    return CallWindowProcA(g_origWndProc, h, msg, wp, lp);
+}
+
+static void HookDeviceDebug() {
+    void* dev = at<void*>(D3D_DEVICE);
+    if (!dev || !g_debug) return;
+    if (!g_origWndProc)
+        if (HWND w = FindWindowA("GameFrame", nullptr))
+            g_origWndProc = reinterpret_cast<WNDPROC>(SetWindowLongPtrA(w, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(&DebugWndProc)));
+    HookDeviceMethod(dev, 3, reinterpret_cast<void*>(&TestCoopHook), &g_origTestCoop);
+    HookDeviceMethod(dev, 16, reinterpret_cast<void*>(&ResetHook), &g_origReset);
+    HookDeviceMethod(dev, 17, reinterpret_cast<void*>(&PresentHook), &g_origPresent);
+}
+
 static void HookDeviceSetViewport() {
     void* dev = at<void*>(D3D_DEVICE);
     if (!dev) return;
@@ -1991,6 +2066,7 @@ static void __cdecl LayoutApplyHook() {
     if (g_debug) CheckX87("frame start");
     g_origLayoutApply();
     if (g_debug) CheckX87("after layout apply");
+    HookDeviceDebug();
     XPadUpdate();
     UpdateHudWiden();
     EndResultsCount();
