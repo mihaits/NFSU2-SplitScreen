@@ -63,7 +63,7 @@
 #define FN_QR_REACT        0x4FC050    // Quick Race option react (__thiscall, 5 stack args)
 #define FN_MENU_OPTION_DTOR 0x4AEB70
 #define MMSPLIT_ICON       0x883E25D6   // console "MMSplitScreen" icon/text, still in the PC data files
-#define MMSPLIT_TEXT       0x6A2B93EB
+#define MMSPLIT_TEXT       0x6A2B93EB   // "2 Player Split-Screen" -> shown as "Split-Screen" (RenameSplitMenuText)
 #define AT_JOYPAD_TITLE    0x4DCA18    // Controls joypad page: `call 0x50C900` setting the page title (5 bytes)
 #define FN_SET_TEXT_HASH   0x50C900    // void __cdecl (FEObject*, languageHash)
 #define FN_SET_TEXT_FMT    0x537BE0    // int __cdecl (FEObject*, const char* fmt, ...)
@@ -249,10 +249,42 @@ static __declspec(naked) void SplitMenuReact() {
 
 static void* g_splitOptionVtbl[2] = {reinterpret_cast<void*>(FN_MENU_OPTION_DTOR), &SplitMenuReact};
 
+// The option's text is the console's "2 Player Split-Screen" (MMSPLIT_TEXT); with 2-4 players it becomes
+// "Split-Screen". The loaded language table (entries {hash, text*} sorted by hash at [0x8383D8], count [0x8383D0];
+// lookup 0x4FF9D0) gets its entry pointed at a shortened text when it holds a known original; other languages keep
+// theirs.
+#define LANGUAGE_TABLE     0x8383D8
+#define LANGUAGE_COUNT     0x8383D0
+static void RenameSplitMenuText() {
+    static const char* const kNames[][2] = {
+        {"2 Player Split-Screen", "Split-Screen"},
+        {"2 Spieler-Splitscreen", "Splitscreen"},
+        {"Ecran partag\xE9 2 joueurs", "Ecran partag\xE9"},
+        {"2 giocatori in split-screen", "Split-screen"},
+        {"2 jugadores con pantalla dividida", "Pantalla dividida"},
+        {"Twee spelers op gesplitst scherm", "Gesplitst scherm"},
+        {"Opdelt sk\xE6rm for 2 spillere", "Opdelt sk\xE6rm"},
+        {"2 spelare p\xE5 delad sk\xE4rm", "Delad sk\xE4rm"},
+    };
+    auto* table = at<uint32_t*>(LANGUAGE_TABLE);
+    int lo = 0, hi = at<int>(LANGUAGE_COUNT) - 1;
+    while (table && lo <= hi) {
+        int mid = (lo + hi) / 2;
+        uint32_t hash = table[mid * 2];
+        if (hash < MMSPLIT_TEXT) { lo = mid + 1; continue; }
+        if (hash > MMSPLIT_TEXT) { hi = mid - 1; continue; }
+        const char* text = reinterpret_cast<const char*>(table[mid * 2 + 1]);
+        for (const auto& name : kNames)
+            if (text && strcmp(text, name[0]) == 0) table[mid * 2 + 1] = reinterpret_cast<uint32_t>(name[1]);
+        return;
+    }
+}
+
 static void __cdecl AddSplitMenuOption(void* menu) {
     using MallocFn = void*(__cdecl*)(size_t);
     using InitFn = void(__thiscall*)(void*, uint32_t, uint32_t, uint32_t);
     using AddFn = void(__thiscall*)(void*, void*);
+    RenameSplitMenuText();
     void* option = reinterpret_cast<MallocFn>(FN_MALLOC)(0x48);
     if (!option) return;
     reinterpret_cast<InitFn>(FN_MENU_OPTION_INIT)(option, MMSPLIT_ICON, MMSPLIT_TEXT, 0);

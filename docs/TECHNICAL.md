@@ -73,7 +73,10 @@ launch it from an elevated shell, HKLM is read instead and the settings differ.
 **Main menu entry.** The main menu builder 0x4AEE30 adds options. At 0x4AEED8 (the `call 0x570A60` right after Quick
 Race is added), `MainMenuHook` allocates an option (0x48 bytes, game malloc 0x575620) and initializes it with
 `0x51F670(opt, 0x883E25D6, 0x6A2B93EB, 0)`, which gives the console icon and the localized "2 Player Split-Screen" text,
-both still in the data. Its vtable is `{0x4AEB70 dtor, SplitMenuReact}` and it's added with `menu->vtbl[0x18](opt)`.
+both still in the data. With 2-4 players the text is shortened to "Split-Screen": `RenameSplitMenuText` points that
+entry of the loaded language table (entries {hash, text*} sorted by hash at [0x8383D8], count [0x8383D0]; lookup
+0x4FF9D0) at a shortened text when it holds a known original (English, German, French, Italian, Spanish, Dutch, Danish,
+Swedish; others keep theirs). Its vtable is `{0x4AEB70 dtor, SplitMenuReact}` and it's added with `menu->vtbl[0x18](opt)`.
 `SplitMenuReact` sets a flag and jumps to the Quick Race react 0x4FC050 (thiscall, ret 0x14). `QuickRaceModeHook`
 (0x4FC061) then sets mode 4 instead of 2.
 
