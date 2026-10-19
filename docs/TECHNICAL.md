@@ -623,6 +623,13 @@ The `tools/` scripts expect this repo checked out **inside the game folder** (`<
   - `strscan.py` / `ptrscan.py` search memory.
   - `minidump.py <dmp>` shows the exception, registers and code addresses on the stack (dumps land in
     `%LOCALAPPDATA%\CrashDumps`).
+- **Device loss / flicker log** (ini `Debug = 1`, `HookDeviceDebug`, installed from the first frame): logs Present
+  failures, TestCooperativeLevel changes (with the free address space), every Reset with its call stack, and the
+  activation/focus/size/display messages the game window receives ("d3d:" / "wnd:" lines). The game resets on
+  TestCooperativeLevel == D3DERR_DEVICENOTRESET (0x5D2AFF / 0x5D2BE2 → 0x5D1C40, which calls Reset twice) and after a
+  video option change (0x5D288B). Each reset recreates speed2.exe's D3DProxyWindow, which can be watched from outside
+  the game without the plugin. A flicker loop (device lost every ~0.5 s with the game in front) was seen once and not
+  reproduced; read this log while it happens.
 - **Debug mailbox** (ini `Debug = 1`; the address is logged as "mailbox at ...", struct `Mailbox` in the source).
   Commands run on the game thread (`fe.py command`):
 
