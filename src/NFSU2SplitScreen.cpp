@@ -1917,7 +1917,52 @@ static void* __cdecl StreakView(int id) {
         if (SplitRacing() && g_currentView == kPlayerViewId[k]) return &GetView(g_currentView);
     return &GetView(id);
 }
-static int __cdecl StreaksAllowed() { return at<int>(0x870CE0) != 0 && (!SplitRacing() || OverbrightActive()); }
+// Without overbright the streak function ends with its own composite of the buffer onto the view (0x5C6BE0 at
+// 0x5CBDA6: a full-clip-space quad, UVs 0..1 = the whole buffer). In a split view it would squeeze every player's part
+// of the buffer into the view, so while that composite runs for a player view its UVs are remapped to the view's part:
+// the blit builds the quad on its stack (4 vertices of 0x30 bytes at esp+0x30: position, then 4 UV pairs) and calls
+// 0x5BCBC0 at 0x5C6EC6 before drawing it.
+#define AT_STREAK_COMPOSITE_CALL 0x5CBDA6
+#define FN_SCREEN_BLIT     0x5C6BE0      // cdecl, 8 args
+#define AT_BLIT_QUAD_READY 0x5C6EC6      // call 0x5BCBC0 (vertices at the caller's esp+0x30)
+#define FN_BLIT_QUAD_READY 0x5BCBC0
+static int g_streakCompositeView = -1;   // player view whose streak composite is running (-1: none)
+static void __cdecl StreakComposite(uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e, uint32_t f, uint32_t g,
+                                    uint32_t h) {
+    for (int k = 0; k < g_screenViews; ++k)
+        if (SplitRacing() && g_currentView == kPlayerViewId[k]) g_streakCompositeView = k;
+    reinterpret_cast<void(__cdecl*)(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(
+        FN_SCREEN_BLIT)(a, b, c, d, e, f, g, h);
+    g_streakCompositeView = -1;
+}
+static void __cdecl RemapStreakQuad(float* vertices) {
+    int k = g_streakCompositeView;
+    float w = static_cast<float>(at<int>(SCREEN_W)), h = static_cast<float>(at<int>(SCREEN_H));
+    if (k < 0 || w <= 0 || h <= 0) return;
+    float x0 = g_regionX[k] / w, y0 = g_regionY[k] / h, sx = g_rt[k].width / w, sy = g_rt[k].height / h;
+    for (int v = 0; v < 4; ++v)
+        for (int t = 0; t < 4; ++t) {
+            float* uv = vertices + v * 12 + 4 + t * 2;
+            uv[0] = x0 + uv[0] * sx;
+            uv[1] = y0 + uv[1] * sy;
+        }
+}
+static __declspec(naked) void BlitQuadReadyHook() {
+    __asm {
+        cmp g_streakCompositeView, 0
+        jl done
+        pushad
+        lea eax, [esp + 0x20 + 0x40]     // caller's esp+0x30: past pushad, our return address and its 3 arguments
+        push eax
+        call RemapStreakQuad
+        add esp, 4
+        popad
+    done:
+        push FN_BLIT_QUAD_READY
+        ret
+    }
+}
+static int __cdecl StreaksAllowed() { return at<int>(0x870CE0) != 0; }
 static __declspec(naked) void StreaksBranchHook() {
     __asm {
         pushad
@@ -5266,6 +5311,8 @@ static void Install(HMODULE self) {
     WriteCall(AT_SKY_CALL, &DrawSky);
     WriteJump(AT_STREAKS_BRANCH, &StreaksBranchHook, 8);
     WriteCall(AT_STREAK_VIEW_CALL, &StreakView);
+    WriteCall(AT_STREAK_COMPOSITE_CALL, &StreakComposite);
+    WriteCall(AT_BLIT_QUAD_READY, &BlitQuadReadyHook);
     WriteCall(AT_STREAK_AA_COPY, &StreakAACopy);
     WriteCall(AT_BLUR_CALL, &MotionBlurForView);
     WriteCall(AT_BLUR_VIEW_CALL1, &BlurView);

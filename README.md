@@ -72,6 +72,7 @@ Players 1 and 2's settings, bindings and last cars are saved in the game profile
 - [x] Weather per view: falling rain, splashes and lens droplets
 - [x] Speed blur per view
 - [x] Overbright per view, including each player's own nitrous intensity
+- [x] Light streaks per view (with or without overbright)
 - [x] Anti-aliasing (FSAA) in split screen, light glows included
 - [x] Particles and effects (tyre smoke, nitrous flames) for every player
 - [x] Alt-tab / device reset
@@ -96,9 +97,9 @@ Players 1 and 2's settings, bindings and last cars are saved in the game profile
 - [x] Stability fixes for audio-thread races in the game's memory pools and sound file system
 
 ### To do
-- [ ] Light streaks without overbright in split screen (currently off in split views)
-- [ ] Known issues: ambient sound stutter on the results screen (3P); a black results background was seen once
-  (not reproduced); a rare 4P quit-to-menu crash in a HUD binding list (mitigated, root cause unknown)
+- [ ] Known issues, shelved until they can be reproduced: ambient sound stutter on the results screen (3P); a black
+  results background (seen once); a rare 4P quit-to-menu crash in a HUD binding list (mitigated, root cause unknown);
+  a Direct3D device-loss flicker loop (seen in one session; `Debug = 1` logs it)
 - [ ] Session results: standings across back-to-back races (design to be discussed)
 - [ ] Replays of split-screen races (to be investigated; the game has a replay viewer, ui_ReplayControl.fng)
 - [ ] Stretch goals: simultaneous split-screen car select; dynamic join (press START to join, layout updates live)

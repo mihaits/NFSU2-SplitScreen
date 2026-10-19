@@ -400,13 +400,16 @@ smoothed strength (0x870900) and a full-backbuffer StretchRect (0x5CC760).
   0x86FF70 / tex 0x86FF74, which is **screen sized** (the 960x540 buffers are the blur targets).
 - The streak pass 0x5CBB00 (in the view loop) fades the buffer (0x5C6BE0, blend factor) and adds the view's glows. It
   hard-coded view 1 (`push 1; call 0x48B1E0` at 0x5CBC00 → `StreakView`).
-- `StreaksAllowed` / `StreaksBranchHook` (0x5CB577): with overbright on, split views run the pass, and every viewport
-  on the streak surface inside a view is that view's region (`StreakRegionViewport`; the blits are clip-space quads).
+- `StreaksAllowed` / `StreaksBranchHook` (0x5CB577): split views run the pass, and every viewport on the streak
+  surface inside a view is that view's region (`StreakRegionViewport`; the blits are clip-space quads).
 - With FSAA (0x870D08 > 0), the pass renders through the full-screen copy 0x86F2E4 / 0x86F2E0. That surface gets the
   same regions (`IsStreakSurface`), except for its copy of the whole previous image (0x5C7120 at 0x5CBBB0,
   `StreakAACopy`).
-- Light streaks **without** overbright stay off in split views: their composite samples the whole buffer into the
-  region and would need a UV sub-rect.
+- Without overbright, the pass ends with its own composite of the buffer onto the view (0x5C6BE0 at 0x5CBDA6), a
+  full-clip-space quad with UVs covering the whole buffer, which would squeeze every player's part into the view.
+  `StreakComposite` marks the player view while it runs, and `BlitQuadReadyHook` (call 0x5BCBC0 at 0x5C6EC6, after
+  the blit has built its quad on its stack: 4 vertices of 0x30 bytes at esp+0x30, position + 4 UV pairs) remaps the
+  UVs to the view's part of the buffer (`RemapStreakQuad`).
 
 **Overbright intensity per view.**
 - 0x5BC180 (once per frame, call at 0x5D2B5A) reads view 1's effect object (+0x60: +0x3C nitrous on, +0x1E0
