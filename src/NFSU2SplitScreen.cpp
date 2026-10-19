@@ -4731,6 +4731,10 @@ static int RelocatePortTables() {
 #define PLAYER_FEEDBACK    4
 #define FN_FF_CAPABLE      0x5B8240
 #define AT_MAP_MODE_MAX    0x49AFF9      // Map mode option: `setne cl` (split mode -> max Static)
+// Car detail: with the split layout (0x5B98A0 == 3) the car renderers 0x620AE0 and 0x6162E0 scale the car's screen size
+// by 0.7 (0x7A6700) and force the LOD range to 1..1 (the low model), and the car parts renderer 0x615630 scales the size
+// too. Each `jne` past that block becomes `jmp`: split cars use the Car Geometry Detail option like single player.
+static const uintptr_t kSplitCarLodJumps[] = {0x620C8C, 0x616316, 0x6156CC};
 static uint8_t g_ffShadowChannels[FF_CHANNELS_SIZE], g_ffShadowStrengths[FF_STRENGTHS_SIZE];
 static int g_ffPortBase = 0;                 // 2 while the players 3/4 state is swapped in
 static int g_ffMotor[4];                     // per port: motor value 0..255
@@ -5204,6 +5208,10 @@ static void Install(HMODULE self) {
         // (mode != 4) + 1); with per-player minimaps Rotate works in split too -> `setne cl` becomes `mov cl, 1`
         static const uint8_t setne[3] = {0x0F, 0x95, 0xC1}, movCl1[3] = {0xB1, 0x01, 0x90};
         if (memcmp(reinterpret_cast<void*>(AT_MAP_MODE_MAX), setne, 3) == 0) Write(AT_MAP_MODE_MAX, movCl1, 3);
+    }
+    for (uintptr_t at : kSplitCarLodJumps) {
+        static const uint8_t jmp = 0xEB;
+        if (*reinterpret_cast<uint8_t*>(at) == 0x75) Write(at, &jmp, 1);
     }
     if (g_rumble) { static const uint8_t kCapable[] = {0xB0, 0x01, 0xC3}; Write(FN_FF_CAPABLE, kCapable, 3); }   // mov al,1; ret
     WriteJump(FN_IMPACT_RUMBLE, &ImpactRumbleHook, 6);

@@ -340,6 +340,11 @@ redirect their view or player choice to the view currently being drawn (`g_curre
 - The view's own car has its lights flag (+0x550) cleared during that call, as single player shows no pool for the
   own car.
 
+**Car detail.** With the split layout (0x5B98A0 == 3) the car renderers 0x620AE0 and 0x6162E0 multiplied the car's
+screen size by 0.7 (0x7A6700) and forced its LOD range to 1..1, the low model, ignoring Car Geometry Detail (0x870CF8
+-> 0x8A1C10/14). The car parts renderer 0x615630 scaled the size too. The `jne` past each block (0x620C8C, 0x616316,
+0x6156CC) is patched to `jmp`. Not touched: 0x61F332 scales a car value at +0x5094 by 1/8 in split (purpose unknown).
+
 **Car light glares.** 0x5D6570 made glares only for views 1/2 (GetView(2) check at 0x5D683C, mask from GetView(1) at
 0x5D686F). `GlareView` counts views 5/6 as view 1, reading the rendering view from the model renderer's context
 ([ebp+0xC]+0x40). The slot counters (0x82DAE8[2], capacity 0x7F3D44) are reset at each player view. The screen tint
