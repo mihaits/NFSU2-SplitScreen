@@ -65,8 +65,8 @@ Players 1 and 2's settings, bindings and last cars are saved in the game profile
 **Rendering**
 - [x] Layouts: 2P top/bottom, 3P (player 3 centred at the bottom, side bars black), 4P quadrants
 - [x] Per-view projection and aspect ratio
-- [x] Full single-player track sections for every player; streaming covers all players; streaming pool scaled by
-  player count
+- [x] Full single-player track sections for every player; streaming covers all players (P3/P4's sections are loaded
+  and prioritised by their own positions); streaming pool scaled by player count
 - [x] Sky, headlights (projector and light pools on the road for every car) and car light glares in every view
 - [x] Road reflections and car (environment map) reflections per player
 - [x] Weather per view: falling rain, splashes and lens droplets
@@ -97,7 +97,6 @@ Players 1 and 2's settings, bindings and last cars are saved in the game profile
 
 ### To do
 - [ ] Light streaks without overbright in split screen (currently off in split views)
-- [ ] Streaming with 4 real streamer positions. P3/P4's sections ride on positions 0/1, which is enough in testing.
 - [ ] Known issues: ambient sound stutter on the results screen (3P); a black results background was seen once
   (not reproduced); a rare 4P quit-to-menu crash in a HUD binding list (mitigated, root cause unknown)
 - [ ] Session results: standings across back-to-back races (design to be discussed)

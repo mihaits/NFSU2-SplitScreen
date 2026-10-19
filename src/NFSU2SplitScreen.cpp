@@ -5002,6 +5002,48 @@ static void __fastcall StreamSectionsHook(void* streamer) {
     }
 }
 
+// Load priority (0x5DF580, called at 0x5E7CFC): for each section of the streamer's list (+0x29C, count +0x298) the
+// priority is the smallest 0x5DF3A0(section, position block) (distance-based, 0..0x63; uses the block's x/y +4/+8 and
+// velocity +0xC/+0x10) over the positions whose bit the section has (+0xB), stored as priority * 100000 + section
+// +0x20 at +0x40; it decides what loads first and what is dropped first. P3's / P4's sections ride on bits 0 / 1, so
+// they were ranked by the distance to P1 / P2: the sections around a player far from both loaded last and were evicted
+// first. Now the distance to P3's / P4's own position counts too (bit 0 / 1); unchanged with 2 players.
+#define AT_STREAM_PRIORITY_CALL 0x5E7CFC  // call 0x5DF580 (thiscall streamer)
+#define FN_STREAM_PRIORITY      0x5DF580
+#define FN_SECTION_DISTANCE     0x5DF3A0  // int __thiscall (streamer; section, position block)
+static void __fastcall StreamPriorities(uint8_t* streamer) {
+    if (g_extraPlayers <= 0 || !SplitRacing()) {
+        reinterpret_cast<void(__thiscall*)(void*)>(FN_STREAM_PRIORITY)(streamer);
+        return;
+    }
+    auto distance = reinterpret_cast<int(__thiscall*)(void*, void*, void*)>(FN_SECTION_DISTANCE);
+    int count = *reinterpret_cast<int*>(streamer + 0x298);
+    auto** sections = reinterpret_cast<uint8_t**>(streamer + 0x29C);
+    int raised = 0;
+    for (int i = 0; i < count; ++i) {
+        uint8_t* section = sections[i];
+        int bits = static_cast<int8_t>(section[0xB]), best = 0x63;
+        for (int pos = 0; pos < 2; ++pos)
+            if (bits & (1 << pos)) {
+                int d = distance(streamer, section, streamer + 0xB0 + pos * 0x5C);
+                if (d < best) best = d;
+            }
+        int own = best;
+        for (int k = 0; k < 2 && k < g_extraPlayers; ++k)      // P3 -> bit 0, P4 -> bit 1
+            if ((bits & (1 << k)) && g_streamZone[k] > 0) {
+                int d = distance(streamer, section, &g_streamPos[k]);
+                if (d < best) best = d;
+            }
+        raised += best < own;
+        *reinterpret_cast<int*>(section + 0x40) = best * 100000 + *reinterpret_cast<int*>(section + 0x20);
+    }
+    static DWORD logged;
+    if (g_debug && GetTickCount() - logged > 3000) {
+        logged = GetTickCount();
+        Log("streaming: %d sections, %d ranked higher by players 3/4's positions", count, raised);
+    }
+}
+
 // ---------------------------------------------------------------- setup
 static bool IsSupportedExe() {
     // original bytes at a few patch sites (v1.2, unpatched)
@@ -5158,6 +5200,7 @@ static void Install(HMODULE self) {
     WriteJump(AT_WORLD_VIEWS, &WorldViewsHook, 5);
     g_origStreamZones = reinterpret_cast<StreamZonesFn>(MakeTrampoline(FN_STREAM_ZONES, 7));
     WriteJump(FN_STREAM_ZONES, &StreamZonesHook, 7);
+    WriteCall(AT_STREAM_PRIORITY_CALL, &StreamPriorities);
     g_origStreamSections = reinterpret_cast<StreamSectionsFn>(MakeTrampoline(FN_STREAM_SECTIONS, 6));
     WriteJump(FN_STREAM_SECTIONS, &StreamSectionsHook, 6);
     for (uintptr_t site : kCreateHumanRacersCalls) WriteCall(site, &CreateHumanRacers);

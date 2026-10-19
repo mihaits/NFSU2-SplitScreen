@@ -433,6 +433,12 @@ smoothed strength (0x870900) and a full-backbuffer StretchRect (0x5CC760).
   sections for 2-4 far-apart areas, so with them the sections around a distant player went missing.
   `CreateTrackStreamingPool` / `CreateSecondStreamingPool` size them from the single-player values: 60 MB ×
   (players + 1) / 2 and 11 MB × players / 2. The exe is not large-address-aware; a 4P race uses about 380 MB.
+- Load priority (0x5DF580, called at 0x5E7CFC → `StreamPriorities`): per section (list +0x29C, count +0x298) the game
+  takes the smallest 0x5DF3A0(section, position block) over the positions whose bit (+0xB) it has (0..0x63; uses the
+  block's x/y +4/+8 and velocity +0xC/+0x10; a still position gives 0) and stores priority × 100000 + section+0x20 at
+  +0x40, which orders loading and eviction. P3/P4's sections ride on bits 0/1, so they were ranked by the distance to
+  P1/P2. `StreamPriorities` also takes P3's / P4's own blocks for bit 0 / 1, so every section is ranked by its nearest
+  player (identical to the game's with 2 players).
 
 ## 9. HUD
 **Map mode.** Gameplay > Map mode (0x83AA1B: Off/Static/Rotate, handler 0x49AFE0) only offers Off/Static in split mode
@@ -601,7 +607,6 @@ parked off-screen) are moved 2000 further out. Pivots are scaled too.
 
 ## 13. Open issues and leads
 - **Light streaks without overbright** in split views (section 7).
-- **Streamer with 4 positions** (section 8).
 - **Results ambient sound stutter (3P).** Continuous ~2 Hz gating, music off. Not frame hitches, sound fs handles, the
   nearest-player functions or ListenerUpdate (each was reverted live with no change). Left to check: the relocated
   listener arrays, or the original 2P behaviour.
