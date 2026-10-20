@@ -335,10 +335,22 @@ redirect their view or player choice to the view currently being drawn (`g_curre
 - `RecullHeadlightView` redoes view 9's entry of the world view table per player: frustum 0x5C26E0, cull 0x5E9A30 /
   0x5E99C0 into the space after the cursor (world +0x6C8, limit +0x6CC) without advancing it. This is needed because
   the projector's geometry was culled from P1's position.
-- Per-car light pools on the road: 0x615490(view) ("2PLAYERHEADLIGHT1" decal) was only called on the 1P path
-  (0x5CAC07). The split path now calls it after 0x566400 (`SplitPassWithHeadlightPools`, call at 0x5CB2E3).
-- The view's own car has its lights flag (+0x550) cleared during that call, as single player shows no pool for the
-  own car.
+- **Projectors for every player** (`WorldDrawWithBeams`, call 0x5D6AD0 at 0x5CB23B). The headlight pass
+  (0x5D6D20(world; view 9, 0x488B90) at 0x5CB218) only flags the meshes in view 9's culled list (+8 → +0x1B |= 0x80).
+  The world draw turns the flag into render flag 0x200 (0x5D6B85), which picks the material's headlight shader
+  variant (0x5C5953: worldheadlight.efx etc.), and clears the flag. The world draw only queues meshes; 0x5CF420 draws
+  the queue and sets the projector params per draw (0x5BDAA0, colour from 0x60F510 at 0x5BDC20). So one projector
+  per draw. After the view's world draw the plugin draws the queue, then for each other player with lights on
+  (within 250 m) aims view 9 at that car and draws its flagged meshes twice: with colour 0 subtracted (blend op
+  REVSUBTRACT), then with the beam added (ADD). The difference is mesh × beam; base lighting and fog cancel. The
+  world draw's include mask (imm at 0x5D6B0F, normally 0x2000 for flags & 0x10) is 0x200 meanwhile, so only flagged
+  meshes are queued. A SetRenderState hook forces no depth writes, LESSEQUAL with a small bias and ONE/ONE blending.
+  A DrawIndexedPrimitive hook skips materials that asked for alpha blending: semi-transparent pixels don't cancel
+  (the subtracted copy clamps at black). The same runs in the full screen race intro (view 1); the device hooks
+  are installed on first use because the first intro comes before any split frame.
+- Light pools on the road (0x615490(view), "2PLAYERHEADLIGHT1" decal) are for traffic only: player cars have their
+  lights flag (+0x550) cleared during the call (`PoolsForTraffic`). The split path calls it after 0x566400
+  (`SplitPassWithHeadlightPools`, 0x5CB2E3); the 1P path (intro) at 0x5CAC07.
 
 **Car skins.** A car's paint and vinyls are composited into the texture DUMMY_SKIN<n> named by its ride info
 (+0x584, set by 0x61C280(ride; n), composited by 0x61D790). The garage entries choose n from the player index

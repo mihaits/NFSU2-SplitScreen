@@ -1862,11 +1862,17 @@ static void HookDeviceDebug() {
     HookDeviceMethod(dev, 17, reinterpret_cast<void*>(&PresentHook), &g_origPresent);
 }
 
+static void* g_origSetRenderState;
+static void* g_origDrawIndexed;
+static HRESULT __stdcall SetRenderStateHook(void* dev, DWORD state, DWORD value);
+static HRESULT __stdcall DrawIndexedHook(void* dev, int type, int base, UINT minIdx, UINT n, UINT start, UINT count);
 static void HookDeviceSetViewport() {
     void* dev = at<void*>(D3D_DEVICE);
     if (!dev) return;
     HookDeviceMethod(dev, 0xBC / 4, reinterpret_cast<void*>(&SetViewportHook), &g_origSetViewport);
     HookDeviceMethod(dev, 0x94 / 4, reinterpret_cast<void*>(&SetRenderTargetHook), &g_origSetRenderTarget);
+    HookDeviceMethod(dev, 57, reinterpret_cast<void*>(&SetRenderStateHook), &g_origSetRenderState);
+    HookDeviceMethod(dev, 82, reinterpret_cast<void*>(&DrawIndexedHook), &g_origDrawIndexed);
 }
 
 // The world renderer collects the views to draw every frame (0x5B9C20: views 1..3, env map 0x10..0x15, 4, 9; 12
@@ -2226,26 +2232,34 @@ static void RecullHeadlightView(View& v9) {
 #define FN_HEADLIGHT_POOLS   0x615490    // void __cdecl (View*)
 // As in single player, the view's own car gets no pool (its projector lights the road; the pool is a flat quad that
 // tilts with the car and clipped into the road under braking): its lights flag (+0x550) is off during the call.
-static uint8_t* PlayerCarForView(const View* v) {
-    for (int k = 0; k < g_screenViews; ++k) {
-        if (&GetView(kPlayerViewId[k]) != v) continue;
-        int id = k < 2 ? reinterpret_cast<const int*>(HUMAN_RACER_SLOTS)[k] : k;
-        uint8_t* mgr = at<uint8_t*>(0x890080);
-        if (!mgr) return nullptr;
-        for (auto* c = *reinterpret_cast<uint8_t**>(mgr); c && c != mgr; c = *reinterpret_cast<uint8_t**>(c))
-            if (*reinterpret_cast<int16_t*>(c + 0xA) == id) return c;
-    }
+// Every player's car has a projector (WorldDrawWithBeams, also in the full screen race intro), so no player car gets
+// a pool: their lights flags are off during the call. Traffic keeps its pools, as in single player.
+static uint8_t* PlayerCar(int k) {
+    int id = k < 2 ? reinterpret_cast<const int*>(HUMAN_RACER_SLOTS)[k] : k;
+    uint8_t* mgr = at<uint8_t*>(0x890080);
+    if (!mgr) return nullptr;
+    for (auto* c = *reinterpret_cast<uint8_t**>(mgr); c && c != mgr; c = *reinterpret_cast<uint8_t**>(c))
+        if (*reinterpret_cast<int16_t*>(c + 0xA) == id) return c;
     return nullptr;
+}
+static void __cdecl PoolsForTraffic(View* v) {
+    if (!SplitMode() || at<int>(NUM_PLAYERS) != 2) {
+        reinterpret_cast<void(__cdecl*)(View*)>(FN_HEADLIGHT_POOLS)(v);
+        return;
+    }
+    uint8_t* car[MAX_LOCAL_PLAYERS] = {};
+    uint8_t lights[MAX_LOCAL_PLAYERS] = {};
+    for (int k = 0; k < 2 + (g_extraPlayers > 0 ? g_extraPlayers : 0) && k < MAX_LOCAL_PLAYERS; ++k)
+        if ((car[k] = PlayerCar(k)) != nullptr) { lights[k] = car[k][0x550]; car[k][0x550] = 0; }
+    reinterpret_cast<void(__cdecl*)(View*)>(FN_HEADLIGHT_POOLS)(v);
+    for (int k = 0; k < MAX_LOCAL_PLAYERS; ++k) if (car[k]) car[k][0x550] = lights[k];
 }
 static void __cdecl SplitPassWithHeadlightPools(View* v) {
     reinterpret_cast<void(__cdecl*)(View*)>(FN_SPLIT_PASS)(v);
-    if (!SplitRacing() || !at<int>(OPT_CAR_HEADLIGHTS)) return;
-    uint8_t* own = PlayerCarForView(v);
-    uint8_t lights = own ? own[0x550] : 0;
-    if (own) own[0x550] = 0;
-    reinterpret_cast<void(__cdecl*)(View*)>(FN_HEADLIGHT_POOLS)(v);
-    if (own) own[0x550] = lights;
+    if (SplitRacing() && at<int>(OPT_CAR_HEADLIGHTS)) PoolsForTraffic(v);
 }
+// The race intro is drawn full screen by the 1-player path, which draws the pools itself (0x5CAC07).
+#define AT_1P_POOLS_CALL     0x5CAC07
 
 // Rain: every view has its own rain object (view +0x64: falling rain + the drops on the lens, updated from that
 // view's camera by 0x6140F0), but the frame draws only view 1's, once over the whole screen: falling rain at
@@ -2814,6 +2828,113 @@ static void __cdecl ReleaseTargetsHook() {
     ReleaseReflectionTextures();
     ReleaseEnvCubes();
     g_origReleaseTargets();
+}
+
+// Headlight projectors for every player. The game has one projector: the headlight pass (0x5D6D20(world; view 9,
+// 0x488B90) at 0x5CB218) only flags the meshes in view 9's culled list (+8 -> +0x1B |= 0x80); the world draw turns the
+// flag into render flag 0x200 (0x5D6B85), which picks the material's headlight shader variant (0x5C5953:
+// worldheadlight.efx etc.) lit by view 9's projector, and clears the flag. The world draw only queues the meshes;
+// 0x5CF420 draws the queue (normally at 0x5CB2A0), setting the projector params per draw (0x5BDAA0, colour from
+// 0x60F510). One projector per draw, so the other players' beams are added in extra passes
+// after the view's world draw (0x5CB23B), per other player whose lights are on, with view 9 aimed at that car:
+//   1. its flagged meshes again with the headlight colour 0, subtracted from the frame (blend op REVSUBTRACT)
+//   2. the same meshes with the beam, added (blend op ADD)
+// = + mesh * beam (the base lighting and the fog colour cancel out). Only the flagged meshes are drawn: the world
+// draw's include mask (0x2000 for flags & 0x10, imm at 0x5D6B0F) is 0x200 meanwhile. No depth writes, depth test
+// with a small bias (both passes use the same headlight shader, the view's own pass may not have).
+#define AT_MAIN_WORLD_DRAW    0x5CB23B   // call 0x5D6AD0 (world views; view, 0x20)
+#define FN_FLAG_BEAM_MESHES   0x5D6D20   // void __thiscall (world views; View*, void(__cdecl*)(item*))
+#define FN_FLAG_BEAM_MESH     0x488B90
+#define AT_WORLD_INCLUDE_MASK 0x5D6B0F   // imm32 of `mov [ebp-0Ch], 2000h` (world draw flags & 0x10)
+#define FN_DRAW_QUEUED        0x5CF420   // void __cdecl (): draws the queued meshes (per effect; headlight params per draw)
+#define AT_BEAM_COLOR_CALL    0x5BDC20   // call 0x60F510: headlight colour (0x00BBGGRR)
+#define FN_CAR_LIGHT_COLOR    0x60F510
+static int g_beamPass;                   // 1: subtract (colour 0), 2: add
+static bool g_beamSkipBlended;           // the material asked for alpha blending: not drawn in the beam passes
+static HRESULT __stdcall SetRenderStateHook(void* dev, DWORD state, DWORD value) {
+    if (g_beamPass && state == 27) g_beamSkipBlended = value != 0;
+    if (g_beamPass) switch (state) {
+        case 14: value = 0; break;                              // ZWRITEENABLE
+        case 23: value = 4; break;                              // ZFUNC: LESSEQUAL
+        case 27: value = 1; break;                              // ALPHABLENDENABLE
+        case 19: case 20: value = 2; break;                     // SRCBLEND, DESTBLEND: ONE
+        case 171: value = g_beamPass == 1 ? 3 : 1; break;       // BLENDOP: REVSUBTRACT / ADD
+        case 206: value = 0; break;                             // SEPARATEALPHABLENDENABLE
+        case 195: { float b = -0.00002f; memcpy(&value, &b, 4); break; }   // DEPTHBIAS
+        case 175: { float b = -1.0f; memcpy(&value, &b, 4); break; }       // SLOPESCALEDEPTHBIAS
+    }
+    return reinterpret_cast<HRESULT(__stdcall*)(void*, DWORD, DWORD)>(g_origSetRenderState)(dev, state, value);
+}
+// Semi-transparent materials don't cancel out (the subtracted copy clamps at black where it covers less than the
+// whole pixel): their draws are skipped in the beam passes.
+static HRESULT __stdcall DrawIndexedHook(void* dev, int type, int base, UINT minIdx, UINT n, UINT start, UINT count) {
+    if (g_beamPass && g_beamSkipBlended) return 0;
+    return reinterpret_cast<HRESULT(__stdcall*)(void*, int, int, UINT, UINT, UINT, UINT)>(g_origDrawIndexed)(
+        dev, type, base, minIdx, n, start, count);
+}
+static uint32_t __cdecl BeamColor(void* car) {
+    if (g_beamPass == 1) return 0;
+    return reinterpret_cast<uint32_t(__cdecl*)(void*)>(FN_CAR_LIGHT_COLOR)(car);
+}
+static void __cdecl ClearBeamMesh(uint8_t* item) { (*reinterpret_cast<uint8_t**>(item + 8))[0x1B] &= 0x7F; }
+static const DWORD kBeamStates[] = {14, 23, 27, 19, 20, 171, 206, 195, 175};
+
+static void __fastcall WorldDrawWithBeams(void* world, void*, View* v, int flags) {
+    using DrawFn = void(__thiscall*)(void*, View*, int);
+    reinterpret_cast<DrawFn>(FN_WORLD_DRAW)(world, v, flags);
+    // split racing, or the full screen race intro (view 1, player 1's projector)
+    if (!SplitMode() || at<int>(NUM_PLAYERS) != 2 || !at<int>(OPT_CAR_HEADLIGHTS) || world != g_worldViews) return;
+    int k = -1;
+    for (int i = 0; i < g_screenViews && i < MAX_LOCAL_PLAYERS; ++i) if (&GetView(kPlayerViewId[i]) == v) k = i;
+    View& v9 = GetView(9);
+    void* dev = at<void*>(D3D_DEVICE);
+    if (dev && (!g_origSetRenderState || !g_origDrawIndexed)) {   // the first race's intro comes before any split frame
+        HookDeviceMethod(dev, 57, reinterpret_cast<void*>(&SetRenderStateHook), &g_origSetRenderState);
+        HookDeviceMethod(dev, 82, reinterpret_cast<void*>(&DrawIndexedHook), &g_origDrawIndexed);
+    }
+    if (k < 0 || !v9.active || !v9.camera || !v9.platInfo || !v->camera || !dev || !g_origSetRenderState ||
+        !g_origDrawIndexed)
+        return;
+    DWORD blending = 0;
+    const float* eye = reinterpret_cast<const float*>(v->camera + 0x40);
+    using FlagFn = void(__thiscall*)(void*, View*, void*);
+    auto flag = reinterpret_cast<FlagFn>(FN_FLAG_BEAM_MESHES);
+    auto drawQueued = reinterpret_cast<void(__cdecl*)()>(FN_DRAW_QUEUED);
+    DWORD saved[sizeof(kBeamStates) / sizeof(kBeamStates[0])];
+    auto get = reinterpret_cast<HRESULT(__stdcall*)(void*, DWORD, DWORD*)>((*reinterpret_cast<void***>(dev))[58]);
+    bool any = false;
+    int players = 2 + (g_extraPlayers > 0 ? g_extraPlayers : 0);   // the intro has 1 view for all of them
+    for (int j = 0; j < players && j < MAX_LOCAL_PLAYERS; ++j) {
+        const uint8_t* car = j == k ? nullptr : PlayerCar(j);
+        if (!car || !car[0x550]) continue;
+        const float* pos = reinterpret_cast<const float*>(car + 0x50);
+        float dx = pos[0] - eye[0], dy = pos[1] - eye[1], dz = pos[2] - eye[2];
+        if (dx * dx + dy * dy + dz * dz > 250.0f * 250.0f) continue;   // beam out of sight
+        if (!any) {
+            for (size_t i = 0; i < sizeof(saved) / sizeof(saved[0]); ++i) get(dev, kBeamStates[i], &saved[i]);
+            blending = saved[2];
+            static const uint32_t headlightOnly = 0x200;
+            Write(AT_WORLD_INCLUDE_MASK, &headlightOnly, 4);
+            drawQueued();                // the view's own world draw first, as the game would
+            any = true;
+        }
+        HeadlightsForPlayer(j);
+        for (int pass = 1; pass <= 2; ++pass) {
+            flag(world, &v9, reinterpret_cast<void*>(FN_FLAG_BEAM_MESH));
+            reinterpret_cast<DrawFn>(FN_WORLD_DRAW)(world, v, flags | 0x10);   // queues the flagged meshes
+            g_beamPass = pass;
+            for (DWORD st : kBeamStates) SetRenderState(st, 0);   // forced to the pass's values by the hook
+            g_beamSkipBlended = blending != 0;   // the game's own blend state (it may not set it again)
+            drawQueued();
+            g_beamPass = 0;
+        }
+        flag(world, &v9, reinterpret_cast<void*>(&ClearBeamMesh));   // meshes outside the player view's list
+    }
+    if (!any) return;
+    static const uint32_t original = 0x2000;
+    Write(AT_WORLD_INCLUDE_MASK, &original, 4);
+    for (size_t i = 0; i < sizeof(saved) / sizeof(saved[0]); ++i) SetRenderState(kBeamStates[i], saved[i]);
+    HeadlightsForPlayer(k);              // the projector back on the view's own car for the rest of the view
 }
 
 static void __cdecl RefreshViewTarget(int viewId) {
@@ -5245,7 +5366,10 @@ static void Install(HMODULE self) {
     WriteCall(AT_LISTENER_UPDATE_CALL, &ListenerUpdate);
     WriteJump(AT_LISTENER_CHOICE, &ListenerChoiceHook, 5);
     WriteJump(AT_EMITTER_RANGE, &EmitterRangeHook, 6);
+    WriteCall(AT_MAIN_WORLD_DRAW, &WorldDrawWithBeams);
+    WriteCall(AT_BEAM_COLOR_CALL, &BeamColor);
     WriteCall(AT_SPLIT_PASS_CALL, &SplitPassWithHeadlightPools);
+    WriteCall(AT_1P_POOLS_CALL, &PoolsForTraffic);
     WriteCall(AT_RAIN_CALL, &RainForViews);
     WriteCall(AT_RAIN_DROPS_CALL, &RainDropsForViews);
     WriteCall(AT_RAIN_DROP_GET, &RainDropGet);
