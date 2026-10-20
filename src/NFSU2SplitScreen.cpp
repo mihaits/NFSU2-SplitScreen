@@ -1035,8 +1035,7 @@ static int g_keyboardSeat = -1;          // the player who joined with the keybo
 
 static int g_seat = 0;                   // car select: whose turn (0..3); the frontend serves FE player seat & 1
 static int g_splitPlayers = 2;           // players chosen on the split-screen options screen (2..4)
-static int g_splitOpponents = 0;         // AI opponents chosen there (the total is kept to 4 racers, as in 1P)
-#define MAX_RACERS 4
+static int g_splitOpponents = 0;         // AI opponents chosen there (see SplitOpponents)
 #define QR_RACE_TYPE       0x83AAB4      // quick race type (8 = outrun)
 // Outrun is a 2-player mode (one car chases the other): no Players row and always 2 players; the choice is kept for
 // the other modes.
@@ -1475,11 +1474,23 @@ static void __fastcall PlayersRowAct(uint8_t* row, void*, const char* fng, uint3
     reinterpret_cast<void(__thiscall*)(void*)>(vt[3])(row);
 }
 
-// "Opponents" row: AI racers in split races, up to MAX_RACERS racers in all (0..2 with 2 players, 0..1 with 3).
+// "Opponents" and "Difficulty" rows: AI racers in split races. Quick race types (0x83AAB4; starters 0x53FCF8): 0/1/7
+// circuit/sprint/lap KO, 2 drag, 3 drift, 4 URL, 5/10 Street X, 8 outrun, 9 / 11 others. AI only where single player
+// offers opponents (the per-type option builders that add 0x4B3750), except drift (its leaderboard scores simulated
+// opponents, 0x56D9F1; AI cars there are broken, as NFSU2 Extra Options notes). Up to 6 racers in all (single player
+// URL; NFSU2 Extra Options allows 5 opponents in every mode), 4 in drag.
+static bool AiRaceType() {
+    switch (at<int>(QR_RACE_TYPE)) {
+    case 0: case 1: case 2: case 4: case 5: case 7: case 10: return true;
+    default: return false;
+    }
+}
+static int MaxRacers() { return at<int>(QR_RACE_TYPE) == 2 ? 4 : 6; }
 static uint32_t g_opponentsRowVt[18];
 static int SplitOpponents() {
-    int max = MAX_RACERS - SplitPlayers();
-    return OutrunRace() ? 0 : g_splitOpponents < 0 ? 0 : g_splitOpponents > max ? max : g_splitOpponents;
+    int max = MaxRacers() - SplitPlayers();
+    if (!AiRaceType() || max < 0) return 0;
+    return g_splitOpponents < 0 ? 0 : g_splitOpponents > max ? max : g_splitOpponents;
 }
 static void __fastcall OpponentsRowDraw(uint8_t* row) {
     auto printf_ = reinterpret_cast<void(__cdecl*)(void*, const char*, ...)>(FN_FE_PRINTF);
@@ -1487,7 +1498,8 @@ static void __fastcall OpponentsRowDraw(uint8_t* row) {
     printf_(*reinterpret_cast<void**>(row + 0x30), "%d", SplitOpponents());
 }
 static void __fastcall OpponentsRowAct(uint8_t* row, void*, const char* fng, uint32_t msg) {
-    int n = SplitOpponents(), max = MAX_RACERS - SplitPlayers();
+    int n = SplitOpponents(), max = MaxRacers() - SplitPlayers();
+    if (max < 0) max = 0;
     if (msg == MSG_LEFT) g_splitOpponents = n > 0 ? n - 1 : max;
     if (msg == MSG_RIGHT) g_splitOpponents = n < max ? n + 1 : 0;
     reinterpret_cast<void(__cdecl*)(uint32_t, const char*)>(FN_FE_SEND_MSG)(0x92B703B5, fng);
@@ -1511,6 +1523,14 @@ static void AddOpponentsRow(uint8_t* screen) {
     }
     AddRow(screen, g_opponentsRowVt);
 }
+#define FN_DIFFICULTY_ROW_CTOR 0x4B3930  // the game's quick race Difficulty row (same args as 0x51E230)
+static void AddDifficultyRow(uint8_t* screen) {
+    auto* row = static_cast<uint8_t*>(reinterpret_cast<void*(__cdecl*)(size_t)>(FN_MALLOC)(0x54));
+    if (!row) return;
+    reinterpret_cast<void(__thiscall*)(void*, void*, void*, void*, void*, int)>(FN_DIFFICULTY_ROW_CTOR)(
+        row, screen + 0xFC, screen + 0x10C, screen + 0x114, screen + 0x11C, 1);
+    reinterpret_cast<void(__thiscall*)(void*, void*, int)>(FN_SCREEN_ADD_ROW)(screen, row, 1);
+}
 static void AddPlayersRow(uint8_t* screen) {
     if (!g_playersRowVt[0]) {
         memcpy(g_playersRowVt, reinterpret_cast<void*>(ROW_VTABLE_LAPS), sizeof(g_playersRowVt));
@@ -1521,7 +1541,8 @@ static void AddPlayersRow(uint8_t* screen) {
 }
 
 static void __fastcall QrFinishRows(uint8_t* screen, void*, int arg) {
-    if (SplitMode() && !OutrunRace()) AddPlayersRow(screen), AddOpponentsRow(screen);
+    if (SplitMode() && !OutrunRace()) AddPlayersRow(screen);
+    if (SplitMode() && AiRaceType()) AddOpponentsRow(screen), AddDifficultyRow(screen);
     reinterpret_cast<void(__thiscall*)(void*, int)>(FN_QR_FINISH_ROWS)(screen, arg);
 }
 

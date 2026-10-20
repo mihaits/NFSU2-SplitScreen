@@ -272,7 +272,15 @@ human's progress) × 0x88F2B0, progress = racer +0x14. It only ran with exactly 
 **AI opponents.** Quick race settings 0x83AAC4 + type × 0x14: byte +0 local players, +1 opponents. Every race starter
 sets the AI count 0x89E7C4 to 0 when there is more than one local player, creates the humans (0x525ED0, hooked as
 `CreateHumanRacers`), then the AI with 0x53EE90(0x89E7C4). `CreateHumanRacers` sets 0x89E7C4 to the Opponents row's
-value first (split options, `AddOpponentsRow`; at most 4 racers in all, as in single player; none in Outrun).
+value first (split options, `AddOpponentsRow`), followed by the game's own Difficulty row (ctor 0x4B3930, value
+0x502730/0x502990 in the quick race settings; the race starters copy it to 0x89E7F4 in every mode).
+- Race types (0x83AAB4, starters table 0x53FCF8): 0/1/7 circuit/sprint/lap KO, 2 drag, 3 drift, 4 URL, 5/10 Street X,
+  8 outrun. AI where single player offers opponents (the option builders adding the Opponents row 0x4B3750), except
+  drift (its leaderboard scores simulated opponents; NFSU2 Extra Options marks drift AI as broken). At most 6 racers
+  (single player URL allows 5 opponents, Extra Options 5 everywhere: it only changes the menu limits), 4 in drag.
+- AI cars (0x4FEAF0): a shuffled list of 26 car types, the first whose stock performance (0x5B6990) is within a
+  tolerance (3%, doubling) of racer 0's car (player 1's). Difficulty picks each AI driver's skill tier (0x4FED00:
+  weighted random over a 10-entry table per difficulty) and the rubber-band strength.
 - AI racers are spec index 100 + i (no clash with players 3/4). Their cars (0x4FEAF0(out, 100 + i, 2 + i, ...)) got
   DUMMY_SKIN<2 + i> (call 0x61C280 at 0x4FEB51), player 2's slot in split: `AiSetSkin` starts them after the humans.
 - Rubber-banding 0x4173ED.. picks the human each AI measures against (AI +0x748): 1 player that one, 2 the leader or
