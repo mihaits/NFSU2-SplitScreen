@@ -1035,6 +1035,8 @@ static int g_keyboardSeat = -1;          // the player who joined with the keybo
 
 static int g_seat = 0;                   // car select: whose turn (0..3); the frontend serves FE player seat & 1
 static int g_splitPlayers = 2;           // players chosen on the split-screen options screen (2..4)
+static int g_splitOpponents = 0;         // AI opponents chosen there (the total is kept to 4 racers, as in 1P)
+#define MAX_RACERS 4
 #define QR_RACE_TYPE       0x83AAB4      // quick race type (8 = outrun)
 // Outrun is a 2-player mode (one car chases the other): no Players row and always 2 players; the choice is kept for
 // the other modes.
@@ -1473,22 +1475,53 @@ static void __fastcall PlayersRowAct(uint8_t* row, void*, const char* fng, uint3
     reinterpret_cast<void(__thiscall*)(void*)>(vt[3])(row);
 }
 
+// "Opponents" row: AI racers in split races, up to MAX_RACERS racers in all (0..2 with 2 players, 0..1 with 3).
+static uint32_t g_opponentsRowVt[18];
+static int SplitOpponents() {
+    int max = MAX_RACERS - SplitPlayers();
+    return OutrunRace() ? 0 : g_splitOpponents < 0 ? 0 : g_splitOpponents > max ? max : g_splitOpponents;
+}
+static void __fastcall OpponentsRowDraw(uint8_t* row) {
+    auto printf_ = reinterpret_cast<void(__cdecl*)(void*, const char*, ...)>(FN_FE_PRINTF);
+    printf_(*reinterpret_cast<void**>(row + 0x2C), "%s", "Opponents");
+    printf_(*reinterpret_cast<void**>(row + 0x30), "%d", SplitOpponents());
+}
+static void __fastcall OpponentsRowAct(uint8_t* row, void*, const char* fng, uint32_t msg) {
+    int n = SplitOpponents(), max = MAX_RACERS - SplitPlayers();
+    if (msg == MSG_LEFT) g_splitOpponents = n > 0 ? n - 1 : max;
+    if (msg == MSG_RIGHT) g_splitOpponents = n < max ? n + 1 : 0;
+    reinterpret_cast<void(__cdecl*)(uint32_t, const char*)>(FN_FE_SEND_MSG)(0x92B703B5, fng);
+    auto* vt = *reinterpret_cast<uintptr_t**>(row);
+    reinterpret_cast<void(__thiscall*)(void*, uint32_t)>(vt[0x40 / 4])(row, msg);
+    reinterpret_cast<void(__thiscall*)(void*)>(vt[3])(row);
+}
+static void AddRow(uint8_t* screen, uint32_t* vt) {
+    auto* row = static_cast<uint8_t*>(reinterpret_cast<void*(__cdecl*)(size_t)>(FN_MALLOC)(0x54));
+    if (!row) return;
+    reinterpret_cast<void(__thiscall*)(void*, void*, void*, void*, void*, int)>(FN_ROW_CTOR)(
+        row, screen + 0xFC, screen + 0x10C, screen + 0x114, screen + 0x11C, 1);
+    *reinterpret_cast<uint32_t**>(row) = vt;
+    reinterpret_cast<void(__thiscall*)(void*, void*, int)>(FN_SCREEN_ADD_ROW)(screen, row, 1);
+}
+static void AddOpponentsRow(uint8_t* screen) {
+    if (!g_opponentsRowVt[0]) {
+        memcpy(g_opponentsRowVt, reinterpret_cast<void*>(ROW_VTABLE_LAPS), sizeof(g_opponentsRowVt));
+        g_opponentsRowVt[1] = reinterpret_cast<uint32_t>(&OpponentsRowAct);
+        g_opponentsRowVt[3] = reinterpret_cast<uint32_t>(&OpponentsRowDraw);
+    }
+    AddRow(screen, g_opponentsRowVt);
+}
 static void AddPlayersRow(uint8_t* screen) {
     if (!g_playersRowVt[0]) {
         memcpy(g_playersRowVt, reinterpret_cast<void*>(ROW_VTABLE_LAPS), sizeof(g_playersRowVt));
         g_playersRowVt[1] = reinterpret_cast<uint32_t>(&PlayersRowAct);
         g_playersRowVt[3] = reinterpret_cast<uint32_t>(&PlayersRowDraw);
     }
-    auto* row = static_cast<uint8_t*>(reinterpret_cast<void*(__cdecl*)(size_t)>(FN_MALLOC)(0x54));
-    if (!row) return;
-    reinterpret_cast<void(__thiscall*)(void*, void*, void*, void*, void*, int)>(FN_ROW_CTOR)(
-        row, screen + 0xFC, screen + 0x10C, screen + 0x114, screen + 0x11C, 1);
-    *reinterpret_cast<uint32_t**>(row) = g_playersRowVt;
-    reinterpret_cast<void(__thiscall*)(void*, void*, int)>(FN_SCREEN_ADD_ROW)(screen, row, 1);
+    AddRow(screen, g_playersRowVt);
 }
 
 static void __fastcall QrFinishRows(uint8_t* screen, void*, int arg) {
-    if (SplitMode() && !OutrunRace()) AddPlayersRow(screen);
+    if (SplitMode() && !OutrunRace()) AddPlayersRow(screen), AddOpponentsRow(screen);
     reinterpret_cast<void(__thiscall*)(void*, int)>(FN_QR_FINISH_ROWS)(screen, arg);
 }
 
@@ -3504,8 +3537,14 @@ static bool g_extraRacerPass = false;
 static void* g_extraCamera[MAX_LOCAL_PLAYERS];
 
 static void PrepareExtraNames();
+#define AI_COUNT           0x89E7C4      // AI racers; the race starters set it to 0 with 2 local players and create
+                                         // the AI (0x53EE90(count)) right after the human racers
 static void __cdecl CreateHumanRacers(int count, int p2, int p3) {
     using Fn = void(__cdecl*)(int, int, int);
+    if (count == 2 && SplitMode()) {
+        at<int>(AI_COUNT) = SplitOpponents();
+        if (SplitOpponents()) Log("race: %d AI opponents", SplitOpponents());
+    }
     reinterpret_cast<Fn>(FN_CREATE_HUMAN_RACERS)(count, p2, p3);
     int extra = g_extraPlayers < 2 ? g_extraPlayers : 2;
     if (count != 2 || extra <= 0) return;
@@ -3604,6 +3643,16 @@ static void PrepareExtraNames() {
 static void __cdecl ExtraRacerSkin(void* ride, int playerIndex) {
     if (at<int>(0x83AAB4) == 9) return;
     reinterpret_cast<void(__thiscall*)(void*, int)>(FN_RIDE_SET_SKIN)(ride, playerIndex + 1);
+}
+// AI racers' cars (0x4FEAF0(out, 100 + i, 2 + i, ...), from 0x53EE90) get DUMMY_SKIN<2 + i> (call at 0x4FEB51): after
+// the one human of single player. In split races that is player 2's (and 3/4's) skin: they start after the humans.
+#define AT_AI_SET_SKIN     0x4FEB51
+static void __fastcall AiSetSkin(void* ride, void*, int n) {
+    if (SplitMode() && at<int>(NUM_PLAYERS) == 2) {
+        n += 2 + g_extraPlayers - 1;     // 2 + i -> humans + 1 + i
+        Log("AI car: DUMMY_SKIN%d", n);
+    }
+    reinterpret_cast<void(__thiscall*)(void*, int)>(FN_RIDE_SET_SKIN)(ride, n);
 }
 static __declspec(naked) void RacerSpecIndexShift() {
     __asm {
@@ -4774,7 +4823,6 @@ static void* FindRaceCar(int playerIndex) {
 // other human's progress) * 0x88F2B0, progress = racer +0x14 (other: player +4 -> car +0x1C). It only ran with exactly 2
 // local players (0x5F676A) -> no catch-up at all with 3-4. Now it runs with 2 or more, and each human measures against
 // the furthest ahead other human (with 2 players: the other one, as before).
-// (The AI rubber-banding at 0x4173ED is also 1-2 players only, but split-screen races have no AI opponents.)
 #define AT_HUMAN_CATCHUP_COUNT 0x5F6771  // jne (count != 2) -> jl
 #define AT_HUMAN_CATCHUP_OTHER 0x5F6773  // other human -> edx, ecx = [esi+0x1C]                      (25 bytes)
 #define HUMAN_CATCHUP_OTHER_RET 0x5F678C
@@ -4820,10 +4868,50 @@ static __declspec(naked) void HumanCatchupOtherHook() {
     }
 }
 
+// AI rubber-banding (AI opponents in split races): 0x4173ED.. picks the human each AI car measures against (AI +0x748,
+// a local player): 1 player -> that one; 2 -> the leader, or the trailer when the AI is behind a threshold (AI count /
+// 2, +1 per human within it; racer +0xA = position). With 3-4 the target stayed 0 and was read at 0x4174E2 (crash).
+// The same rule over every human: `AiTargetHook` at 0x4174C5 (reached with the target set, or unset for 3-4).
+#define AT_AI_TARGET_DONE  0x4174C5      // mov ecx, 0x89E7A0 (5 bytes); ebx = AI, [esp+0x14] = its racer
+#define AI_TARGET_RET      0x4174CA
+static void __cdecl AiRubberTarget(uint8_t* ai, const uint8_t* aiRacer) {
+    void*& target = *reinterpret_cast<void**>(ai + 0x748);
+    int n = at<int>(NUM_PLAYERS) == 2 ? 2 + g_extraPlayers : 0;
+    if (target || n < 3 || !aiRacer) return;
+    if (n > MAX_LOCAL_PLAYERS) n = MAX_LOCAL_PLAYERS;
+    int threshold = at<int>(AI_COUNT) / 2;
+    void *leader = nullptr, *trailer = nullptr;
+    int best = 127, worst = -128;
+    for (int k = 0; k < n; ++k) {
+        void* p = GetLocalPlayer(k);
+        const uint8_t* r = RacerOfLocalPlayer(p);
+        if (!r) continue;
+        int pos = static_cast<int8_t>(r[0xA]);
+        if (pos <= threshold) ++threshold;
+        if (pos < best) best = pos, leader = p;
+        if (pos > worst) worst = pos, trailer = p;
+    }
+    target = static_cast<int8_t>(aiRacer[0xA]) > threshold ? trailer : leader;
+}
+static __declspec(naked) void AiTargetHook() {
+    __asm {
+        pushad
+        push dword ptr [esp + 0x20 + 0x14]   // the AI's racer
+        push ebx                         // the AI
+        call AiRubberTarget
+        add esp, 8
+        popad
+        mov ecx, 0x89E7A0
+        push AI_TARGET_RET
+        ret
+    }
+}
+
 static void InstallCatchup() {
     const uint8_t jl = 0x7C;
     Write(AT_HUMAN_CATCHUP_COUNT, &jl, 1);
     WriteJump(AT_HUMAN_CATCHUP_OTHER, &HumanCatchupOtherHook, 25);
+    WriteJump(AT_AI_TARGET_DONE, &AiTargetHook, 5);
 }
 
 static void __cdecl CreatePlayers() {
@@ -5427,6 +5515,7 @@ static void LoadConfig(HMODULE self) {
     g_quadTest = GetPrivateProfileIntA("DEBUG", "QuadTest", 0, path) != 0;
     g_extraPlayers = GetPrivateProfileIntA("DEBUG", "ExtraPlayers", 0, path);
     g_splitPlayers = 2 + (g_extraPlayers < 0 ? 0 : g_extraPlayers > 2 ? 2 : g_extraPlayers);   // debug default
+    g_splitOpponents = GetPrivateProfileIntA("DEBUG", "Opponents", 0, path);                   // debug default
     g_spGauges = GetPrivateProfileIntA("HUD", "SinglePlayerGauges", 1, path) != 0;
     g_gaugeScale = GetPrivateProfileIntA("HUD", "GaugeScalePercent", 60, path) / 100.0f;
     g_rumble = GetPrivateProfileIntA("INPUT", "Rumble", 1, path) != 0;
@@ -5572,6 +5661,7 @@ static void Install(HMODULE self) {
     const uint8_t humanCap = MAX_LOCAL_PLAYERS;
     Write(AT_HUMAN_MANAGER_CAP, &humanCap, 1);
     WriteCall(AT_RACER_SPEC_CALL, &RacerSpecIndexShift);
+    WriteCall(AT_AI_SET_SKIN, &AiSetSkin);
     WriteCall(AT_PLAYER_HUD_CALL, &PlayerHudCtor);
     WriteCall(AT_HUD_UPDATE_CALL, &HudUpdateHook);
     WriteCall(AT_HUD_DTOR_CALL, &HudDtorHook);

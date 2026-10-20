@@ -267,8 +267,17 @@ patched to read player+0x30.
 (+0x18 player, +0x1C racer): its factor (+0x468) is a curve (table 0x81CB60 + 0xA6C) of (own progress − the other
 human's progress) × 0x88F2B0, progress = racer +0x14. It only ran with exactly 2 local players (`cmp [count], 2` at
 0x5F676A), so 3-4 player races had no catch-up. The `jne` at 0x5F6771 becomes `jl`, and the "other human" choice
-(0x5F6773, 25 bytes) is `CatchupOtherHuman`: the furthest ahead other human (with 2 players, the other one). The AI
-rubber-banding (0x4173ED, target in AI +0x748) is also limited to 1-2 players, but split-screen races have no AI.
+(0x5F6773, 25 bytes) is `CatchupOtherHuman`: the furthest ahead other human (with 2 players, the other one).
+
+**AI opponents.** Quick race settings 0x83AAC4 + type × 0x14: byte +0 local players, +1 opponents. Every race starter
+sets the AI count 0x89E7C4 to 0 when there is more than one local player, creates the humans (0x525ED0, hooked as
+`CreateHumanRacers`), then the AI with 0x53EE90(0x89E7C4). `CreateHumanRacers` sets 0x89E7C4 to the Opponents row's
+value first (split options, `AddOpponentsRow`; at most 4 racers in all, as in single player; none in Outrun).
+- AI racers are spec index 100 + i (no clash with players 3/4). Their cars (0x4FEAF0(out, 100 + i, 2 + i, ...)) got
+  DUMMY_SKIN<2 + i> (call 0x61C280 at 0x4FEB51), player 2's slot in split: `AiSetSkin` starts them after the humans.
+- Rubber-banding 0x4173ED.. picks the human each AI measures against (AI +0x748): 1 player that one, 2 the leader or
+  the trailer (threshold AI count / 2, +1 per human within it; racer +0xA = position). With 3-4 it stayed 0 and was
+  read at 0x4174E2 (crash). `AiTargetHook` (0x4174C5) applies the same rule over every human.
 
 **WidescreenFix free camera.** WidescreenFix's [CAMERA] free look replaces the eCreateLookAtMatrix call in
 CubicCameraMover::Update (0x453B44 → 0x5BA9A0(out, from, to, up); esi = mover: +0x1C camera, +0x48 mode, +0x51 look

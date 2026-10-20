@@ -15,7 +15,7 @@ Local **split screen for 2-4 players** in *Need for Speed Underground 2* on PC.
 
 ## Play
 1. Main menu → **Split-Screen** (next to Quick Race).
-2. Pick the race type, track and the number of **Players**.
+2. Pick the race type, track, the number of **Players** and **Opponents** (AI).
 3. Each player presses **START** on their own pad and picks a car. One player can use the keyboard instead: press
    **Enter** on their Press START screen.
 
@@ -29,6 +29,7 @@ options of whoever paused.
 - [x] Own controls, options and last car per player
 - [x] WidescreenFix support, including its free camera per player
 - [x] Catch-up between players
+- [x] AI opponents (up to 4 racers in all)
 
 ## To do
 - [ ] Session results: standings across back-to-back races
