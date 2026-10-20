@@ -3965,6 +3965,7 @@ static void __fastcall HudDtorHook(void* hud) {
 // and makes its 8 textures resident (names from 0x5ED9B0); the other players' packs are loaded the same way first.
 static uint32_t g_hudTexList[MAX_LOCAL_PLAYERS][8];
 static int g_hudTexIndex[MAX_LOCAL_PLAYERS] = {-1, -1, -1, -1};
+static bool g_hudTexFile[MAX_LOCAL_PLAYERS];   // this player's entry loaded the pack file (unloads it)
 static void __cdecl HudTexLoaded(void*) {}
 
 static int CustomHudIndex(int k, uint8_t** spec, uint8_t** car) {
@@ -3999,13 +4000,18 @@ static void __fastcall HudTexLoadHook(void* self, void*, void* cb, void* ctx) {
         for (int k = 1; k < 2 + g_extraPlayers && k < MAX_LOCAL_PLAYERS; ++k) {
             int idx = CustomHudIndex(k, &spec, &car);
             Log("custom HUD index: player %d %d (player 1 %d)", k + 1, idx, loaded[0]);
-            bool dup = idx < 0;
-            for (int i = 0; i < n; ++i) dup |= loaded[i] == idx;
-            if (dup) continue;
-            char path[64];
-            HudTexPath(path, sizeof(path), idx);
-            reinterpret_cast<int(__cdecl*)(const char*, int, int, int)>(0x4944D0)(path, 0, 0, 0);
-            reinterpret_cast<void(__cdecl*)(int)>(0x490170)(0);
+            if (idx < 0) continue;
+            // the pack file once per index; the texture list per player: which of the pack's textures a car uses
+            // depends on the car too (user: P4's stock Celica tach had no numbers, P3's stock IS300 shared its index)
+            bool fileLoaded = false;
+            for (int i = 0; i < n; ++i) fileLoaded |= loaded[i] == idx;
+            if (!fileLoaded) {
+                char path[64];
+                HudTexPath(path, sizeof(path), idx);
+                reinterpret_cast<int(__cdecl*)(const char*, int, int, int)>(0x4944D0)(path, 0, 0, 0);
+                reinterpret_cast<void(__cdecl*)(int)>(0x490170)(0);
+            }
+            g_hudTexFile[k] = !fileLoaded;
             memset(g_hudTexList[k], 0, sizeof(g_hudTexList[k]));
             reinterpret_cast<void(__cdecl*)(int, void*, int, uint32_t*, int)>(0x5ED9B0)(   // (spec, car parts, units, out, index)
                 *reinterpret_cast<int*>(spec), car, at<uint8_t>(0x83AA1A), g_hudTexList[k], idx);
@@ -4013,7 +4019,7 @@ static void __fastcall HudTexLoadHook(void* self, void*, void* cb, void* ctx) {
                 g_hudTexList[k], 8, &HudTexLoaded, nullptr, 0);
             g_hudTexIndex[k] = idx;
             loaded[n++] = idx;
-            Log("custom HUD textures %02d loaded for player %d", idx, k + 1);
+            Log("custom HUD textures %02d %s for player %d", idx, fileLoaded ? "(pack already loaded)" : "loaded", k + 1);
         }
     }
     reinterpret_cast<void(__thiscall*)(void*, void*, void*)>(FN_HUD_TEX_LOAD)(self, cb, ctx);
@@ -4021,15 +4027,21 @@ static void __fastcall HudTexLoadHook(void* self, void*, void* cb, void* ctx) {
 }
 
 static void __fastcall HudTexUnloadHook(void* self) {
-    reinterpret_cast<void(__thiscall*)(void*)>(FN_HUD_TEX_UNLOAD)(self);
-    for (int k = 0; k < MAX_LOCAL_PLAYERS; ++k) {
+    for (int k = 0; k < MAX_LOCAL_PLAYERS; ++k) {     // every list first: a pack file can be shared (also P1's)
         if (g_hudTexIndex[k] < 0) continue;
         reinterpret_cast<void(__cdecl*)(uint32_t*, int)>(0x490150)(g_hudTexList[k], 8);
         memset(g_hudTexList[k], 0, sizeof(g_hudTexList[k]));
-        char path[64];
-        HudTexPath(path, sizeof(path), g_hudTexIndex[k]);
-        reinterpret_cast<void(__cdecl*)(const char*, int, int)>(0x494550)(path, 0, 0);
+    }
+    reinterpret_cast<void(__thiscall*)(void*)>(FN_HUD_TEX_UNLOAD)(self);
+    for (int k = 0; k < MAX_LOCAL_PLAYERS; ++k) {
+        if (g_hudTexIndex[k] < 0) continue;
+        if (g_hudTexFile[k]) {
+            char path[64];
+            HudTexPath(path, sizeof(path), g_hudTexIndex[k]);
+            reinterpret_cast<void(__cdecl*)(const char*, int, int)>(0x494550)(path, 0, 0);
+        }
         g_hudTexIndex[k] = -1;
+        g_hudTexFile[k] = false;
     }
 }
 

@@ -585,9 +585,11 @@ parked off-screen) are moved 2000 further out. Pivots are scaled too.
   - The race load step 0x577F60 (call 0x57F3D8) loads `GLOBAL\HUD_CustomTextures_<HUDINDEX>.bin` for P1's car only and
     makes its 8 textures resident. The names come from 0x5ED9B0(spec, car parts, units, out, index), and the index is
     attribute "HUDINDEX" of car part 0xA3, read with 0x61B500(key, 0).
-  - Other players' distinct packs are loaded the same way: 0x4944D0(path, 0, 0, 0), wait 0x490170(0), then
-    0x494D60(list, 8, cb, ctx, 0).
-  - They're released after the game's unload 0x580FC0 (call 0x5816D4: 0x490150(list, 8) + 0x494550(path, 0, 0)).
+  - Other players' packs are loaded the same way: 0x4944D0(path, 0, 0, 0) and wait 0x490170(0), once per index. Each
+    player then gets their own list (0x5ED9B0 picks the textures by car too: two stock cars share index 0 but not
+    their tach textures) made resident with 0x494D60(list, 8, cb, ctx, 0).
+  - Unload (call 0x5816D4): every player's list is released first (0x490150(list, 8); a pack can be P1's), then the
+    game's unload 0x580FC0, then the plugin's pack files (0x494550(path, 0, 0)).
   - In drag, the load runs with NUM_PLAYERS = 1, which selects the drag texture set.
 - The 1P drag package starts with its gauge groups hidden. The game shows 1P packages with 0x52CFC0, but only outside
   drag.
