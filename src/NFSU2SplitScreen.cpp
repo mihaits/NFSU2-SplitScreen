@@ -1476,12 +1476,21 @@ static void __fastcall PlayersRowAct(uint8_t* row, void*, const char* fng, uint3
 
 // "Opponents" and "Difficulty" rows: AI racers in split races. Quick race types (0x83AAB4; starters 0x53FCF8): 0/1/7
 // circuit/sprint/lap KO, 2 drag, 3 drift, 4 URL, 5/10 Street X, 8 outrun, 9 / 11 others. AI only where single player
-// offers opponents (the per-type option builders that add 0x4B3750), except drift (its leaderboard scores simulated
-// opponents, 0x56D9F1; AI cars there are broken, as NFSU2 Extra Options notes). Up to 6 racers in all (single player
-// URL; NFSU2 Extra Options allows 5 opponents in every mode), 4 in drag.
+// offers opponents (the per-type option builders that add 0x4B3750). Drift: circuit drift only - the drift starter
+// zeroes the AI on sprint drift tracks (track info 0x5D3E40(track) +0x80 == 1, at 0x53F8B0; NFSU2 Extra Options marks
+// sprint drift AI as broken). Up to 6 racers in all (single player URL; Extra Options allows 5 opponents everywhere),
+// 4 in drag.
+static bool SprintDriftTrack() {
+    int type = at<int>(QR_RACE_TYPE);
+    if (type == 0xC) return false;
+    uint16_t track = at<uint16_t>(QR_SETTINGS + type * 0x14 + 8);
+    auto* info = reinterpret_cast<const uint8_t*(__cdecl*)(int)>(0x5D3E40)(track);
+    return info && *reinterpret_cast<const int*>(info + 0x80) == 1;
+}
 static bool AiRaceType() {
     switch (at<int>(QR_RACE_TYPE)) {
     case 0: case 1: case 2: case 4: case 5: case 7: case 10: return true;
+    case 3: return !SprintDriftTrack();
     default: return false;
     }
 }

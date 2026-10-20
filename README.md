@@ -29,7 +29,7 @@ options of whoever paused.
 - [x] Own controls, options and last car per player
 - [x] WidescreenFix support, including its free camera per player
 - [x] Catch-up between players
-- [x] AI opponents with difficulty (up to 6 racers in all, 4 in drag; none in drift)
+- [x] AI opponents with difficulty (up to 6 racers in all, 4 in drag; none in sprint drift)
 
 ## To do
 - [ ] Session results: standings across back-to-back races

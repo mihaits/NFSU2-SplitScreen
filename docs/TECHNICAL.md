@@ -275,8 +275,9 @@ sets the AI count 0x89E7C4 to 0 when there is more than one local player, create
 value first (split options, `AddOpponentsRow`), followed by the game's own Difficulty row (ctor 0x4B3930, value
 0x502730/0x502990 in the quick race settings; the race starters copy it to 0x89E7F4 in every mode).
 - Race types (0x83AAB4, starters table 0x53FCF8): 0/1/7 circuit/sprint/lap KO, 2 drag, 3 drift, 4 URL, 5/10 Street X,
-  8 outrun. AI where single player offers opponents (the option builders adding the Opponents row 0x4B3750), except
-  drift (its leaderboard scores simulated opponents; NFSU2 Extra Options marks drift AI as broken). At most 6 racers
+  8 outrun. AI where single player offers opponents (the option builders adding the Opponents row 0x4B3750). In drift
+  only circuit drift: the drift starter zeroes the AI on sprint drift tracks (0x5D3E40(track) +0x80 == 1, at
+  0x53F8B0; NFSU2 Extra Options marks sprint drift AI as broken), and so does `SprintDriftTrack`. At most 6 racers
   (single player URL allows 5 opponents, Extra Options 5 everywhere: it only changes the menu limits), 4 in drag.
 - AI cars (0x4FEAF0): a shuffled list of 26 car types, the first whose stock performance (0x5B6990) is within a
   tolerance (3%, doubling) of racer 0's car (player 1's). Difficulty picks each AI driver's skill tier (0x4FED00:
