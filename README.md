@@ -36,8 +36,9 @@ options of whoever paused.
 - [ ] Rear-view mirror in the bumper and hood cameras, like single player
 - [ ] Maybe: everyone picking a car at once; press START to join at any time
 
-Known rare issues that couldn't be reproduced yet: results screen sound stutter (3 players), a rare crash when
-quitting a 4-player race, a screen flicker loop seen once.
+This is an alpha, so expect the odd bug. If you hit one, please
+[open an issue](https://github.com/mihaits/NFSU2-SplitScreen/issues): say what happened, how many players and which
+race mode, and attach `scripts\NFSU2SplitScreen.log` (set `Debug = 1` in the ini to write it).
 
 ## Settings
 `NFSU2SplitScreen.ini` explains every option. The ones you might change:
