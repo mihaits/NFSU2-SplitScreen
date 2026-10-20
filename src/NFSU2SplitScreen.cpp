@@ -3631,8 +3631,28 @@ static void UncountResultsRacers() {
     Log("results: extra racers uncounted (%d)", g_resultsExtra);
     g_resultsExtra = 0;
 }
+// The results list holds one entry per race car, but its size comes from the counters. A split race once ended with
+// an AI racer that never got a car (3 AI specs, 5 cars; cause unknown, not reproduced) and the results rows read past
+// the list (crash 0x4BF2D2). The AI counter is capped at the AI cars that exist (race cars: count [[0x890118]+0x24],
+// car i at [[0x890080]+0x1C+4i], spec car+0x14, spec+4 == 2 for AI).
+static void CapAiCountToCars() {
+    auto* list = at<uint8_t*>(0x890118);
+    auto* cars = at<uint8_t*>(0x890080);
+    if (!list || !cars) return;
+    int n = *reinterpret_cast<int*>(list + 0x24), ai = 0;
+    for (int i = 0; i < n; ++i) {
+        auto* car = reinterpret_cast<uint8_t**>(cars + 0x1C)[i];
+        auto* spec = car ? *reinterpret_cast<uint8_t**>(car + 0x14) : nullptr;
+        if (spec && *reinterpret_cast<int*>(spec + 4) == 2) ++ai;
+    }
+    if (at<int>(AI_COUNT) > ai) {
+        Log("results: %d AI counted but %d AI cars (of %d cars) - counter capped", at<int>(AI_COUNT), ai, n);
+        at<int>(AI_COUNT) = ai;
+    }
+}
 static void __fastcall RaceResults(void* results, void*, void* race) {
     UncountResultsRacers();
+    if (SplitMode()) CapAiCountToCars();
     int counted = at<int>(0x89E7C0) + at<int>(0x89E7C4) + at<int>(0x89E7C8) + at<int>(0x89E7CC);
     int missing = at<int>(RACE_PARAMS + 0x74) - counted;
     if (missing < 0 || !SplitMode() || g_extraPlayers <= 0) missing = 0;    // only P3/P4 are missing from the counts
