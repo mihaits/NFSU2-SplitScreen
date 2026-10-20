@@ -3674,6 +3674,27 @@ static void __cdecl ExtraRacerSkin(void* ride, int playerIndex) {
     if (at<int>(0x83AAB4) == 9) return;
     reinterpret_cast<void(__thiscall*)(void*, int)>(FN_RIDE_SET_SKIN)(ride, playerIndex + 1);
 }
+// AI cars are picked to match a reference car (0x4FEAF0: the first car type in a shuffled list whose stock performance
+// 0x5B6990(ride + 0x10; 1, -1.0) is within 3% (doubling) of the reference's): racer 0's, player 1's (0x53EE90 at
+// 0x53EEE9: 0x5ED900(race; 0) + 0x10). In split races it is the fastest human car.
+#define AT_AI_REFERENCE_CALL 0x53EEE9    // call 0x5ED900 (thiscall race; racer index) -> spec (+0x10 ride)
+#define FN_RACER_SPEC        0x5ED900
+#define FN_CAR_PERFORMANCE   0x5B6990    // float __thiscall (ride + 0x10; 1, -1.0)
+static uint8_t* __fastcall AiReferenceRacer(void* race, void*, int index) {
+    using SpecFn = uint8_t*(__thiscall*)(void*, int);
+    uint8_t* best = reinterpret_cast<SpecFn>(FN_RACER_SPEC)(race, index);
+    if (index != 0 || !SplitMode() || at<int>(NUM_PLAYERS) != 2) return best;
+    float bestRating = -1e9f;
+    for (int k = 0; k < 2 + g_extraPlayers && k < MAX_LOCAL_PLAYERS; ++k) {
+        uint8_t* spec = reinterpret_cast<SpecFn>(FN_RACER_SPEC)(race, k);
+        if (!spec || *reinterpret_cast<int*>(spec + 4) != 1) continue;          // humans only
+        float rating = reinterpret_cast<float(__thiscall*)(void*, int, float)>(FN_CAR_PERFORMANCE)(spec + 0x20, 1, -1.0f);
+        Log("AI reference: racer %d car rating %.3f", k, rating);
+        if (rating > bestRating) bestRating = rating, best = spec;
+    }
+    return best;
+}
+
 // AI racers' cars (0x4FEAF0(out, 100 + i, 2 + i, ...), from 0x53EE90) get DUMMY_SKIN<2 + i> (call at 0x4FEB51): after
 // the one human of single player. In split races that is player 2's (and 3/4's) skin: they start after the humans.
 #define AT_AI_SET_SKIN     0x4FEB51
@@ -5697,6 +5718,7 @@ static void Install(HMODULE self) {
     Write(AT_HUMAN_MANAGER_CAP, &humanCap, 1);
     WriteCall(AT_RACER_SPEC_CALL, &RacerSpecIndexShift);
     WriteCall(AT_AI_SET_SKIN, &AiSetSkin);
+    WriteCall(AT_AI_REFERENCE_CALL, &AiReferenceRacer);
     WriteCall(AT_PLAYER_HUD_CALL, &PlayerHudCtor);
     WriteCall(AT_HUD_UPDATE_CALL, &HudUpdateHook);
     WriteCall(AT_HUD_DTOR_CALL, &HudDtorHook);

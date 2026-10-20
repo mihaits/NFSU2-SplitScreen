@@ -280,7 +280,9 @@ value first (split options, `AddOpponentsRow`), followed by the game's own Diffi
   0x53F8B0; NFSU2 Extra Options marks sprint drift AI as broken), and so does `SprintDriftTrack`. At most 6 racers
   (single player URL allows 5 opponents, Extra Options 5 everywhere: it only changes the menu limits), 4 in drag.
 - AI cars (0x4FEAF0): a shuffled list of 26 car types, the first whose stock performance (0x5B6990) is within a
-  tolerance (3%, doubling) of racer 0's car (player 1's). Difficulty picks each AI driver's skill tier (0x4FED00:
+  tolerance (3%, doubling) of a reference car: racer 0's (player 1's; 0x5ED900(race; 0) at 0x53EEE9). In split races
+  `AiReferenceRacer` gives the fastest human car by that rating. The check only bounds the AI car from above (any
+  slower car passes). Difficulty picks each AI driver's skill tier (0x4FED00:
   weighted random over a 10-entry table per difficulty) and the rubber-band strength.
 - AI racers are spec index 100 + i (no clash with players 3/4). Their cars (0x4FEAF0(out, 100 + i, 2 + i, ...)) got
   DUMMY_SKIN<2 + i> (call 0x61C280 at 0x4FEB51), player 2's slot in split: `AiSetSkin` starts them after the humans.
