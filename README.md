@@ -26,7 +26,6 @@ options of whoever paused.
 - [x] 2, 3 or 4 players, in every race mode (Outrun is 2 players)
 - [x] Each player has their own view, HUD, gauges, minimap, camera, sound and rumble
 - [x] Full graphics in every view: reflections, rain, headlights, blur, light streaks, overbright, anti-aliasing
-- [x] Every player's car lights the road with its own projected headlights
 - [x] Own controls, options and last car per player
 - [x] WidescreenFix support, including its free camera per player
 - [x] Catch-up between players
