@@ -643,6 +643,7 @@ static void UpdateQuadHud() {
 }
 
 static int g_pauseOwner = -1;            // player 3/4 who opened the pause menu (-1: none / player 1-2)
+static int g_pausePort = -1;             // any player who opened the pause menu (-1: none)
 static bool g_pauseSeen = false;         // the pause menus were seen open since g_pauseOwner was set
 
 static void UpdateHudWiden() {
@@ -650,9 +651,9 @@ static void UpdateHudWiden() {
     auto active = reinterpret_cast<ActiveFn>(FN_FE_PACKAGE_ACTIVE);
     g_hudWiden = SplitRacing() && !active("UI_Pause.fng") && !active("UI_PauseOptions.fng") &&
                  !active("UI_PauseOptionsMain.fng") && !active("UI_PC_Customize_Options.fng");
-    if (!SplitRacing()) g_pauseOwner = -1;
+    if (!SplitRacing()) g_pauseOwner = g_pausePort = -1;
     else if (!g_hudWiden) g_pauseSeen = true;
-    else if (g_pauseSeen) g_pauseOwner = -1, g_pauseSeen = false;   // pause menus closed: slots back to P1/P2
+    else if (g_pauseSeen) g_pauseOwner = g_pausePort = -1, g_pauseSeen = false;   // pause menus closed: slots back
 }
 
 // Player k's minimap sits in the free left corner of the quadrant: bottom-left with P1's top-half layout (P1, P3),
@@ -1025,11 +1026,12 @@ static void SaveSeatStore(int i) {
 
 // ---------------------------------------------------------------- controller assignment
 // Console-style: every "Player N Press START" popup waits for Start on a pad that hasn't joined yet; that pad
-// becomes player N's controller (the virtual joystick slot N reads it, see PadForDevice). Keyboard Enter may
-// join as player 1. Outside split screen every pad works and the last one used drives.
+// becomes player N's controller (the virtual joystick slot N reads it, see PadForDevice). Keyboard Enter joins any
+// player like a pad (one keyboard player per round; see KeyboardPort). Outside split screen every pad works and the
+// last one used drives.
 #define PAD_NONE -1
 static int g_assignedPad[MAX_LOCAL_PLAYERS] = {PAD_NONE, PAD_NONE, PAD_NONE, PAD_NONE};
-static bool g_keyboardJoinP2 = false;    // debug: Enter may also join player 2 (padless, for automated tests)
+static int g_keyboardSeat = -1;          // the player who joined with the keyboard this round (-1: nobody)
 
 static int g_seat = 0;                   // car select: whose turn (0..3); the frontend serves FE player seat & 1
 static int g_splitPlayers = 2;           // players chosen on the split-screen options screen (2..4)
@@ -1041,6 +1043,7 @@ static int SplitPlayers() { return OutrunRace() ? 2 : g_splitPlayers; }
 
 static void ResetAssignments() {
     for (int& pad : g_assignedPad) pad = PAD_NONE;
+    g_keyboardSeat = -1;
 }
 
 // The pause screen (ctor 0x4EB410) only accepts input from the pausing player: package input mask =
@@ -1056,6 +1059,7 @@ static bool g_pauseOwnerReleased = false;
 static void SyncPlayerSettings(bool newRace);
 static int __cdecl PauseInputMask(int port) {
     g_pauseOwner = SplitRacing() && port >= 2 && port < MAX_LOCAL_PLAYERS ? port : -1;
+    g_pausePort = SplitRacing() && port >= 0 && port < MAX_LOCAL_PLAYERS ? port : -1;
     g_pauseOwnerReleased = false;
     g_pauseSeen = false;
     SyncPlayerSettings(false);           // the pause menus show the pausing player's own settings
@@ -1086,7 +1090,9 @@ static int __cdecl PadForDevice(int device) {
     if (g_inCarSelect) {
         if (device != 0) return PAD_NONE;
         int fe = at<int>(FE_PLAYER);
-        int pad = g_assignedPad[(g_seat & 1) == fe ? g_seat : fe];
+        int seat = (g_seat & 1) == fe ? g_seat : fe;
+        if (seat == g_keyboardSeat) return PAD_NONE;            // the keyboard player's turn: keyboard only
+        int pad = g_assignedPad[seat];
         return pad != PAD_NONE ? pad : XPadLastActive();
     }
     if (device != at<int>(FE_PLAYER)) return PAD_NONE;
@@ -1113,7 +1119,7 @@ static uint32_t __stdcall PressStartFilter(uint8_t* popup, uint32_t msg, uint32_
     if (player < 0 || player > 1) return msg;
     int seat = (g_seat & 1) == player ? g_seat : player;      // players 3/4 join on FE players 1/2's popups
     if (msg == MSG_FRAME_TICK) {
-        bool keyboard = (seat == 0 || (seat == 1 && g_keyboardJoinP2)) && KeyboardEnterPressed();
+        bool keyboard = KeyboardEnterPressed() && (seat == 0 || g_keyboardSeat < 0 || g_keyboardSeat >= seat);
         if (!popup[0x4C]) return msg;                 // first tick sets the popup's ready flag
         if (g_autoJoinSeat == seat) {
             g_autoJoinSeat = -1;
@@ -1128,6 +1134,7 @@ static uint32_t __stdcall PressStartFilter(uint8_t* popup, uint32_t msg, uint32_
             if (!XPadStartPressed(pad) || taken) continue;
             if (seat == 0) ResetAssignments();
             g_assignedPad[seat] = pad;
+            if (g_keyboardSeat >= seat) g_keyboardSeat = -1;    // (left over from going back)
             *port = 1u << player;
             Log("player %d joined with pad %d", seat + 1, pad + 1);
             return MSG_START;
@@ -1135,6 +1142,7 @@ static uint32_t __stdcall PressStartFilter(uint8_t* popup, uint32_t msg, uint32_
         if (keyboard) {
             if (seat == 0) ResetAssignments();
             g_assignedPad[seat] = PAD_NONE;
+            g_keyboardSeat = seat;
             *port = 1u << player;
             Log("player %d joined with keyboard", seat + 1);
             return MSG_START;
@@ -1501,6 +1509,48 @@ static void MergeDevice(uint8_t* out, const uint8_t* dev) {
         if (abs(dev[0x12 + axis] - 0x80) > abs(out[10 + axis] - 0x80)) out[10 + axis] = dev[0x12 + axis];
 }
 
+// The keyboard (device record 0, joystick slot 0, type 0x13) is merged by the game into port 0, i.e. player 1. In
+// split screen it goes to one port only (KeyboardPort): racing, its player's port (0..3); during a pause the menu's
+// port, and only if its player paused (player 3/4: slot port & 1, like their pads); on the car select only on its
+// player's turn; elsewhere in the split menus port 0 as before. After a change it waits until every key is up
+// (the Escape that paused would otherwise reach the menu as a new press).
+static int g_kbPort = -1;
+static bool g_kbWait = false;
+static const uint8_t* KeyboardRecord() {
+    for (int d = 0; d < INPUT_DEVICE_MAX; ++d) {
+        auto* rec = reinterpret_cast<const uint8_t*>(INPUT_DEVICES + d * 0x370);
+        if (*reinterpret_cast<const int*>(rec + 0x234) == 0x13) return rec;
+    }
+    return nullptr;
+}
+static int KeyboardPort() {
+    if (SplitRacing()) {
+        if (g_keyboardSeat < 0) return -1;
+        if (g_pausePort >= 0) return g_pausePort == g_keyboardSeat ? (g_keyboardSeat & 1) : -1;
+        return g_keyboardSeat;
+    }
+    if (g_inCarSelect) {
+        int fe = at<int>(FE_PLAYER);
+        return ((g_seat & 1) == fe ? g_seat : fe) == g_keyboardSeat ? 0 : -1;
+    }
+    return 0;
+}
+static void UpdateKeyboardPort() {       // once per frame (port 0's poll)
+    int port = KeyboardPort();
+    if (port != g_kbPort) {
+        g_kbPort = port;
+        g_kbWait = true;
+    }
+    const uint8_t* kb = KeyboardRecord();
+    if (g_kbWait && kb && *reinterpret_cast<const uint32_t*>(kb + 8) == 0xFFFFFFFF &&
+        *reinterpret_cast<const uint32_t*>(kb + 0xC) == 0xFFFFFFFF)
+        g_kbWait = false;
+}
+static void MergeKeyboard(uint8_t* out, int port) {
+    const uint8_t* kb = KeyboardRecord();
+    if (kb && !g_kbWait && g_kbPort == port) MergeDevice(out, kb);
+}
+
 // ---------------------------------------------------------------- joypad bindings of players 3/4
 // Device records (6 x 0x370 at 0x874C40; +0x230 joystick slot or -1, +0x234 type: 0x13 keyboard, 0x15 our pads) turn
 // their device's state into action bits (+8, 8 bytes, active low) and analog values (+0x10..+0x13) every frame:
@@ -1638,9 +1688,9 @@ static void* PollExtraPort(int port, int* type, void** prev) {
     *prev = g_portPrev[port];
     uint8_t* pad0 = PadRecord(0);
     auto* copyState = at<uint8_t*>(DI_STATE_COPY_PTR);
-    if (!SplitRacing() || port - 2 >= g_extraPlayers || !at<int>(INPUT_FOCUS) || !pad0 || !copyState ||
-        !XPadDiState(g_assignedPad[port], state, sizeof(state)))
-        return cur;
+    if (!SplitRacing() || port - 2 >= g_extraPlayers || !at<int>(INPUT_FOCUS)) return cur;
+    MergeKeyboard(cur, port);
+    if (!pad0 || !copyState || !XPadDiState(g_assignedPad[port], state, sizeof(state))) return cur;
     EnsureSeatBindings(port, pad0);
     const SeatStore& st = g_seatStore[port - 2];
     memcpy(record, pad0, sizeof(record));
@@ -1670,6 +1720,7 @@ static void* __cdecl PollPortHook(int port, int* type, void** prev) {
     if (port == 0) {
         static const uint8_t idle[12] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0x80, 0x80};
         const uint8_t* all = static_cast<const uint8_t*>(merged);
+        UpdateKeyboardPort();
         for (int p = 0; p < 2; ++p) {
             memcpy(g_portPrev[p], g_portCur[p], 16);
             memcpy(g_portCur[p], idle, 12);
@@ -1677,8 +1728,10 @@ static void* __cdecl PollPortHook(int port, int* type, void** prev) {
             if (!at<int>(INPUT_FOCUS)) continue;
             for (int d = 0; d < INPUT_DEVICE_MAX; ++d) {
                 const uint8_t* dev = reinterpret_cast<const uint8_t*>(INPUT_DEVICES + d * 0x370);
-                if (*reinterpret_cast<const int*>(dev + 0x230) == p) MergeDevice(g_portCur[p], dev);
+                if (*reinterpret_cast<const int*>(dev + 0x230) == p && *reinterpret_cast<const int*>(dev + 0x234) != 0x13)
+                    MergeDevice(g_portCur[p], dev);
             }
+            MergeKeyboard(g_portCur[p], p);
         }
         // TODO: restrict frontend input to the active player's devices. Overwriting the merged globals
         // (0x86EAF0/0x86B7E0) with the player's state blocks frontend messages entirely, so the frontend's
@@ -4487,6 +4540,7 @@ static void __fastcall IntroContext(int* ctx, void*, int track) {
 // players 1/2, 0 for anyone else). While player 3/4 owns the pause, their entry is swapped into the game's table
 // (entry owner & 1, which 0x4A7AE0 then returns), so the menus show and change their settings.
 #define PLAYER_SETTINGS    0x83AA64
+#define PLAYER_FEEDBACK    4             // settings +4: Feedback (rumble) option
 #define FN_PAUSING_PLAYER  0x4A7AE0      // int __cdecl (): 5 bytes stolen (mov eax, [0x8900D8])
 static uint8_t g_settings[MAX_LOCAL_PLAYERS][PLAYER_SETTING_SIZE];
 static uint8_t g_settingsSeen[MAX_LOCAL_PLAYERS][PLAYER_SETTING_SIZE];   // the mirror as last synced
@@ -4497,8 +4551,20 @@ static const uintptr_t kSettingsReaders[] = {
     0x5F6388, 0x5FFE31, 0x6001FB, 0x600497, 0x60353D};
 static int SettingsSeat(int entry) { return g_settingsSwap >= 0 && entry == (g_settingsSwap & 1) ? g_settingsSwap : entry; }
 
+// The keyboard player's own pause menus show Feedback greyed and off (FfCapable; display only: the game's entry has it
+// cleared while they are open, the player's setting is kept).
+static bool PauseMenuOpen();
+static int g_kbFeedbackEntry = -1;       // game entry whose Feedback is shown off
+static uint8_t g_kbFeedbackValue;
+static bool KeyboardPlayerOptions() {
+    return SplitRacing() && g_keyboardSeat >= 0 && g_pausePort == g_keyboardSeat && PauseMenuOpen();
+}
 static void SyncPlayerSettings(bool newRace) {
     auto* game = reinterpret_cast<uint8_t*>(PLAYER_SETTINGS);
+    if (g_kbFeedbackEntry >= 0) {
+        game[g_kbFeedbackEntry * PLAYER_SETTING_SIZE + PLAYER_FEEDBACK] = g_kbFeedbackValue;
+        g_kbFeedbackEntry = -1;
+    }
     for (int k = 0; k < 2; ++k) {
         uint8_t* g = game + k * PLAYER_SETTING_SIZE;
         int seat = SettingsSeat(k);
@@ -4533,6 +4599,14 @@ static void SyncPlayerSettings(bool newRace) {
         st.hasSettings = true;
         SaveSeatStore(k - 2);
     }
+    if (KeyboardPlayerOptions()) {
+        g_kbFeedbackEntry = g_keyboardSeat & 1;
+        g_kbFeedbackValue = game[g_kbFeedbackEntry * PLAYER_SETTING_SIZE + PLAYER_FEEDBACK];
+        game[g_kbFeedbackEntry * PLAYER_SETTING_SIZE + PLAYER_FEEDBACK] = 0;
+    }
+}
+static bool __cdecl FfCapable() {
+    return !KeyboardPlayerOptions();
 }
 
 // HUD state of a player (which HUD parts show): 0x600090 reads the player's HUD options (settings +0, +3, +0x10;
@@ -4879,7 +4953,6 @@ static int RelocatePortTables() {
 // Player options "Feedback" = per-player settings +4 (byte; toggled by 0x49B260). The menu greys it unless the last
 // DirectInput device enumerated reported DIDC_FORCEFEEDBACK (0x5B8240 returns 0x87078C, only read by the 2 option
 // screens); the plugin's virtual pads don't, so it is forced selectable while rumble is on.
-#define PLAYER_FEEDBACK    4
 #define FN_FF_CAPABLE      0x5B8240
 #define AT_MAP_MODE_MAX    0x49AFF9      // Map mode option: `setne cl` (split mode -> max Static)
 // Car detail: with the split layout (0x5B98A0 == 3) the car renderers 0x620AE0 and 0x6162E0 scale the car's screen size
@@ -5057,7 +5130,7 @@ static void __cdecl SplitLookAt(const uint8_t* mover, void* out, float* from, fl
         stickY = fabsf(y) <= g_freeCamCfg.deadzone || g_freeCamCfg.horizontalOnly ? 0.0f : y;
     }
     float mouseX = 0.0f, mouseY = 0.0f;
-    if (k == 0) {
+    if (k == (g_keyboardSeat >= 0 ? g_keyboardSeat : 0)) {     // the mouse goes with the keyboard
         mouseX = static_cast<float>(g_frameMouseDx); mouseY = static_cast<float>(g_frameMouseDy);
         g_frameMouseDx = g_frameMouseDy = 0;
     }
@@ -5351,7 +5424,6 @@ static void LoadConfig(HMODULE self) {
     if (!n || !dot) return;
     strcpy_s(dot, MAX_PATH - (dot - path), ".ini");
     g_debug = GetPrivateProfileIntA("MAIN", "Debug", 0, path) != 0;
-    g_keyboardJoinP2 = GetPrivateProfileIntA("DEBUG", "KeyboardJoinP2", 0, path) != 0;
     g_quadTest = GetPrivateProfileIntA("DEBUG", "QuadTest", 0, path) != 0;
     g_extraPlayers = GetPrivateProfileIntA("DEBUG", "ExtraPlayers", 0, path);
     g_splitPlayers = 2 + (g_extraPlayers < 0 ? 0 : g_extraPlayers > 2 ? 2 : g_extraPlayers);   // debug default
@@ -5413,7 +5485,7 @@ static void Install(HMODULE self) {
         static const uint8_t jmp = 0xEB;
         if (*reinterpret_cast<uint8_t*>(at) == 0x75) Write(at, &jmp, 1);
     }
-    if (g_rumble) { static const uint8_t kCapable[] = {0xB0, 0x01, 0xC3}; Write(FN_FF_CAPABLE, kCapable, 3); }   // mov al,1; ret
+    if (g_rumble) WriteJump(FN_FF_CAPABLE, &FfCapable, 5);   // Feedback selectable (not for the keyboard player)
     WriteJump(FN_IMPACT_RUMBLE, &ImpactRumbleHook, 6);
     WriteJump(FN_JOY_SLOT_PRESENT, &JoySlotPresent, 5);
     int relocated = RelocateLocalPlayers();

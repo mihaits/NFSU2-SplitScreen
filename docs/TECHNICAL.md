@@ -93,8 +93,8 @@ copied from the laps row (0x7910B8). The value is `g_splitPlayers`; the ini `Ext
 Outrun (race type 0x83AAB4 == 8) is a 2-player mode: the row isn't added and `SplitPlayers()` returns 2.
 
 **Joining (Press START).** The 2P_PressStart popup handler 0x498070 only reacted to the console START message
-0xB5AF2461. `PressStartHook`/`PressStartFilter` instead waits for XInput Start on an unassigned pad (or keyboard Enter
-for P1), records `g_assignedPad[seat]`, and injects START with mask 1 << player. The popup text object 0x2EBB974D is
+0xB5AF2461. `PressStartHook`/`PressStartFilter` instead waits for XInput Start on an unassigned pad or keyboard Enter
+(any seat, one keyboard player per round: `g_keyboardSeat`), records `g_assignedPad[seat]`, and injects START with mask 1 << player. The popup text object 0x2EBB974D is
 set to "Player Three/Four Press START" for seats 2/3. A pad that has joined can't join again.
 
 **Seats (3-4 players).** The car select serves FE players 0/1 (0x4FA2A0(fe)). The player 1 pick switches to FE 1
@@ -150,6 +150,14 @@ controllers are hidden (ini). Virtual pads 4..7 (after the 4 real XInput pads) a
 - While the Controls screen shows the P2 page, slot 2 is fed by the last active pad (`UpdateEditingSlot2`).
 
 **Per-port merge.** Ports 0/1 are merged per device slot, which separates P1 and P2.
+
+**Keyboard player.** The keyboard (record 0, slot 0, type 0x13) is left out of the slot merge and goes to one port
+(`KeyboardPort`): racing, its player's port 0..3 (ports 2/3 in `PollExtraPort`); during a pause the menu's port, only
+when its player paused (`g_pausePort`; P3/P4: port & 1); on the car select only on its player's turn
+(`PadForDevice` gives that turn no pad); elsewhere in the split menus port 0. After a change it waits until every key
+is up. Its player's pause menus show Feedback greyed and off: `FfCapable` (jump at 0x5B8240) returns false, and
+`SyncPlayerSettings` clears the game entry's +4 while they are open and puts it back after (the setting is kept). The
+mouse free camera follows the keyboard player.
 
 **Players 3/4.**
 - The port tables are relocated to `g_portTables[4]` (`RelocatePortTables`: 15 refs, loop bounds 0x57B3AC/0x580AD4,
