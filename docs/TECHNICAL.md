@@ -359,6 +359,12 @@ rendered with mismatched textures (e.g. a door card texture on the hood). `Racer
 DUMMY_SKIN3/4, the single-player opponents' slots (split races have no AI). Race type 9 sets skin 1 for every human
 (0x526007) and is left alone.
 
+**Start zoom.** After the race intro the chase camera eases out from close to the car: CubicCameraMover's offset
+spring (+0x38: +0 distance, +8 its target, +0x60 height, +0x68 its target, the rest rates). Only player 1's camera
+is created then (view 1 showed the intro); the others exist from the race load and finished the ease-out unseen.
+`UpdateStartZoom`: on the first split frame, once player 1's spring starts, the other players' springs are set to
+the same fractions of their targets. Movers are found through a hook on the vtable's Update (0x787F2C → 0x453570).
+
 **Car detail.** With the split layout (0x5B98A0 == 3) the car renderers 0x620AE0 and 0x6162E0 multiplied the car's
 screen size by 0.7 (0x7A6700) and forced its LOD range to 1..1, the low model, ignoring Car Geometry Detail (0x870CF8
 -> 0x8A1C10/14). The car parts renderer 0x615630 scaled the size too. The `jne` past each block (0x620C8C, 0x616316,

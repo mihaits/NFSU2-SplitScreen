@@ -2146,6 +2146,7 @@ static void EndResultsCount();
 static void UpdateGaugeMaps();
 static void SyncPlayerSettings(bool newRace);
 static void UpdateFreeCamHook();
+static void UpdateStartZoom();
 
 static void __cdecl LayoutApplyHook() {
     if (g_debug) CheckX87("frame start");
@@ -2154,6 +2155,7 @@ static void __cdecl LayoutApplyHook() {
     HookDeviceDebug();
     XPadUpdate();
     UpdateFreeCamHook();
+    UpdateStartZoom();
     UpdateHudWiden();
     EndResultsCount();
     SyncPlayerSettings(false);
@@ -4908,6 +4910,55 @@ static bool PauseMenuOpen() {
            active("UI_PC_Customize_Options.fng");
 }
 
+// ---------------------------------------------------------------- start zoom for every player
+// After the race intro the chase camera eases out from close to the car (its offset spring, CubicCameraMover +0x38:
+// +0 distance (negative = behind), +8 its target, +0x60 height, +0x68 its target, +4/+0x10/+0x14/+0x18/+0x64 rates).
+// Only player 1's camera is new then (view 1 showed the intro); the other players' cameras exist from the race load
+// and finished the same ease-out unseen. On the first split frame, once player 1's spring starts, the other players'
+// springs are set to the same fractions of their targets, so every view zooms out together.
+#define CUBIC_MOVER_VTABLE_UPDATE 0x787F2C   // CubicCameraMover vtable 0x787F28, slot 1: Update 0x453570
+#define FN_CUBIC_MOVER_UPDATE     0x453570
+static uint8_t* g_chaseMover[MAX_LOCAL_PLAYERS];
+static int g_chaseMoverFrame[MAX_LOCAL_PLAYERS];
+static int g_startZoomFrames;            // frames left to wait for player 1's ease-out
+static int g_lastLayout;
+static void __fastcall NoteChaseMover(uint8_t* mover) {
+    const uint8_t* cam = *reinterpret_cast<uint8_t* const*>(mover + 0x1C);
+    for (int k = 0; k < MAX_LOCAL_PLAYERS; ++k)
+        if (cam && GetView(kPlayerViewId[k]).camera == cam) { g_chaseMover[k] = mover; g_chaseMoverFrame[k] = g_mmFrame; }
+}
+static __declspec(naked) void ChaseMoverUpdateHook() {
+    __asm {
+        push ecx
+        call NoteChaseMover              // fastcall: ecx = mover
+        pop ecx
+        mov eax, FN_CUBIC_MOVER_UPDATE
+        jmp eax
+    }
+}
+static float* ChaseSpring(int k) {       // only a mover updated in the last frames (it is freed with its camera)
+    if (!g_chaseMover[k] || g_mmFrame - g_chaseMoverFrame[k] > 2) return nullptr;
+    return *reinterpret_cast<float**>(g_chaseMover[k] + 0x38);
+}
+static void UpdateStartZoom() {
+    int layout = at<int>(LAYOUT);
+    if (layout == 3 && g_lastLayout != 3 && SplitMode()) g_startZoomFrames = 30;
+    g_lastLayout = layout;
+    if (g_startZoomFrames <= 0) return;
+    --g_startZoomFrames;
+    float* p1 = ChaseSpring(0);
+    if (!p1 || fabsf(p1[2]) < 1.0f || fabsf(p1[26]) < 0.1f || fabsf(p1[0] - p1[2]) < 0.5f) return;   // not started
+    float dist = p1[0] / p1[2], height = p1[24] / p1[26];
+    for (int k = 1; k < 2 + g_extraPlayers && k < MAX_LOCAL_PLAYERS; ++k)
+        if (float* s = ChaseSpring(k)) {
+            s[0] = s[7] = s[2] * dist;   // +0x1C follows +0 at the start (player 1's dump)
+            s[24] = s[26] * height;
+            s[1] = s[4] = s[5] = s[6] = s[25] = 0.0f;
+        }
+    Log("start zoom: other players' cameras from %.2f of their distance", dist);
+    g_startZoomFrames = 0;
+}
+
 // ---------------------------------------------------------------- WidescreenFix free camera per player
 // NFSU2 WidescreenFix ([CAMERA] Enable) adds a free look camera: it replaces the eCreateLookAtMatrix call in
 // CubicCameraMover::Update (0x453B44, call 0x5BA9A0(out, from, to, up); esi = mover: +0x1C camera, +0x48 mode, +0x51
@@ -5368,6 +5419,11 @@ static void Install(HMODULE self) {
     WriteJump(AT_EMITTER_RANGE, &EmitterRangeHook, 6);
     WriteCall(AT_MAIN_WORLD_DRAW, &WorldDrawWithBeams);
     WriteCall(AT_BEAM_COLOR_CALL, &BeamColor);
+    {   // CubicCameraMover::Update through the plugin (start zoom)
+        void* hook = reinterpret_cast<void*>(&ChaseMoverUpdateHook);
+        if (*reinterpret_cast<uint32_t*>(CUBIC_MOVER_VTABLE_UPDATE) == FN_CUBIC_MOVER_UPDATE)
+            Write(CUBIC_MOVER_VTABLE_UPDATE, &hook, 4);
+    }
     WriteCall(AT_SPLIT_PASS_CALL, &SplitPassWithHeadlightPools);
     WriteCall(AT_1P_POOLS_CALL, &PoolsForTraffic);
     WriteCall(AT_RAIN_CALL, &RainForViews);
