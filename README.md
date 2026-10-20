@@ -35,6 +35,7 @@ options of whoever paused.
 - [ ] Session results: standings across back-to-back races
 - [ ] Replays of split-screen races
 - [ ] Rear-view mirror in the bumper and hood cameras, like single player
+- [ ] Free roam: drive the open city together, no race
 - [ ] Maybe: everyone picking a car at once; press START to join at any time
 
 This is an alpha, so expect the odd bug. If you hit one, please
