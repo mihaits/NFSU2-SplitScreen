@@ -494,7 +494,11 @@ smoothed strength (0x870900) and a full-backbuffer StretchRect (0x5CC760).
   0x8A3288, call 0x57A62C). The 2-player sizes were made for the reduced split sections. Split races stream full
   sections for 2-4 far-apart areas, so with them the sections around a distant player went missing.
   `CreateTrackStreamingPool` / `CreateSecondStreamingPool` size them from the single-player values: 60 MB ×
-  (players + 1) / 2 and 11 MB × players / 2. The exe is not large-address-aware; a 4P race uses about 380 MB.
+  (players + 1) / 2 and 11 MB × players / 2, plus 3000 KB per AI opponent. The second pool is the car loader's
+  (0x8A3288: car models and textures). When it runs short, loading evicts the textures of car types no racer holds
+  (0x63A1B0 → 0x639F20, after the memory check 0x48D420); AI racers' types are not held, so without the AI share an
+  AI car drew untextured ("transparent"). The game's 6-car size is 16000 KB vs 11000 KB for 4 cars (≈2500 KB a car).
+  The exe is not large-address-aware; a 4P race uses about 380 MB.
 - Load priority (0x5DF580, called at 0x5E7CFC → `StreamPriorities`): per section (list +0x29C, count +0x298) the game
   takes the smallest 0x5DF3A0(section, position block) over the positions whose bit (+0xB) it has (0..0x63; uses the
   block's x/y +4/+8 and velocity +0xC/+0x10; a still position gives 0) and stores priority × 100000 + section+0x20 at

@@ -4549,10 +4549,15 @@ static void __fastcall CreateTrackStreamingPool(void* streamer, void*, int bytes
     Log("track streaming pool: %d KB", bytes / 1024);
     reinterpret_cast<void(__thiscall*)(void*, int)>(FN_TRACK_POOL_CREATE)(streamer, bytes);
 }
+// The second pool is the car loader's (0x8A3288): car models and textures. When it runs short, the loader evicts the
+// textures of car types no racer holds (0x63A1B0 -> 0x639F20; the AI's types are not held) and those cars draw
+// untextured (user: a transparent AI car with 2P + 4 AI). AI opponents get 3000 KB each on top (the game's 6-car size
+// 16000 KB vs 11000 KB for 4 cars: ~2500 KB a car).
+static int SplitOpponents();
 static void __fastcall CreateSecondStreamingPool(void* pool, void*, int bytes) {
     if (SplitPools()) {
         int players = 2 + g_extraPlayers;
-        int split = at<int>(SECOND_POOL_KB_1P) * 1024 / 2 * players;
+        int split = at<int>(SECOND_POOL_KB_1P) * 1024 / 2 * players + SplitOpponents() * 3000 * 1024;
         if (split > bytes) bytes = split;
     }
     Log("second streaming pool: %d KB", bytes / 1024);
