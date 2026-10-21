@@ -608,13 +608,71 @@ static const void* HudPackageOf(int k) {
     return nullptr;
 }
 
+// When P1 finishes, the game hides P1's HUD (hidden bit, flags & 1, on its objects) - the minimap objects every
+// player's minimap is drawn from among them (user: the others' maps vanished when P1 finished). The minimap objects
+// that were visible right before stay visible for the players still racing; a finished player's own minimap is not
+// drawn (P1's HUD hidden; P2-P4's are drawn from P1's objects too, user: P2's stayed after P2 finished).
+// The pause menus hide the HUD the same way: only a hide with P1 finished (racer progress +0x14 >= 1) and no menu over
+// the HUD counts, and during a pause the kept objects are hidden too (user: P2's minimap showed through P1's pause).
+void* GetLocalPlayer(int);
+static const uint8_t* RacerOfLocalPlayer(void* player);
+static bool g_mmOwnerHidden = false;     // P1's HUD hidden mid-race
+static bool g_mmFinished[MAX_LOCAL_PLAYERS];   // per frame: player k finished -> no minimap of its own (like P1's)
+static bool PlayerFinished(int k) {
+    const uint8_t* racer = RacerOfLocalPlayer(GetLocalPlayer(k));
+    return racer && *reinterpret_cast<const float*>(racer + 0x14) >= 1.0f;
+}
+static uint8_t* g_mmVisible[MM_MAX_OBJS];   // minimap objects visible on the last frame before
+static int g_mmVisibleCount = 0;
+static void UpdateMinimapOwner() {          // per frame
+    // only while racing (game state 6): during a (re)start's load the HUD and players are being rebuilt
+    bool racing = SplitRacing() && at<int>(0x8654A4) == 6;
+    for (int k = 0; k < MAX_LOCAL_PLAYERS; ++k) g_mmFinished[k] = racing && PlayerFinished(k);
+    if (!racing || g_extraPlayers <= 0 || !g_mmObjCount) {
+        // hidden again (if P1's HUD still exists): the post-race view draws P1's HUD as it is (user: a big minimap
+        // stayed on screen)
+        if (g_mmOwnerHidden && !SplitRacing() && at<int>(0x8654A4) == 6 && g_hudPackages[0] &&
+            HudPackageOf(0) == g_hudPackages[0])
+            for (int i = 0; i < g_mmVisibleCount; ++i)
+                *reinterpret_cast<uint32_t*>(g_mmVisible[i] + 0x1C) |= 1u;
+        g_mmOwnerHidden = false;
+        g_mmVisibleCount = 0;
+        return;
+    }
+    if (!g_hudWiden) {                   // pause menus: the HUD stays as the game has it
+        if (g_mmOwnerHidden)
+            for (int i = 0; i < g_mmVisibleCount; ++i) *reinterpret_cast<uint32_t*>(g_mmVisible[i] + 0x1C) |= 1u;
+        return;
+    }
+    if (!g_mmOwnerHidden) {
+        const uint8_t* map = nullptr;
+        for (int i = 0; i < g_mmObjCount; ++i)
+            if (*reinterpret_cast<uint32_t*>(g_mmObj[i] + 0x10) == g_mmFixedHash[0]) map = g_mmObj[i];
+        if (!map || !(*reinterpret_cast<const uint32_t*>(map + 0x1C) & 1) || !g_mmFinished[0]) {
+            g_mmVisibleCount = 0;
+            for (int i = 0; i < g_mmObjCount; ++i)
+                if (!(*reinterpret_cast<uint32_t*>(g_mmObj[i] + 0x1C) & 1)) g_mmVisible[g_mmVisibleCount++] = g_mmObj[i];
+            return;
+        }
+        g_mmOwnerHidden = true;
+        Log("minimap: player 1's HUD hidden (finished), %d minimap objects kept for the others", g_mmVisibleCount);
+    }
+    for (int i = 0; i < g_mmVisibleCount; ++i) *reinterpret_cast<uint32_t*>(g_mmVisible[i] + 0x1C) &= ~1u;
+}
+
 static void UpdateQuadHud() {
     g_quadHud = false;
     if (g_mmExtraIcon[0] && !HudPackageOf(2)) {   // P3's HUD gone (back in the menus): the frontend reuses the memory
         g_mmExtraIcon[0] = g_mmExtraIcon[1] = nullptr;   // (help bar buttons matched these and were skipped)
         memset(g_mmMarker, 0, sizeof(g_mmMarker));
     }
-    if (!SplitRacing() || g_screenViews < 3) return;
+    if (!SplitRacing() || g_screenViews < 3) {
+        UpdateMinimapOwner();
+        // the next race's HUD can be rebuilt at the same addresses: map it afresh (stale minimap objects -> crash on
+        // restart in UpdateMinimapOwner)
+        for (const void*& pkg : g_hudPackages) pkg = nullptr;
+        return;
+    }
     bool changed = false;
     const void* pk[MAX_LOCAL_PLAYERS] = {};
     for (int k = 0; k < MAX_LOCAL_PLAYERS; ++k) {
@@ -624,6 +682,7 @@ static void UpdateQuadHud() {
     static int frames = 0;
     if (++frames >= 30) { frames = 0; changed = true; }   // HUD elements add objects at runtime
     if (changed) {
+        if (pk[0] != g_hudPackages[0]) g_mmOwnerHidden = false, g_mmVisibleCount = 0;   // a new HUD (restart)
         g_hudObjSlot.clear();
         for (int k = 0; k < MAX_LOCAL_PLAYERS; ++k) {
             g_hudPackages[k] = pk[k];
@@ -640,7 +699,8 @@ static void UpdateQuadHud() {
 
     g_quadHud = !g_hudObjSlot.empty();
     if (!g_quadHud) g_mmPlayers = 0;
-}
+    UpdateMinimapOwner();                // after the mapping: the minimap objects of the current HUD (restart: the
+}                                        // old HUD's objects were freed)
 
 static int g_pauseOwner = -1;            // player 3/4 who opened the pause menu (-1: none / player 1-2)
 static int g_pausePort = -1;             // any player who opened the pause menu (-1: none)
@@ -4312,6 +4372,7 @@ static void __stdcall RenderFeObjectWith(void* obj, int arg, void* ctx) {
         if (g_mmMarkersFrame != g_mmFrame && (obj == g_mmMarker[0] || obj == g_mmMarker[1])) {
             g_mmMarkersFrame = g_mmFrame;
             for (int k = 0; k < g_mmPlayers; ++k) {
+                if (g_mmFinished[k]) continue;                 // finished: no minimap of its own
                 ApplyMinimapSnapshot(k);
                 g_mmTarget = k;
                 for (int n = 1; n <= markers; ++n) {
@@ -4340,6 +4401,7 @@ static void __stdcall RenderFeObjectWith(void* obj, int arg, void* ctx) {
         CallFeRender(obj, arg, ctx);
     } else {
         for (int k = 0; k < g_mmPlayers; ++k) {
+            if (g_mmFinished[k]) continue;
             ApplyMinimapSnapshot(k);
             for (int i = 0; i < g_mmObjCount; ++i)          // "changed": recompute the cached transform
                 *reinterpret_cast<uint32_t*>(g_mmObj[i] + 0x1C) |= 0x400000;
@@ -5121,6 +5183,10 @@ static void InstallCatchup() {
 }
 
 static void __cdecl CreatePlayers() {
+    // new HUDs (a restart from the pause menu has no post-race frame in between): minimap state of the old one dropped
+    g_mmOwnerHidden = false;
+    g_mmVisibleCount = 0;
+    for (const void*& pkg : g_hudPackages) pkg = nullptr;
     // a restart from the post-race menu skips the race setup paths that uncount the results' extra racers: the
     // restarted race counted one racer too many (drift: a racer message without a name, crash 0x43E99A)
     UncountResultsRacers();
