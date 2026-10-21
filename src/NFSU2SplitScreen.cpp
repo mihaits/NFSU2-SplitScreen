@@ -3699,10 +3699,17 @@ static void __cdecl BuildStandings(int arg) {
 // or right before the race setup paths that read the counters (0x5260B0 at 0x5324F2, 0x526970 at 0x530A91 / 0x581902; the quick race
 // menus rewrite them anyway, 0x526720).
 static int g_resultsExtra = 0;
+static int g_resultsCountB = 0;          // the counter as set by RaceResults
+// only while the counter still holds the value set for the results: a new race's setup writes it afresh (user: after
+// going back to the menus, the next race's counter was uncounted to -1 -> crash in the drift scoring 0x56DE6E)
 static void UncountResultsRacers() {
     if (!g_resultsExtra) return;
-    at<int>(RACE_COUNT_B) -= g_resultsExtra;
-    Log("results: extra racers uncounted (%d)", g_resultsExtra);
+    if (at<int>(RACE_COUNT_B) == g_resultsCountB) {
+        at<int>(RACE_COUNT_B) -= g_resultsExtra;
+        Log("results: extra racers uncounted (%d)", g_resultsExtra);
+    } else {
+        Log("results: extra racers already reset by the race setup");
+    }
     g_resultsExtra = 0;
 }
 // The results list holds one entry per race car, but its size comes from the counters. A split race once ended with
@@ -3735,6 +3742,7 @@ static void __fastcall RaceResults(void* results, void*, void* race) {
         at<int>(0x89E7C0), at<int>(0x89E7C4), at<int>(0x89E7C8), at<int>(0x89E7CC), missing);
     at<int>(RACE_COUNT_B) += missing;
     g_resultsExtra = missing;
+    g_resultsCountB = at<int>(RACE_COUNT_B);
     reinterpret_cast<void(__thiscall*)(void*, void*)>(FN_RACE_RESULTS)(results, race);
 }
 static void EndResultsCount() {
