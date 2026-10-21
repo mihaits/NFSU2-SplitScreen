@@ -4628,7 +4628,8 @@ static void __fastcall CreateSecondStreamingPool(void* pool, void*, int bytes) {
 // Race intro (NIS) selection 0x436840: context 0x431F10 (+0 racers, +4 humans, +8 humans' grid-slot mask, +0xC AI
 // mask, +0x14 track byte) filtered against each scene (0x42FE00: slot mask, racer range +6..+7, ...); with exactly 2
 // local players the 2P list (0x42FDA0) is used, otherwise the single-player one. Scenes exist for 2 and 4 cars, so
-// 3 players got none (and the race started without an intro); they are offered the 4-car scenes.
+// 3 players got none (and the race started without an intro), nor did 5-6 cars with AI opponents (no intro, no grid
+// girls); both are offered the 4-car scenes.
 #define AT_INTRO_CONTEXT_CALL 0x4368F4
 #define FN_INTRO_CONTEXT   0x431F10      // void __thiscall (ctx; trackId)
 // With exactly 2 local players only IntroNis12 / IntroNis13 pass the 2P filter 0x42FDA0 (at 0x43695F); tracks whose
@@ -4673,7 +4674,12 @@ static void __fastcall IntroContext(int* ctx, void*, int track) {
     reinterpret_cast<void(__thiscall*)(int*, int)>(FN_INTRO_CONTEXT)(ctx, track);
     Log("intro context: racers %d humans %d slots %X ai %X track byte %d (sound fs: %d free handles)", ctx[0], ctx[1],
         ctx[2], ctx[3], ctx[5], SoundFsFreeHandles());
-    if (SplitMode() && ctx[0] == 3) ctx[0] = 4;
+    // 3 or 5-6 cars (AI opponents): the 4-car scenes (they animate their own 4 grid slots; cars in slots 5/6 stay on
+    // the grid; a human in slot 5/6 fails the scenes' slot mask -> no intro, as before)
+    if (SplitMode() && (ctx[0] == 3 || ctx[0] > 4)) {
+        if (ctx[0] > 4) Log("intro: %d cars, offered the 4-car scenes", ctx[0]);
+        ctx[0] = 4;
+    }
 }
 
 // Per-player settings (camera, HUD options, feedback...: 0x83AA64 + index*0x28, 2 entries; the race data follows at
