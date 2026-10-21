@@ -624,36 +624,48 @@ static bool PlayerFinished(int k) {
 }
 static uint8_t* g_mmVisible[MM_MAX_OBJS];   // minimap objects visible on the last frame before
 static int g_mmVisibleCount = 0;
+static uint8_t* g_mmOwnerMap = nullptr;  // P1's map object when the kept list was taken
+// P1's minimap objects, found in its live package (cached object lists can be stale: a restart rebuilds the HUD's
+// objects, also at the same addresses -> crash): top-level minimap objects and every child of the minimap groups.
+static void CollectVisibleMinimap(const uint8_t* obj, bool inGroup) {
+    for (; obj; obj = *reinterpret_cast<const uint8_t* const*>(obj + 4)) {
+        bool mm = inGroup || IsMinimapObject(obj);
+        if (mm && !(*reinterpret_cast<const uint32_t*>(obj + 0x1C) & 1) && g_mmVisibleCount < MM_MAX_OBJS)
+            g_mmVisible[g_mmVisibleCount++] = const_cast<uint8_t*>(obj);
+        if (mm && *reinterpret_cast<const int*>(obj + 0x18) == 5)
+            CollectVisibleMinimap(*reinterpret_cast<const uint8_t* const*>(obj + 0x64), true);
+    }
+}
 static void UpdateMinimapOwner() {          // per frame
     // only while racing (game state 6): during a (re)start's load the HUD and players are being rebuilt
     bool racing = SplitRacing() && at<int>(0x8654A4) == 6;
     for (int k = 0; k < MAX_LOCAL_PLAYERS; ++k) g_mmFinished[k] = racing && PlayerFinished(k);
-    if (!racing || g_extraPlayers <= 0 || !g_mmObjCount) {
-        // hidden again (if P1's HUD still exists): the post-race view draws P1's HUD as it is (user: a big minimap
-        // stayed on screen)
-        if (g_mmOwnerHidden && !SplitRacing() && at<int>(0x8654A4) == 6 && g_hudPackages[0] &&
-            HudPackageOf(0) == g_hudPackages[0])
-            for (int i = 0; i < g_mmVisibleCount; ++i)
-                *reinterpret_cast<uint32_t*>(g_mmVisible[i] + 0x1C) |= 1u;
+    auto* pkg = at<int>(0x8654A4) == 6 ? static_cast<const uint8_t*>(HudPackageOf(0)) : nullptr;
+    uint8_t* map = pkg && g_mmFixedHash[0] ? FindFeObject(pkg, g_mmFixedHash[0]) : nullptr;
+    bool same = map && map == g_mmOwnerMap;  // the kept objects still belong to the live HUD
+    if (!racing || g_extraPlayers <= 0 || !map) {
+        // hidden again: the post-race view draws P1's HUD as it is (user: a big minimap stayed on screen)
+        if (g_mmOwnerHidden && same && !SplitRacing())
+            for (int i = 0; i < g_mmVisibleCount; ++i) *reinterpret_cast<uint32_t*>(g_mmVisible[i] + 0x1C) |= 1u;
         g_mmOwnerHidden = false;
         g_mmVisibleCount = 0;
+        g_mmOwnerMap = nullptr;
         return;
     }
+    if (g_mmOwnerHidden && !same) g_mmOwnerHidden = false, g_mmVisibleCount = 0;   // a rebuilt HUD
     if (!g_hudWiden) {                   // pause menus: the HUD stays as the game has it
         if (g_mmOwnerHidden)
             for (int i = 0; i < g_mmVisibleCount; ++i) *reinterpret_cast<uint32_t*>(g_mmVisible[i] + 0x1C) |= 1u;
         return;
     }
     if (!g_mmOwnerHidden) {
-        const uint8_t* map = nullptr;
-        for (int i = 0; i < g_mmObjCount; ++i)
-            if (*reinterpret_cast<uint32_t*>(g_mmObj[i] + 0x10) == g_mmFixedHash[0]) map = g_mmObj[i];
-        if (!map || !(*reinterpret_cast<const uint32_t*>(map + 0x1C) & 1) || !g_mmFinished[0]) {
+        if (!(*reinterpret_cast<const uint32_t*>(map + 0x1C) & 1) || !g_mmFinished[0]) {
             g_mmVisibleCount = 0;
-            for (int i = 0; i < g_mmObjCount; ++i)
-                if (!(*reinterpret_cast<uint32_t*>(g_mmObj[i] + 0x1C) & 1)) g_mmVisible[g_mmVisibleCount++] = g_mmObj[i];
+            CollectVisibleMinimap(*reinterpret_cast<const uint8_t* const*>(pkg + 0x4C), false);
+            g_mmOwnerMap = map;
             return;
         }
+        if (map != g_mmOwnerMap) return;      // no list taken from this HUD yet
         g_mmOwnerHidden = true;
         Log("minimap: player 1's HUD hidden (finished), %d minimap objects kept for the others", g_mmVisibleCount);
     }
