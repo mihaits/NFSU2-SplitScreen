@@ -4686,6 +4686,29 @@ static void __fastcall IntroContext(int* ctx, void*, int track) {
     }
 }
 
+// Grid order: 0x5264A0(order) numbers the racer specs' grid slots (+3), order 1 = humans (spec +4 == 1) then AI (2),
+// order 2 = AI first (the URL, drift and Street X starters). With 5-6 cars the humans then stood in slots 4-6, outside
+// every intro scene's slots (4-car scenes: slots 1-4) -> no intro (user). Split races with more than 4 cars put the
+// humans in front.
+#define FN_ASSIGN_GRID     0x5264A0      // void __cdecl (int order): 6 bytes stolen
+using AssignGridFn = void(__cdecl*)(int);
+static AssignGridFn g_origAssignGrid;
+static void __cdecl AssignGrid(int order) {
+    if (order == 2 && SplitMode() && at<int>(NUM_PLAYERS) == 2) {
+        auto* specs = at<uint8_t*>(0x89E810);
+        int n = at<int>(0x89E814), cars = 0;
+        for (int i = 0; specs && i < n; ++i) {
+            int type = *reinterpret_cast<int*>(specs + i * 0x940 + 4);
+            if (type == 1 || type == 2) ++cars;
+        }
+        if (cars > 4) {
+            Log("grid: %d cars, humans in front", cars);
+            order = 1;
+        }
+    }
+    g_origAssignGrid(order);
+}
+
 // A 4-car scene drives its 4 cars onto the grid through the extra cars already standing in grid slots 5/6 (user). Those
 // are hidden while the scene runs: a car the scene doesn't drive (mover car+0x28 != 5, NISMvr) reports itself not
 // visible to the per-view car check 0x60D4F0 (car body 0x6317A2, lights 0x60D594, headlight pools 0x6154D3), until
@@ -5812,6 +5835,8 @@ static void Install(HMODULE self) {
     WriteCall(AT_FALL_RESET_CALL, &FallResetHook);
     g_origCarNotVisible = reinterpret_cast<CarNotVisibleFn>(MakeTrampoline(FN_CAR_NOT_VISIBLE, 5));
     WriteJump(FN_CAR_NOT_VISIBLE, &CarNotVisible, 5);
+    g_origAssignGrid = reinterpret_cast<AssignGridFn>(MakeTrampoline(FN_ASSIGN_GRID, 6));
+    WriteJump(FN_ASSIGN_GRID, &AssignGrid, 6);
     WriteCall(kRaceSetupCalls[0][0], &RaceSetup5260B0);
     WriteCall(kRaceSetupCalls[1][0], &RaceSetup526970);
     WriteCall(kRaceSetupCalls[2][0], &RaceSetup526970);
