@@ -4,7 +4,7 @@ Local **split screen for 2-4 players** in *Need for Speed Underground 2* on PC.
 
 ![4-player split screen](docs/split-screen-4p.gif)
 
-**Status: 0.9.4 alpha.** Every race mode works with 2-4 players.
+**Status: 0.9.5 alpha.** Every race mode works with 2-4 players.
 
 ## Install
 1. You need `speed2.exe` **v1.2** and the [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader).
