@@ -37,6 +37,7 @@ options of whoever paused.
 - [ ] Session results: standings across back-to-back races
 - [ ] Replays of split-screen races
 - [ ] Rear-view mirror in the bumper and hood cameras, like single player
+- [ ] Native PlayStation pads (DualShock 4, DualSense) without DS4Windows, with rumble and player-coloured lightbars
 - [ ] Maybe: everyone picking a car at once; press START to join at any time
 
 This is an alpha, so expect the odd bug. If you hit one, please
