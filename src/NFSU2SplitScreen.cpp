@@ -3731,7 +3731,9 @@ static void CapAiCountToCars() {
         at<int>(AI_COUNT) = ai;
     }
 }
+static bool g_postRace = false;          // results computed until the next race's players (CreatePlayers)
 static void __fastcall RaceResults(void* results, void*, void* race) {
+    g_postRace = true;
     UncountResultsRacers();
     if (SplitMode()) CapAiCountToCars();
     int counted = at<int>(0x89E7C0) + at<int>(0x89E7C4) + at<int>(0x89E7C8) + at<int>(0x89E7CC);
@@ -3745,6 +3747,7 @@ static void __fastcall RaceResults(void* results, void*, void* race) {
     g_resultsCountB = at<int>(RACE_COUNT_B);
     reinterpret_cast<void(__thiscall*)(void*, void*)>(FN_RACE_RESULTS)(results, race);
 }
+#define MOVER_NIS          5        // car mover mode (car+0x28): driven by a scene (NISMvr)
 static void EndResultsCount() {
     if (g_resultsExtra && !SplitMode()) UncountResultsRacers();   // not SplitRacing: Street X results use layout 1
 }
@@ -3757,7 +3760,6 @@ static void EndResultsCount() {
 // with flashing on the post-race menu). A car driven by the NIS is not reset.
 #define AT_FALL_RESET_CALL 0x601324      // call 0x6009A0 (thiscall [car+0x18]); esi = car, mover mode at car+0x28
 #define FN_FALL_RESET      0x6009A0
-#define MOVER_NIS          5
 static __declspec(naked) void FallResetHook() {
     __asm {
         cmp dword ptr [esi + 0x28], MOVER_NIS
@@ -5203,6 +5205,7 @@ static void InstallCatchup() {
 }
 
 static void __cdecl CreatePlayers() {
+    g_postRace = false;
     // new HUDs (a restart from the pause menu has no post-race frame in between): minimap state of the old one dropped
     g_mmOwnerHidden = false;
     g_mmVisibleCount = 0;
@@ -5696,7 +5699,33 @@ static void UpdateExtraStreamZones() {
     }
 }
 
+// Post-race (single view): the streamer's position 0 follows a race car (block +0 = car array index; 0x5E4F20 copies
+// its +0x60 position and +0x70 velocity). The post-race scene drives the cars it doesn't feature to the world origin
+// (mover 5, NISMvr, in a few frames: thousands of m/s): with 3-4 players P1 can be one (a 2-car scene with P3 and P2
+// on top) and the streamer, following it across the map, dropped the finish area; nothing is loaded again on the
+// post-race screen -> black world, the shown cars falling through (user). While a followed car is driven by the scene,
+// the position follows the view 1 camera (still), from the scene's first frame.
+static void FollowCameraForSceneCars(uint8_t* streamer) {
+    if (!g_postRace || !SplitMode() || at<int>(NUM_PLAYERS) != 2 || SplitRacing()) return;
+    auto* cars = at<uint8_t*>(RACE_CARS);
+    auto* list = at<uint8_t*>(0x890118);
+    View& v = GetView(1);
+    if (!cars || !list || !v.camera) return;
+    for (int k = 0; k < 2; ++k) {
+        auto* block = streamer + 0xB0 + k * 0x5C;
+        int idx = *reinterpret_cast<int*>(block);
+        if (idx < 0 || idx >= *reinterpret_cast<int*>(list + 0x24)) continue;
+        auto* car = reinterpret_cast<uint8_t**>(cars + 0x1C)[idx];
+        if (!car || *reinterpret_cast<int*>(car + 0x28) != MOVER_NIS) continue;
+        const float* cam = reinterpret_cast<const float*>(v.camera + 0x40);
+        float pos[4] = {cam[0], cam[1], 0.0f, 0.0f};
+        *reinterpret_cast<int*>(block) = -1;
+        memcpy(block + 4, pos, sizeof(pos));
+    }
+}
+
 static uint8_t __fastcall StreamZonesHook(void* streamer, void* edx, short* zones) {
+    FollowCameraForSceneCars(static_cast<uint8_t*>(streamer));
     uint8_t changed = g_origStreamZones(streamer, edx, zones);
     UpdateExtraStreamZones();
     for (int k = 0; k < 2; ++k)
