@@ -2263,6 +2263,7 @@ static void UpdateGaugeMaps();
 static void SyncPlayerSettings(bool newRace);
 static void UpdateFreeCamHook();
 static void UpdateStartZoom();
+static void UpdateIntroHiding();
 
 static void __cdecl LayoutApplyHook() {
     if (g_debug) CheckX87("frame start");
@@ -2272,6 +2273,7 @@ static void __cdecl LayoutApplyHook() {
     XPadUpdate();
     UpdateFreeCamHook();
     UpdateStartZoom();
+    UpdateIntroHiding();
     UpdateHudWiden();
     EndResultsCount();
     SyncPlayerSettings(false);
@@ -4643,6 +4645,7 @@ static void __fastcall CreateSecondStreamingPool(void* pool, void*, int bytes) {
 #define AT_INTRO_EMPTY_RET   0x436A03
 #define AT_INTRO_LOOP        0x4368F9    // list init + scene loop (edi = 0)
 static bool g_intro2PFallback = false;
+static bool g_introHideExtra = false;    // 5-6 cars got a 4-car scene: the extra cars are hidden during it
 static bool __fastcall Intro2PFilter(void* ctx, void*, void* scene) {
     return g_intro2PFallback || reinterpret_cast<bool(__thiscall*)(void*, void*)>(FN_INTRO_2P_FILTER)(ctx, scene);
 }
@@ -4671,14 +4674,41 @@ static __declspec(naked) void IntroEmptyHook() {
 }
 static void __fastcall IntroContext(int* ctx, void*, int track) {
     g_intro2PFallback = false;
+    g_introHideExtra = false;            // (also when the previous race's scene never started)
     reinterpret_cast<void(__thiscall*)(int*, int)>(FN_INTRO_CONTEXT)(ctx, track);
     Log("intro context: racers %d humans %d slots %X ai %X track byte %d (sound fs: %d free handles)", ctx[0], ctx[1],
         ctx[2], ctx[3], ctx[5], SoundFsFreeHandles());
     // 3 or 5-6 cars (AI opponents): the 4-car scenes (they animate their own 4 grid slots; cars in slots 5/6 stay on
     // the grid; a human in slot 5/6 fails the scenes' slot mask -> no intro, as before)
     if (SplitMode() && (ctx[0] == 3 || ctx[0] > 4)) {
-        if (ctx[0] > 4) Log("intro: %d cars, offered the 4-car scenes", ctx[0]);
+        if (ctx[0] > 4) Log("intro: %d cars, offered the 4-car scenes", ctx[0]), g_introHideExtra = true;
         ctx[0] = 4;
+    }
+}
+
+// A 4-car scene drives its 4 cars onto the grid through the extra cars already standing in grid slots 5/6 (user). Those
+// are hidden while the scene runs: a car the scene doesn't drive (mover car+0x28 != 5, NISMvr) reports itself not
+// visible to the per-view car check 0x60D4F0 (car body 0x6317A2, lights 0x60D594, headlight pools 0x6154D3), until
+// the scene has released its cars; they appear on their grid spots when the race view starts.
+#define FN_CAR_NOT_VISIBLE 0x60D4F0      // int __cdecl (car, view): nonzero = skip the car in this view (5 bytes stolen)
+using CarNotVisibleFn = int(__cdecl*)(uint8_t*, void*);
+static CarNotVisibleFn g_origCarNotVisible;
+static bool g_introSceneSeen = false;    // a car was driven by the intro scene (g_introHideExtra set)
+static int __cdecl CarNotVisible(uint8_t* car, void* view) {
+    if (g_introHideExtra && g_introSceneSeen && car && *reinterpret_cast<int*>(car + 0x28) != MOVER_NIS) return 1;
+    return g_origCarNotVisible(car, view);
+}
+static void UpdateIntroHiding() {        // per frame
+    if (!g_introHideExtra) return;
+    bool scene = false;
+    if (uint8_t* mgr = at<uint8_t*>(RACE_CARS))
+        for (auto* c = *reinterpret_cast<uint8_t**>(mgr); c && c != mgr; c = *reinterpret_cast<uint8_t**>(c))
+            if (*reinterpret_cast<int*>(c + 0x28) == MOVER_NIS) scene = true;
+    if (scene && !g_introSceneSeen) Log("intro: extra cars hidden during the scene");
+    if (scene) g_introSceneSeen = true;
+    else if (g_introSceneSeen || !SplitMode()) {
+        if (g_introSceneSeen) Log("intro: scene over, extra cars shown");
+        g_introHideExtra = g_introSceneSeen = false;
     }
 }
 
@@ -5780,6 +5810,8 @@ static void Install(HMODULE self) {
     for (uintptr_t at : kBuildStandingsCalls) WriteCall(at, &BuildStandings);
     WriteCall(AT_RACE_RESULTS_CALL, &RaceResults);
     WriteCall(AT_FALL_RESET_CALL, &FallResetHook);
+    g_origCarNotVisible = reinterpret_cast<CarNotVisibleFn>(MakeTrampoline(FN_CAR_NOT_VISIBLE, 5));
+    WriteJump(FN_CAR_NOT_VISIBLE, &CarNotVisible, 5);
     WriteCall(kRaceSetupCalls[0][0], &RaceSetup5260B0);
     WriteCall(kRaceSetupCalls[1][0], &RaceSetup526970);
     WriteCall(kRaceSetupCalls[2][0], &RaceSetup526970);
