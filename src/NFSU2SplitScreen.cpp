@@ -4709,6 +4709,57 @@ static void __cdecl AssignGrid(int order) {
     g_origAssignGrid(order);
 }
 
+// The intro scene also places its cars itself: its binder (0x439240, run at the scene's start and again on restarts,
+// which skip the scene) teleports each bound car (0x4309D0 -> 0x5FBD60) to its track's spot, a 2x2 formation, and
+// records it in the binding table (0x827B98 + track*0x14: +0 track, +4 x, +8 y, +0x10 car array index, -1 = none). On a track whose
+// race grid is 4 abreast (drift 4311) the formation's second row is grid spots 5/6, where the extra cars stand: they
+// started inside the scene's cars (user). An extra car that overlaps a bound car goes one row behind the formation.
+#define FN_NIS_BIND_CARS   0x439240      // void __thiscall (scene; int)
+static const uintptr_t kNisBindCarsCalls[] = {0x43AC10, 0x43AFDF, 0x43B196};
+#define NIS_BINDINGS       0x827B98
+#define FN_CAR_TELEPORT    0x5FBD60      // void __thiscall (car; const float* pos, 0, int heading, bool)
+#define FN_HEADING_OF      0x43E6D0      // int __cdecl (float dx, float dy)
+static void MoveExtraCarsBehindScene() {
+    auto* list = at<uint8_t*>(0x890118);
+    auto* cars = at<uint8_t*>(RACE_CARS);
+    if (!list || !cars) return;
+    int n = *reinterpret_cast<int*>(list + 0x24);
+    auto car = [cars](int i) { return reinterpret_cast<uint8_t**>(cars + 0x1C)[i]; };
+    float spot[4][2];
+    bool bound[16] = {};
+    for (int k = 0; k < 4; ++k) {
+        auto* e = reinterpret_cast<uint8_t*>(NIS_BINDINGS + k * 0x14);
+        int idx = *reinterpret_cast<int*>(e + 0x10);
+        if (!*reinterpret_cast<void**>(e) || idx < 0 || idx >= n || idx >= 16) return;   // not a full 4-car scene
+        bound[idx] = true;
+        spot[k][0] = *reinterpret_cast<float*>(e + 4);
+        spot[k][1] = *reinterpret_cast<float*>(e + 8);
+    }
+    // rows: tracks 0/1 in front, 2/3 behind
+    float stepX = (spot[2][0] + spot[3][0] - spot[0][0] - spot[1][0]) / 2;
+    float stepY = (spot[2][1] + spot[3][1] - spot[0][1] - spot[1][1]) / 2;
+    if (stepX * stepX + stepY * stepY < 4.0f) return;
+    int heading = reinterpret_cast<int(__cdecl*)(float, float)>(FN_HEADING_OF)(-stepX, -stepY);
+    for (int i = 0; i < n && i < 16; ++i) {
+        uint8_t* c = car(i);
+        auto* spec = c ? *reinterpret_cast<uint8_t**>(c + 0x14) : nullptr;
+        if (bound[i] || !spec || (*reinterpret_cast<int*>(spec + 4) != 1 && *reinterpret_cast<int*>(spec + 4) != 2)) continue;
+        const float* p = reinterpret_cast<const float*>(c + 0x60);
+        for (int k = 0; k < 4; ++k) {
+            float dx = p[0] - spot[k][0], dy = p[1] - spot[k][1];
+            if (dx * dx + dy * dy > 3.0f * 3.0f) continue;
+            float to[3] = {spot[k][0] + stepX, spot[k][1] + stepY, p[2]};
+            reinterpret_cast<void(__thiscall*)(void*, const float*, int, int, int)>(FN_CAR_TELEPORT)(c, to, 0, heading, 0);
+            Log("intro: car %d stood on the scene's spot %d, moved a row back to %.1f, %.1f", i, k + 1, to[0], to[1]);
+            break;
+        }
+    }
+}
+static void __fastcall NisBindCars(void* scene, void*, int arg) {
+    reinterpret_cast<void(__thiscall*)(void*, int)>(FN_NIS_BIND_CARS)(scene, arg);
+    if (SplitMode() && at<int>(NUM_PLAYERS) == 2) MoveExtraCarsBehindScene();
+}
+
 // A 4-car scene drives its 4 cars onto the grid through the extra cars already standing in grid slots 5/6 (user). Those
 // are hidden while the scene runs: a car the scene doesn't drive (mover car+0x28 != 5, NISMvr) reports itself not
 // visible to the per-view car check 0x60D4F0 (car body 0x6317A2, lights 0x60D594, headlight pools 0x6154D3), until
@@ -5837,6 +5888,7 @@ static void Install(HMODULE self) {
     WriteJump(FN_CAR_NOT_VISIBLE, &CarNotVisible, 5);
     g_origAssignGrid = reinterpret_cast<AssignGridFn>(MakeTrampoline(FN_ASSIGN_GRID, 6));
     WriteJump(FN_ASSIGN_GRID, &AssignGrid, 6);
+    for (uintptr_t a : kNisBindCarsCalls) WriteCall(a, &NisBindCars);
     WriteCall(kRaceSetupCalls[0][0], &RaceSetup5260B0);
     WriteCall(kRaceSetupCalls[1][0], &RaceSetup526970);
     WriteCall(kRaceSetupCalls[2][0], &RaceSetup526970);
