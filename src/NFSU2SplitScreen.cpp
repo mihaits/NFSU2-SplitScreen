@@ -3621,8 +3621,8 @@ static void __cdecl BuildStandings(int arg) {
 #define AT_RACE_RESULTS_CALL 0x551447
 #define FN_RACE_RESULTS      0x54CCA0
 // The post-race screens (results rows 0x4BF0A0 and others, stats, back to results) size their lists with the same sum
-// -> the extra racers stay counted from the results until the race is left: split race over, or right before the
-// race setup paths that read the counters (0x5260B0 at 0x5324F2, 0x526970 at 0x530A91 / 0x581902; the quick race
+// -> the extra racers stay counted from the results until the race is left: split race over, a restart (CreatePlayers),
+// or right before the race setup paths that read the counters (0x5260B0 at 0x5324F2, 0x526970 at 0x530A91 / 0x581902; the quick race
 // menus rewrite them anyway, 0x526720).
 static int g_resultsExtra = 0;
 static void UncountResultsRacers() {
@@ -5011,6 +5011,9 @@ static void InstallCatchup() {
 }
 
 static void __cdecl CreatePlayers() {
+    // a restart from the post-race menu skips the race setup paths that uncount the results' extra racers: the
+    // restarted race counted one racer too many (drift: a racer message without a name, crash 0x43E99A)
+    UncountResultsRacers();
     SyncPlayerSettings(true);
     reinterpret_cast<void(__cdecl*)()>(FN_CREATE_PLAYERS)();
     if (g_debug && GetPrivateProfileIntA("DEBUG", "WatchHud", 0, g_iniPath) && g_localPlayers.byIndex[0]) {
