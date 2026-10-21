@@ -5130,6 +5130,16 @@ static void* FindRaceCar(int playerIndex) {
     return nullptr;
 }
 
+// ---------------------------------------------------------------- "Hurry!" timer with 3-4 players
+// When the first racer finishes (0x606FD1, place 1), the race end countdown starts if the finisher is an AI (type 2) or
+// a human with exactly 2 local players ([0x8900BC], the relocated player count) -> never with 3-4 humans (user: no
+// "Hurry!" and no race end 30 s after the first finish). Now 2 or more.
+#define AT_HURRY_PLAYER_COUNT 0x606FE8   // jne (count != 2) -> jl
+static void InstallHurry() {
+    const uint8_t jl = 0x7C;
+    Write(AT_HURRY_PLAYER_COUNT, &jl, 1);
+}
+
 // ---------------------------------------------------------------- catch-up with 3-4 players
 // Catch-up (Quick Race option, 0x5028F0 -> race params 0x89E7F8) between the human players: 0x5F6740 (per human driver:
 // +0x18 player, +0x1C racer, factor at +0x468) makes the factor a curve (0x81CB60 + 0xA6C) of (own progress - the
@@ -5932,6 +5942,7 @@ static void Install(HMODULE self) {
     Write(AT_PLAYERS_TEARDOWN_DISP, &inOrderMinus1, 4);
     Log("local player arrays relocated: %d refs", relocated);
     InstallCatchup();
+    InstallHurry();
     PatchViewUpdateLoop();
     Log("sound listener arrays relocated: %d refs", RelocateListenerArrays());
     WriteCall(AT_LISTENER_UPDATE_CALL, &ListenerUpdate);
