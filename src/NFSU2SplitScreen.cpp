@@ -3666,6 +3666,26 @@ static void __fastcall RaceResults(void* results, void*, void* race) {
 static void EndResultsCount() {
     if (g_resultsExtra && !SplitMode()) UncountResultsRacers();   // not SplitRacing: Street X results use layout 1
 }
+
+// Post-race scene (NIS): its car tracks are bound to the race cars by car array index (table 0x827B9C, 0x14 a track,
+// +0xC car index; 0x4309D0 sets mover mode 5 = NISMvr) and the cars it doesn't feature are held at the world origin.
+// With 3-4 players + AI, array entries 2/3 (P3, the first AI) are such cars: harmless for AI, but a human car gets
+// the fall-through check (0x5ECBA0: below the ground -> +0x96C) and is reset onto the road every ~0.5 s (0x6009A0 via
+// 0x601324), each reset switching its mover 5 -> 0 -> 5 = a screen flash and an audio duck (user: rhythmic sound gate
+// with flashing on the post-race menu). A car driven by the NIS is not reset.
+#define AT_FALL_RESET_CALL 0x601324      // call 0x6009A0 (thiscall [car+0x18]); esi = car, mover mode at car+0x28
+#define FN_FALL_RESET      0x6009A0
+#define MOVER_NIS          5
+static __declspec(naked) void FallResetHook() {
+    __asm {
+        cmp dword ptr [esi + 0x28], MOVER_NIS
+        je skip
+        mov eax, FN_FALL_RESET
+        jmp eax
+    skip:
+        ret
+    }
+}
 static const uintptr_t kRaceSetupCalls[][2] = {{0x5324F2, 0x5260B0}, {0x530A91, 0x526970}, {0x581902, 0x526970}};
 static int __cdecl RaceSetup5260B0(int a) { UncountResultsRacers(); return reinterpret_cast<int(__cdecl*)(int)>(0x5260B0)(a); }
 static int __cdecl RaceSetup526970(int a) { UncountResultsRacers(); return reinterpret_cast<int(__cdecl*)(int)>(0x526970)(a); }
@@ -5750,6 +5770,7 @@ static void Install(HMODULE self) {
     WriteCall(AT_MINIMAP_DESTROY_CALL, &DestroyMinimapManager);
     for (uintptr_t at : kBuildStandingsCalls) WriteCall(at, &BuildStandings);
     WriteCall(AT_RACE_RESULTS_CALL, &RaceResults);
+    WriteCall(AT_FALL_RESET_CALL, &FallResetHook);
     WriteCall(kRaceSetupCalls[0][0], &RaceSetup5260B0);
     WriteCall(kRaceSetupCalls[1][0], &RaceSetup526970);
     WriteCall(kRaceSetupCalls[2][0], &RaceSetup526970);
