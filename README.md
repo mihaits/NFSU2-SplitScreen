@@ -4,7 +4,7 @@ Local **split screen for 2-4 players** in *Need for Speed Underground 2* on PC.
 
 ![4-player split screen](docs/split-screen-4p.gif)
 
-**Status: 0.9.5 alpha.** Every race mode works with 2-4 players.
+**Status: 0.9.6 alpha.** Every race mode works with 2-4 players.
 
 ## Install
 1. You need `speed2.exe` **v1.2** and the [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader).
@@ -15,7 +15,8 @@ Local **split screen for 2-4 players** in *Need for Speed Underground 2* on PC.
 
 ## Play
 1. Main menu → **Split-Screen** (next to Quick Race).
-2. Pick the race type, track, the number of **Players**, **Opponents** (AI) and their **Difficulty**.
+2. Pick the race type, track, the number of **Players**, **Opponents** (AI) and their **Difficulty**. **Free Run**
+   (the last mode) drops you in the city with no race.
 3. Each player presses **START** on their own pad and picks a car. One player can use the keyboard instead: press
    **Enter** on their Press START screen.
 
@@ -30,12 +31,12 @@ options of whoever paused.
 - [x] WidescreenFix support, including its free camera per player
 - [x] Catch-up between players
 - [x] AI opponents with difficulty (up to 6 racers in all, 4 in drag; none in sprint drift)
+- [x] Free Run: drive the whole city together, no race
 
 ## To do
 - [ ] Session results: standings across back-to-back races
 - [ ] Replays of split-screen races
 - [ ] Rear-view mirror in the bumper and hood cameras, like single player
-- [ ] Free roam: drive the open city together, no race
 - [ ] Maybe: everyone picking a car at once; press START to join at any time
 
 This is an alpha, so expect the odd bug. If you hit one, please
