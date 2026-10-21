@@ -3645,6 +3645,13 @@ static void PrepareExtraNames();
                                          // the AI (0x53EE90(count)) right after the human racers
 static void __cdecl CreateHumanRacers(int count, int p2, int p3) {
     using Fn = void(__cdecl*)(int, int, int);
+    // Free Run's starter (0x53F580) sets 1 local player and creates 1 human: a split-screen Free Run gets 2, like the
+    // other starters, and players 3/4 below
+    if (count == 1 && SplitMode() && at<int>(0x83AAB4) == 9) {
+        at<int>(NUM_PLAYERS) = 2;
+        count = 2;
+        Log("free run: %d players", 2 + g_extraPlayers);
+    }
     if (count == 2 && SplitMode()) {
         at<int>(AI_COUNT) = SplitOpponents();
         if (SplitOpponents()) Log("race: %d AI opponents", SplitOpponents());
@@ -3815,11 +3822,27 @@ static void PrepareExtraNames() {
 // set by 0x61C280(ride; n)); the garage entries pick n from the player index (0x503A80: index + 1, 0x503880: 1 or 2),
 // so players 3/4 got P1's / P2's skin texture and rendered with mismatched skin textures (user: P3's
 // stock 3000GT dark with stray textures, e.g. a door card texture on the hood). Their ride infos get DUMMY_SKIN3/4 (the single-player opponents' slots; split races have no
-// AI) before the racer spec copies them. Race type 9 sets skin 1 for every human (0x526007) and is left as is.
+// AI) before the racer spec copies them. Free Run (race type 9) sets skin 1 for every human (0x526007; a single player)
+// - skipped in split screen (FreeRunSkinHook), every player keeps their own (user: P3's paint broken in Free Run).
 #define FN_RIDE_SET_SKIN   0x61C280      // void __thiscall (RideInfo*; int n)
 static void __cdecl ExtraRacerSkin(void* ride, int playerIndex) {
-    if (at<int>(0x83AAB4) == 9) return;
     reinterpret_cast<void(__thiscall*)(void*, int)>(FN_RIDE_SET_SKIN)(ride, playerIndex + 1);
+}
+#define AT_FREE_RUN_SKIN   0x525FFE      // cmp dword ptr [0x83AAB4], 9 (7 bytes); jne 0x526012
+#define FREE_RUN_SKIN_SET  0x526007
+#define FREE_RUN_SKIN_SKIP 0x526012
+static __declspec(naked) void FreeRunSkinHook() {
+    __asm {
+        cmp dword ptr ds:[GAME_MODE], 4
+        je skip
+        cmp dword ptr ds:[0x83AAB4], 9
+        jne skip
+        push FREE_RUN_SKIN_SET
+        ret
+    skip:
+        push FREE_RUN_SKIN_SKIP
+        ret
+    }
 }
 // AI cars are picked to match a reference car (0x4FEAF0: the first car type in a shuffled list whose stock performance
 // 0x5B6990(ride + 0x10; 1, -1.0) is within 3% (doubling) of the reference's): racer 0's, player 1's (0x53EE90 at
@@ -4241,6 +4264,25 @@ static void __fastcall HudUpdateHook(void* hud, void*, void* player, void* arg) 
     reinterpret_cast<void(__thiscall*)(void*, void*, void*)>(FN_HUD_UPDATE)(hud, player, arg);
     if (mine)
         for (int i = 0; i < 4; ++i) std::swap(saved[i], *reinterpret_cast<void**>(h + kGauges[i].hudOffset));
+    // Free Run has no race position or race time: the position element (HUD +0x20, ctor 0x4F4AC0) shows "1st /3" in
+    // split screen (user) - its RacePositionNumber +0x28, RacePositionNth +0x2C, NumberRacers +0x30, PositionBacking
+    // +0x3C hidden - and so are the timer and its backings (by name in the HUD's package)
+    if (SplitMode() && at<int>(QR_RACE_TYPE) == 9) {
+        if (auto* pos = *reinterpret_cast<uint8_t**>(h + 0x20))
+            for (int off : {0x28, 0x2C, 0x30, 0x3C})
+                if (auto* obj = *reinterpret_cast<uint8_t**>(pos + off)) *reinterpret_cast<uint32_t*>(obj + 0x1C) |= 1;
+        static uint32_t timerHashes[4];
+        if (!timerHashes[0]) {
+            const char* names[4] = {"CurrentLapTime", "CurrentLapTimeText", "LapCounterBacking_2", "LapCounterBacking_3"};
+            for (int i = 0; i < 4; ++i) timerHashes[i] = reinterpret_cast<uint32_t(__cdecl*)(const char*)>(FN_FE_HASH)(names[i]);
+        }
+        const char* name = *reinterpret_cast<const char**>(h + 0x10);
+        auto* entry = name ? reinterpret_cast<uint8_t*(__thiscall*)(void*, const char*)>(FN_FIND_PACKAGE)(
+            reinterpret_cast<void*>(FE_PACKAGE_CACHE), name) : nullptr;
+        if (auto* pkg = entry ? *reinterpret_cast<uint8_t**>(entry + 0x18) : nullptr)
+            for (uint32_t hash : timerHashes)
+                if (uint8_t* obj = FindFeObject(pkg, hash)) *reinterpret_cast<uint32_t*>(obj + 0x1C) |= 1;
+    }
     for (PlayerGauges& g : g_gauges) {
         if (g.hud != hud) continue;
         uint32_t lo = *reinterpret_cast<uint32_t*>(h + 8), hi = *reinterpret_cast<uint32_t*>(h + 0xC);
@@ -5130,6 +5172,98 @@ static void* FindRaceCar(int playerIndex) {
     return nullptr;
 }
 
+// ---------------------------------------------------------------- Free Run in split screen
+// The quick race mode list (UIQRModeSelect::Setup, 0x4B2E..) adds Outrun as the 7th mode in modes 8/0x200/4 (split
+// screen = 4) and Free Run (race type 9, icon class 0x790FFC) only in the others: Free Run is added in split screen too.
+#define AT_MODE_LIST_FREE_RUN 0x4B2F99   // je (mode 4: skip Free Run), 2 bytes
+// The HUD's outrun element (HUD +0x6C, ctor 0x4F87E0: Getaway_Distance_Bar, Distance_Number, ...; outrun challenges
+// in Free Run) binds objects only the outrun HUD packages have: with the split race HUDs they are null and its update
+// crashed once driving started (0x4C67E9, user). Without its objects the element is not updated.
+#define AT_OUTRUN_ELEMENT_UPDATE 0x4EC69A   // call 0x4DABD0 (thiscall element; arg)
+#define FN_OUTRUN_ELEMENT_UPDATE 0x4DABD0
+static void __fastcall OutrunElementUpdate(uint8_t* element, void*, int arg) {
+    if (!*reinterpret_cast<void**>(element + 0x28) || !*reinterpret_cast<void**>(element + 0x2C)) return;
+    reinterpret_cast<void(__thiscall*)(void*, int)>(FN_OUTRUN_ELEMENT_UPDATE)(element, arg);
+}
+// When driving starts, Free Run switches the race to its free state (0x89E7B0 = 7, 0x607190) and sets the local player
+// count from the human cars ([[0x890080]+0x14], 0x6071D5): 3-4 with players 3/4, and the game's 2-player paths (split
+// views) stopped -> dark screen (user). Split screen keeps 2.
+#define AT_FREE_STATE_PLAYERS 0x6071D2   // mov ecx, [eax+0x14]; mov [0x89E7C0], ecx (9 bytes)
+#define FREE_STATE_PLAYERS_RET 0x6071DB
+static __declspec(naked) void FreeStatePlayersHook() {
+    __asm {
+        mov ecx, dword ptr [eax + 0x14]
+        cmp ecx, 2
+        jle store
+        cmp dword ptr ds:[GAME_MODE], 4
+        jne store
+        mov ecx, 2
+    store:
+        mov dword ptr ds:[NUM_PLAYERS], ecx
+        push FREE_STATE_PLAYERS_RET
+        ret
+    }
+}
+// The screen after the mode select (0x4B2A80): in split screen Outrun goes to the race options (0x7F4460), the rest to
+// the track list - except Free Run, which goes to its own screen (0x7F446C: straight to the car select, no Players
+// row). Split screen's Free Run goes to the race options like Outrun, on track 4000 (the whole city from the airport;
+// user: no track choice).
+#define FN_NEXT_SCREEN_AFTER_MODE 0x4B2A80   // const char* __cdecl (): 5 bytes stolen
+#define SCREEN_RACE_OPTIONS 0x7F4460
+#define FREE_RUN_TRACK     4000
+using NextScreenFn = uint32_t(__cdecl*)();
+static NextScreenFn g_origNextScreen;
+static uint32_t __cdecl NextScreenAfterMode() {
+    if (SplitMode() && at<int>(QR_RACE_TYPE) == 9) {
+        at<uint16_t>(QR_SETTINGS + 9 * 0x14 + 8) = FREE_RUN_TRACK;
+        return at<uint32_t>(SCREEN_RACE_OPTIONS);
+    }
+    return g_origNextScreen();
+}
+// Outrun challenges in Free Run (user: "the point is FREE roam"): in the free state (0x89E7B0 == 7) the race update runs
+// the challenge logic (0x607CA9..0x608C01: picks an opponent, race +0xBD0, and ends the race when the player pulls
+// away), and the player update points a 3D direction arrow at that opponent (0x5F3AE0, MARKER_DIRECTION_AID). Both
+// are skipped in split screen.
+#define AT_FREE_STATE_RACE  0x607C9C     // cmp dword ptr [0x89E7B0], 7; jne 0x608C01 (13 bytes)
+#define FREE_STATE_RACE_RUN 0x607CA9
+#define FREE_STATE_RACE_END 0x608C01
+static __declspec(naked) void FreeStateRaceHook() {
+    __asm {
+        cmp dword ptr ds:[GAME_MODE], 4
+        je skip
+        cmp dword ptr ds:[0x89E7B0], 7
+        jne skip
+        push FREE_STATE_RACE_RUN
+        ret
+    skip:
+        push FREE_STATE_RACE_END
+        ret
+    }
+}
+#define FN_DIRECTION_ARROW  0x5F3AE0     // void __thiscall (player; int): 6 bytes stolen; ret 4
+static void* g_origDirectionArrow;
+static __declspec(naked) void DirectionArrowHook() {
+    __asm {
+        cmp dword ptr ds:[GAME_MODE], 4
+        je skip
+        jmp dword ptr [g_origDirectionArrow]
+    skip:
+        ret 4
+    }
+}
+static void InstallFreeRun() {
+    const uint8_t nops[2] = {0x90, 0x90};
+    Write(AT_MODE_LIST_FREE_RUN, nops, 2);
+    g_origNextScreen = reinterpret_cast<NextScreenFn>(MakeTrampoline(FN_NEXT_SCREEN_AFTER_MODE, 5));
+    WriteJump(FN_NEXT_SCREEN_AFTER_MODE, &NextScreenAfterMode, 5);
+    WriteCall(AT_OUTRUN_ELEMENT_UPDATE, &OutrunElementUpdate);
+    WriteJump(AT_FREE_STATE_PLAYERS, &FreeStatePlayersHook, 9);
+    WriteJump(AT_FREE_RUN_SKIN, &FreeRunSkinHook, 7);
+    WriteJump(AT_FREE_STATE_RACE, &FreeStateRaceHook, 13);
+    g_origDirectionArrow = MakeTrampoline(FN_DIRECTION_ARROW, 6);
+    WriteJump(FN_DIRECTION_ARROW, &DirectionArrowHook, 6);
+}
+
 // ---------------------------------------------------------------- "Hurry!" timer with 3-4 players
 // When the first racer finishes (0x606FD1, place 1), the race end countdown starts if the finisher is an AI (type 2) or
 // a human with exactly 2 local players ([0x8900BC], the relocated player count) -> never with 3-4 humans (user: no
@@ -5943,6 +6077,7 @@ static void Install(HMODULE self) {
     Log("local player arrays relocated: %d refs", relocated);
     InstallCatchup();
     InstallHurry();
+    InstallFreeRun();
     PatchViewUpdateLoop();
     Log("sound listener arrays relocated: %d refs", RelocateListenerArrays());
     WriteCall(AT_LISTENER_UPDATE_CALL, &ListenerUpdate);
