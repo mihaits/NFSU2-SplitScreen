@@ -41,8 +41,8 @@ options of whoever paused.
 - [ ] Maybe: everyone picking a car at once; press START to join at any time
 
 This is an alpha, so expect the odd bug. If you hit one, please
-[open an issue](https://github.com/mihaits/NFSU2-SplitScreen/issues): say what happened, how many players and which
-race mode, and attach `scripts\NFSU2SplitScreen.log` (set `Debug = 1` in the ini to write it).
+[open an issue](https://github.com/mihaits/NFSU2-SplitScreen/issues): fill in the [bug report template](docs/bug-report.md)
+and attach `scripts\NFSU2SplitScreen.log` (set `Debug = 1` in the ini to write it).
 
 ## Settings
 `NFSU2SplitScreen.ini` explains every option. The ones you might change:
