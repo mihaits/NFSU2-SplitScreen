@@ -1,5 +1,24 @@
 # Plugin architecture
 
+## Source layout
+`src/NFSU2SplitScreen.cpp` holds the includes, `Install()` and `DllMain`, and `#include`s the files of `src/parts/` in a
+fixed order: one translation unit, so a part can use the static state and helpers of the parts before it. Add new code
+to the part of its subsystem (or a new part, included where its dependencies are defined). `build.bat` only compiles
+`NFSU2SplitScreen.cpp` and `XInputDevices.cpp`.
+
+| part | contents |
+|---|---|
+| core | game addresses, state, patch helpers |
+| frontend, garage | main menu entry, Players row, garage backup, help bar; shared My Cars |
+| log, debug_tools | debug log; hardware write watch and command mailbox |
+| seats | players 3/4 data, controller assignment, car select seats |
+| input, input_ports | input merge, P3/P4 joypad bindings; 4 input port tables |
+| render_core, render_passes, render_weather, render_envmap | layout and device hooks; streaks, blur, headlights; rain, weather, road reflections, overbright; car reflections, projectors, projection |
+| local_players, racers | 4-player arrays; extra local players, standings, results, post-race scene, names, skins, AI cars |
+| hud_split, hud_players, gauges, minimap_players, hud_gap, player_settings | HUD widening, quad HUD, minimaps; P3/P4 HUD packages; single-player gauges; minimap markers; HUD gap; per-player settings and HUD state |
+| sound, threads_memory, streaming | listeners; audio fs and pool locks, streaming pools; streaming for P3/P4 |
+| intro, free_run, race_rules, camera | intro scenes and grid; Free Run; Hurry timer and catch-up; start zoom, free camera |
+
 ## Plugin architecture
 
 - `DllMain` → `Install()`. Install first runs `IsSupportedExe()`, which compares the original bytes at the patched

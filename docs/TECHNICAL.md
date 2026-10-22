@@ -1,8 +1,8 @@
 # NFSU2 Split Screen — technical reference
 
 How the plugin works and the game internals it relies on. These docs describe the **current, confirmed** state only:
-everything here was verified in game. Every subsystem in `src/NFSU2SplitScreen.cpp` starts with a comment block that
-goes into more detail.
+everything here was verified in game. The source is split by subsystem into `src/parts/` (see
+[architecture](architecture.md)); every subsystem starts with a comment block that goes into more detail.
 
 - Target: `speed2.exe` v1.2 (the cracked v1.2 exe's `.rdata` matches the SecuROM v1.2 one). Image base 0x400000, no ASLR, x86.
 - All addresses are virtual addresses in that exe. "imm" = immediate operand, "disp" = displacement.
