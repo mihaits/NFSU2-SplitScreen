@@ -27,5 +27,6 @@ goes into more detail.
 | [free-run](free-run.md) | Free Run (free roam) in split screen |
 | [open-issues](open-issues.md) | known open bugs and leads |
 | [tooling](tooling.md) | static and live tools, debug mailbox, automation |
+| [bug-report](bug-report.md) | bug report template and the session handoff format |
 
 When a feature changes, update the subsystem doc it belongs to (and [addresses](addresses.md) for new shared globals).
