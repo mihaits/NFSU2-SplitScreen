@@ -35,7 +35,8 @@ find an address, grep `docs/` (and the source's comment blocks) for it.
 | car +0x14 | racer spec (+3 grid slot, +4 type: 1 human, 2 AI, 3 traffic; ids 50+ = traffic) |
 | car +0x28 | mover mode (5 = NISMvr, driven by an intro/outro scene) |
 | car +0x34 | mover; physics body = [mover+0x20]: position +0x20 (z +0x28), velocity +0xA0 |
-| racer +0x14 | progress (>= 1 = finished); +0xA position |
+| racer +0x14 | progress: laps done + lap fraction (finished only in a 1-lap race at >= 1); +8 laps done; +0xA position |
+| car +0x24 | driver controller (0x5EBA30(car, type), object at car +0x2C): 1 human (pad), 2 drag, 3 AI racer, 0/4/5 other |
 | 0x827B98 + track*0x14 | NIS car binding table (+0 track, +4 x, +8 y, +0x10 car array index, -1 none) |
 | 0x83AAC4 + type*0x14 | quick race settings per type: +0 local players, +1 opponents, +8 track |
 
@@ -45,6 +46,8 @@ Race types (0x83AAB4): 0/1/7 circuit/sprint/lap KO, 2 drag, 3 drift, 4 URL, 5/10
 | address | meaning |
 |---|---|
 | player +0x9A4 | HUD; HUD +0x20 position element, +0x6C outrun element |
+| player +0x22C / +0x230 | player mode (applied by 0x605C70) / the racing mode the per-frame picker 0x5EA650 applies: 2 car racing, 3 drag, 4 auto pilot (AI drives the car: 0x5FAE20, back 0x5FAF10), 9 finish race. Names at 0x802090 |
+| player +0x50 | finished (the picker then picks mode 9) |
 | 0x8364D4 | minimap manager |
 | 0x7F4460 / 0x7F446C | quick race options screen / Free Run screen |
 
@@ -58,7 +61,7 @@ Car and race values the DualSense lights and triggers read (`parts/pad_lights.cp
 | `*(*(car+0x34)+0x4C)` | drivetrain: +0x84 + 4*gear up-shift rpm, +0xE4 and +0xF0 shift-light factors; shift rpm = up - `*(float*)0x7FBF5C` * `*(float*)(0x7FBF60 + 4*(gear + 9**(drv+0xF0)))` * `*(float*)(drv+0xE4)` (tach shift light 0x4C6ACF..0x4C6B45) |
 | car +0x460 | nitrous burn start time (0 / 0x7FFFFFFF = off); nitrous object at car +0x40 (+0x41C remaining, +0x418 capacity) |
 | `*(car+0x34)` +0x38 + 4*i | wheels (0 FL, 1 FR, 2 RL, 3 RR): +0x170 grip used (1.0 = at the limit, 0 on all four = airborne), +0x124 longitudinal force, +0x28 angular speed. The rear reads 1.0 when slow or stopped. |
-| `*(car+0x1C)` (racer) | +0x14 progress (>= 1 finished), +0xA position (1-based) |
+| `*(car+0x1C)` (racer) | +0x14 progress (laps done + fraction), +0xA position (1-based); finished = player +0x50 |
 | `**(int**)0x890118` | race stage: 0 none, 1 flyby, 2 prerace, 3 countdown (3.0 s), 4 racing |
 | 0x7FB718 | game clock (seconds) |
 | 0x8654A4 | game state: 3 frontend, 4/5 loading, 6 race (results included) |

@@ -52,6 +52,14 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
   - `go_race_nointro.sh <mode>` starts a split race without the intro, joining players on virtual pads. Optional
     `POKES="addr=value"`; `INTRO=1` keeps the intro.
   - `go_1p.sh <mode>` starts a single-player race (a reference for comparisons).
+  - `autorace.py` lets the game's AI drive every local player's car (the game's autopilot: player +0x230 = 4, see
+    [addresses](addresses.md)) and follows the race to the results: a progress line every 5 s, screenshots, fails on
+    a stuck car or timeout. `--players 1,3` only those (drive the rest on real pads); `autorace.py off` gives the cars
+    back. A full automated race: `go_race_nointro.sh <mode>`, then `python -I autorace.py`. Keep test races short:
+    the lap count is byte +0xA of the race type's quick race settings (0x83AAC4 + type × 0x14 + 0xA): circuit
+    `POKES="83AACE=1"` (1 lap about 80 s), Street X (mode 4 = type 10) `POKES="83AB96=2"` (2 laps about 45 s),
+    drift `POKES="83AB0A=1"` (about 20 s). Works in circuit, Street X and drift; not in drag, where 0x5F3AB2 rewrites
+    player +0x230 every frame (the tool fails as soon as the game takes a car back).
   - `race_again.sh` starts the race again; `quit_race.py` quits to the menu.
   - `rec.py record|play` records and replays real pad input keyed to the active FE screens
     (`recordings/start_to_split2p.json`).
