@@ -49,7 +49,8 @@ controllers are hidden (ini). Pads 0..3 are the real XInput pads, 4..7 debug pad
 - **Lightbar (`[LIGHTS] Lightbar`, `LightbarBrightness`):** while racing (state 6, race stage `*[0x890118]` = 4, not
   paused) the pad that drives local player k shows that car's rpm: green at idle, yellow, red at the shift-light rpm,
   red flashing at 4 Hz from there, solid blue while nitrous burns. The addresses (tach rpm, shift rpm, nitrous) are in
-  the comment block of `parts/pad_lights.cpp`; `tools/telemetry.py` prints the same numbers. In split racing a click on the
+  the comment block of `parts/pad_lights.cpp`; `tools/telemetry.py` prints the same numbers. While the pause menu is open (`PauseMenuOpen`)
+  every driving pad shows its player's colour at 25% (1P: P1's). In split racing a click on the
   touchpad (`XPadTouchClickPressed`) toggles that player's solid minimap colour (fully saturated, as the bar washes pale
   colours out: P1 (0, 255, 0), P2 (255, 0, 0), P3 (0, 64, 255), P4 (255, 150, 0)), kept per seat until the game closes. In other
   situations the

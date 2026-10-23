@@ -22,6 +22,7 @@
 //   shift (player cars, *(int*)(car+0x28) == 1): drv = *(*(car+0x34)+0x4C), up = *(float*)(drv+0x84+4*gear),
 //   f = *(float*)(0x7FBF60 + 4*(gear + 9**(int*)(drv+0xF0))) * *(float*)(drv+0xE4), shift = up - *(float*)0x7FBF5C * f
 //   (the tach's shift light, 0x4C6ACF..0x4C6B45); nitrous burns while burn = *(u32*)(car+0x460) is not 0 / 0x7FFFFFFF.
+// While the pause menu is open every driving pad shows its player's colour at 25% (the click toggle waits).
 // In split racing the touchpad click toggles the player's solid colour (below). Outside racing the bar keeps a fixed dim blue until the later steps (pause, countdown, finish, player colours).
 static bool g_lightbar = true;            // [LIGHTS] Lightbar
 static int  g_lightbarBrightness = 100;   // [LIGHTS] LightbarBrightness, percent
@@ -114,7 +115,8 @@ static void UpdatePadLights() {
         seatLimit = (g_seat & 1) == player ? g_seat : player;
     }
     int* mgr = at<int*>(0x890118);
-    bool racing = state == 6 && mgr && *mgr == 4 && !PauseMenuOpen();
+    bool racing = state == 6 && mgr && *mgr == 4;
+    bool paused = racing && PauseMenuOpen();
     bool flashOn = (GetTickCount() % 1000) < 500;
     for (int pad = 0; pad < XPadMax(); ++pad) {
         if (!XPadIsDualSense(pad)) continue;
@@ -133,13 +135,17 @@ static void UpdatePadLights() {
             int k = -1;                    // local player this pad drives
             if (SplitMode()) { for (int q = 0; q < MAX_LOCAL_PLAYERS; ++q) if (g_assignedPad[q] == pad) k = q; }
             else if (pad == XPadLastActive()) k = 0;
-            if (k >= 0 && SplitMode() && XPadTouchClickPressed(pad)) {
+            bool toggle = k >= 0 && !paused && SplitMode() && XPadTouchClickPressed(pad);
+            if (toggle) {
                 g_lightColourMode[k] = !g_lightColourMode[k];
                 Log("lightbar: player %d shows %s", k + 1, g_lightColourMode[k] ? "player colour" : "rpm");
             }
-            if (k >= 0 && SplitMode() && g_lightColourMode[k]) {
+            if (k < 0) {
+            } else if (paused) {            // the player's colour at 25%
+                for (int c = 0; c < 3; ++c) rgb[c] = static_cast<uint8_t>(kPlayerColour[k][c] * g_lightbarBrightness / 400);
+            } else if (SplitMode() && g_lightColourMode[k]) {
                 for (int c = 0; c < 3; ++c) rgb[c] = static_cast<uint8_t>(kPlayerColour[k][c] * g_lightbarBrightness / 100);
-            } else if (k >= 0) CarLightbar(k, rgb);
+            } else CarLightbar(k, rgb);
         }
         XPadSetLights(pad, rgb, leds);
     }
