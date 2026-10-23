@@ -203,12 +203,12 @@ static void UpdateFreeCamHook() {
 void* GetLocalPlayer(int k);
 static void __cdecl FfUpdate() {
     reinterpret_cast<void(__cdecl*)()>(FN_FF_UPDATE)();
-    if (g_extraPlayers > 0 && SplitMode()) {
-        SwapFfShadow();
-        g_ffPortBase = 2;
+    for (int pair = 1; SplitMode() && 2 * pair < 2 + g_extraPlayers && pair < MAX_LOCAL_PLAYERS / 2; ++pair) {
+        SwapFfShadow(pair);
+        g_ffPortBase = 2 * pair;
         reinterpret_cast<void(__cdecl*)()>(FN_FF_UPDATE)();
         g_ffPortBase = 0;
-        SwapFfShadow();
+        SwapFfShadow(pair);
     }
     bool on = g_rumble && at<int>(GAME_STATE) == 6 && !PauseMenuOpen() &&
               (!SplitMode() || SplitRacing());
@@ -221,8 +221,8 @@ static void __cdecl FfUpdate() {
         if (on && player && feedback) pad = SplitMode() ? g_assignedPad[k] : (k == 0 ? XPadLastActive() : -1);
         if (g_rumblePad[k] >= 0 && g_rumblePad[k] != pad) XPadSetRumble(g_rumblePad[k], 0, 0);
         g_rumblePad[k] = pad;
-        if (pad < 0) continue;
-        int port = *reinterpret_cast<int*>(player + 8) & 3;
+        int port = player ? *reinterpret_cast<int*>(player + 8) : -1;
+        if (pad < 0 || port < 0 || port >= MAX_LOCAL_PLAYERS) continue;
         int v = g_ffMotor[port] < 0 ? 0 : g_ffMotor[port] > 255 ? 255 : g_ffMotor[port];
         float largeMotor = v / 255.0f, smallMotor = v > 128 ? 1.0f : 0.0f;   // PS2 0x333530: act[1] = v, act[0] = v > 0x80
         XPadSetRumble(pad, largeMotor * g_rumbleStrength, smallMotor * g_rumbleStrength);
@@ -233,7 +233,7 @@ static __declspec(naked) void RumbleHook() {
     __asm {
         cmp dword ptr [esp + 8], 2       // port
         jb play
-        jmp RumbleExtraPort              // players 3/4: their shadow state (cdecl, same arguments)
+        jmp RumbleExtraPort              // players 3..6: their shadow state (cdecl, same arguments)
     play:
         mov eax, dword ptr [esp + 4]
         push esi
@@ -277,7 +277,7 @@ static __declspec(naked) void JoySlotPresent() {
 
 static void __cdecl InputInit() {
     reinterpret_cast<void(__cdecl*)()>(FN_INPUT_INIT)();
-    for (int port = 2; port < MAX_LOCAL_PLAYERS; ++port) {
+    for (int port = 2; port < INPUT_PORTS; ++port) {
         *reinterpret_cast<int*>(g_portTables + port * PORT_TABLE_SIZE + 0x1B4) = port;
         reinterpret_cast<void(__cdecl*)(int, int, uint32_t, int)>(FN_ADD_BINDING)(port, 1, 0x571A20, 0);
     }

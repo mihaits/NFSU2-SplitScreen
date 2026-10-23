@@ -1,13 +1,13 @@
-// Part of NFSU2SplitScreen.cpp: sound listeners (4).
+// Part of NFSU2SplitScreen.cpp: sound listeners (one per local player).
 // Included by NFSU2SplitScreen.cpp in a fixed order (one translation unit); not compiled on its own.
 
-// ---------------------------------------------------------------- sound listeners (4)
+// ---------------------------------------------------------------- sound listeners (one per local player)
 // The audio mixes each sound against one of 2 listeners (split screen: P1's and P2's cameras). Listener state is 14
 // 2-entry arrays (old base, stride below) written by the listener update 0x46D7E0 (hand-unrolled for listener 0 and
 // 1: audio player list [[0x82B884]+0xAC] nodes with index +0x10 0/1 -> node+0x30 -> +0x18 -> +0x238 -> +0x1C camera)
 // and read per sound by its listener index (sound+0xD0, chosen as the nearer of 2 at 0x45E147). Arrays move to
-// 4-entry storage (all .text references rewritten); listeners 2/3 are filled by running the update a second time
-// with players 3/4's list nodes posing as 0/1 and their slots swapped in; each sound picks the nearest listener.
+// MAX_LOCAL_PLAYERS-entry storage (all .text references rewritten); listeners 2.. are filled by running the update again
+// per pair, with players 3/4 (5/6) list nodes posing as 0/1 and their slots swapped in; each sound picks the nearest.
 struct ListenerArray { uint32_t oldBase, stride; uint8_t* newBase; };
 static ListenerArray g_listenerArrays[] = {
     {0x82BE70, 8, nullptr},    {0x82BE80, 0x10, nullptr}, {0x82BECC, 8, nullptr},    {0x82BEDC, 8, nullptr},

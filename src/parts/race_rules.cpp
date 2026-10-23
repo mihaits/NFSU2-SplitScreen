@@ -38,7 +38,8 @@ static void* __cdecl CatchupOtherHuman(const uint8_t* driver) {
         if (!other || progress > best) { best = progress; other = p; }
     }
     static DWORD logged[MAX_LOCAL_PLAYERS];
-    int me = self ? *reinterpret_cast<int*>(static_cast<uint8_t*>(self) + 0x10) & 3 : 0;
+    int me = self ? *reinterpret_cast<int*>(static_cast<uint8_t*>(self) + 0x10) : 0;
+    if (me < 0 || me >= MAX_LOCAL_PLAYERS) me = 0;
     if (g_debug && other && GetTickCount() - logged[me] > 3000) {
         logged[me] = GetTickCount();
         const uint8_t* mine = *reinterpret_cast<uint8_t* const*>(driver + 0x1C);

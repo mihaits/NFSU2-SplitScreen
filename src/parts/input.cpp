@@ -221,7 +221,7 @@ static void* PollExtraPort(int port, int* type, void** prev) {
 static void* __cdecl PollPortHook(int port, int* type, void** prev) {
     // The original polls every device (and drives force feedback) on port 0 and leaves each device's state in its
     // record; port 1 just gets the same merged buffer back. In split mode, port N only sees devices in slot N.
-    if (port >= 2 && port < MAX_LOCAL_PLAYERS) return PollExtraPort(port, type, prev);
+    if (port >= 2 && port < INPUT_PORTS) return PollExtraPort(port, type, prev);
     void* merged = g_origPollPort(port, type, prev);
     if (port == 0) g_port0Type = *type;
     if (!SplitMode() || port < 0 || port > 1) return merged;

@@ -252,7 +252,7 @@ static int __cdecl RaceSetup526970(int a) { UncountResultsRacers(); return reint
 #define PLAYER_BLOCK_SIZE  0xAB4C
 static void PrepareExtraNames() {
     const char* p2 = reinterpret_cast<const char*>(PLAYER_BLOCKS + PLAYER_BLOCK_SIZE);
-    for (int k = 0; k < 2; ++k) {
+    for (int k = 0; k < MAX_EXTRA_PLAYERS; ++k) {
         char* n = g_extraNames[k];
         strncpy_s(n, 16, p2, _TRUNCATE);
         size_t len = strlen(n);

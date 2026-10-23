@@ -6,7 +6,8 @@
 - Fields: +8 active; +0x40 camera; +0x58 render target struct; +0x60 cull/effect object (0x3B0 bytes, ctor 0x5E0260);
   +0x64 render/weather object (0x51C0 bytes, ctor 0x61E150(view, 0); then +0x509C = 1.0 and 0x613050(5, 1.0f)).
 - Ids: 0 FE, 1/2 players, 3 mirror, 4 road reflection (320x240), 9 headlight projector, 0x10..0x15 car env map faces.
-- Player views: `kPlayerViewId = {1, 2, 5, 6}`. `InitPlayerView` sets up views 5/6 like 0x5C2F90 does for 1..4. It
+- Player views: `kPlayerViewId = {1, 2, 5, 6, 7, 8}` (`MAX_LOCAL_PLAYERS` 6; views 7/8 are not drawn yet).
+  `InitPlayerView` sets up views 5/6 like 0x5C2F90 does for 1..4. It
   memsets them to 0 first: game malloc isn't zeroed, and the ctors assume zeroed memory.
 
 **Render target structs** (0x1C bytes): [0] type, [1] owner view, [2] surface, [3] depth, [4] enabled, [5] width,
@@ -22,7 +23,7 @@
   (alt-tab) releases the surfaces.
 
 **Player view loop.** In the main render 0x5CAAD0, the loop counter (from 1) ends at `cmp eax,1` (imm at 0x5CB722 →
-4). `ViewLoopTopHook` (0x5CB000) maps the counter to kPlayerViewId, skips inactive views and sets `g_currentView`.
+`MAX_LOCAL_PLAYERS`). `ViewLoopTopHook` (0x5CB000) maps the counter to kPlayerViewId, skips inactive views and sets `g_currentView`.
 `ViewLoopExitHook` (0x5CB72D) runs after the loop (restores, clears unused areas).
 
 **Viewports.** Every game SetViewport uses X=Y=0 and the RT size. The device vtable hooks are:
@@ -100,7 +101,7 @@ update 0x5D77F0 indexes 2-entry tables (0x88EA08 / 0x88F210) by view id - 1, so 
 
 **Per-view world update.** 0x5DBE80 (from 0x5CBADC / 0x5D2C21) looped over views 1..2, covering visibility, emitter
 lists and the per-view nitrous effect flag. `PatchViewUpdateLoop` (installed after the player relocation) makes it
-loop n = 1..4 using kPlayerViewId[n-1] / inOrder[n-1].
+loop n = 1..`MAX_LOCAL_PLAYERS` using kPlayerViewId[n-1] / inOrder[n-1].
 
 **Particles.** The emitter update 0x491E50 spawns only within range of the particle system's 3 camera snapshots
 (0x48BD90 copies views 1, 2, 0). `EmitterRangeHook` (0x491E8F) also tests the cameras of views 5/6. Per-car effects

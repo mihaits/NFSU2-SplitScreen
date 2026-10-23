@@ -21,7 +21,7 @@ struct SeatStore {
     uint8_t axes[REC_BIND_AXES_SIZE];
     int car;                             // garage car id (0 = none)
 };
-static SeatStore g_seatStore[2];         // players 3, 4
+static SeatStore g_seatStore[MAX_EXTRA_PLAYERS];   // players 3..6
 static char g_playersPath[MAX_PATH];
 
 static void ToHex(const uint8_t* p, size_t n, char* out) {
@@ -44,7 +44,7 @@ static bool FromHex(const char* s, uint8_t* p, size_t n) {
 
 static void LoadSeatStore() {
     static char buf[2 * REC_BIND_TABLES_SIZE + 16];
-    for (int i = 0; i < 2; ++i) {
+    for (int i = 0; i < MAX_EXTRA_PLAYERS; ++i) {
         SeatStore& s = g_seatStore[i];
         char section[16];
         sprintf_s(section, "Player%d", i + 3);
@@ -81,7 +81,7 @@ static void SaveSeatStore(int i) {
 // player like a pad (one keyboard player per round; see KeyboardPort). Outside split screen every pad works and the
 // last one used drives.
 #define PAD_NONE -1
-static int g_assignedPad[MAX_LOCAL_PLAYERS] = {PAD_NONE, PAD_NONE, PAD_NONE, PAD_NONE};
+static int g_assignedPad[MAX_LOCAL_PLAYERS] = {PAD_NONE, PAD_NONE, PAD_NONE, PAD_NONE, PAD_NONE, PAD_NONE};
 static int g_keyboardSeat = -1;          // the player who joined with the keyboard this round (-1: nobody)
 
 static int g_seat = 0;                   // car select: whose turn (0..3); the frontend serves FE player seat & 1
@@ -459,7 +459,7 @@ static void __fastcall HelpBarSet(uint8_t* bar, void*, uint32_t flags, uint32_t 
 }
 
 static void PrepareExtraNames();
-static char g_extraNames[2][16];
+static char g_extraNames[MAX_EXTRA_PLAYERS][16];
 static void UpdateSeats() {
     using ActiveFn = bool(__cdecl*)(const char*);
     if (g_inCarSelect) {                       // name box: whose pick it is (the game shows the profile for everyone)
@@ -517,8 +517,8 @@ static void __fastcall PlayersRowDraw(uint8_t* row) {
 }
 
 static void __fastcall PlayersRowAct(uint8_t* row, void*, const char* fng, uint32_t msg) {
-    if (msg == MSG_LEFT) g_splitPlayers = g_splitPlayers > 2 ? g_splitPlayers - 1 : MAX_LOCAL_PLAYERS;
-    if (msg == MSG_RIGHT) g_splitPlayers = g_splitPlayers < MAX_LOCAL_PLAYERS ? g_splitPlayers + 1 : 2;
+    if (msg == MSG_LEFT) g_splitPlayers = g_splitPlayers > 2 ? g_splitPlayers - 1 : SPLIT_PLAYERS_MAX;
+    if (msg == MSG_RIGHT) g_splitPlayers = g_splitPlayers < SPLIT_PLAYERS_MAX ? g_splitPlayers + 1 : 2;
     reinterpret_cast<void(__cdecl*)(uint32_t, const char*)>(FN_FE_SEND_MSG)(0x92B703B5, fng);
     auto* vt = *reinterpret_cast<uintptr_t**>(row);
     reinterpret_cast<void(__thiscall*)(void*, uint32_t)>(vt[0x40 / 4])(row, msg);

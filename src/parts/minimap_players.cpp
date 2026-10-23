@@ -67,7 +67,7 @@ static void __fastcall MinimapUpdate(uint8_t* mgr, void*) {
     g_mmPlayers = 0;
     if (!n) { update(mgr, nullptr); return; }
     ExtendMinimapManager(mgr);
-    for (int i = 0; i < 2 && i < g_extraPlayers; ++i)
+    for (int i = 0; i < MAX_EXTRA_PLAYERS && i < g_extraPlayers; ++i)
         if (uint8_t* icon = g_mmExtraIcon[i]) {
             auto* data = *reinterpret_cast<uint32_t**>(icon + 0x2C);
             for (int c = 0; c < 4; ++c) data[c] = kMarkerColour[i][c];

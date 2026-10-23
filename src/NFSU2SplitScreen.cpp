@@ -85,7 +85,9 @@ static void LoadConfig(HMODULE self) {
     g_debug = GetPrivateProfileIntA("MAIN", "Debug", 0, path) != 0;
     g_quadTest = GetPrivateProfileIntA("DEBUG", "QuadTest", 0, path) != 0;
     g_extraPlayers = GetPrivateProfileIntA("DEBUG", "ExtraPlayers", 0, path);
-    g_splitPlayers = 2 + (g_extraPlayers < 0 ? 0 : g_extraPlayers > 2 ? 2 : g_extraPlayers);   // debug default
+    if (g_extraPlayers < 0) g_extraPlayers = 0;
+    if (g_extraPlayers > SPLIT_PLAYERS_MAX - 2) g_extraPlayers = SPLIT_PLAYERS_MAX - 2;
+    g_splitPlayers = 2 + g_extraPlayers;                                                      // debug default
     g_splitOpponents = GetPrivateProfileIntA("DEBUG", "Opponents", 0, path);                   // debug default
     g_spGauges = GetPrivateProfileIntA("HUD", "SinglePlayerGauges", 1, path) != 0;
     g_gaugeScale = GetPrivateProfileIntA("HUD", "GaugeScalePercent", 60, path) / 100.0f;

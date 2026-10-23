@@ -4,7 +4,7 @@
 // ---------------------------------------------------------------- player LEDs
 // A native DualSense (pad 8..11, see docs/input.md) shows who controls the game with its 5 player LEDs:
 // - from the car-select join until the race is left, a pad that a player joined with shows that player's number
-//   (patterns of PS5: 1 = --x--, 2 = -x-x-, 3 = x-x-x, 4 = xx-xx). Seats are g_assignedPad[k]; the session counts as
+//   (patterns of PS5: 1 = --x--, 2 = -x-x-, 3 = x-x-x, 4 = xx-xx; the mod's 5 = xxxxx, 6 = -xxx-). Seats are g_assignedPad[k]; the session counts as
 //   on in the split car select and in game states 4..6 (loading, racing, results). Back in the frontend (state 3)
 //   after a race the numbers stop (g_assignedPad itself is left alone);
 // - at all other times the pad that controls the game shows 1: the last pad used, or on the car select the pad of the
@@ -32,7 +32,8 @@ static int  g_lightbarBrightness = 100;   // [LIGHTS] LightbarBrightness, percen
 // Split racing: a click on the DualSense touchpad switches that player's lightbar between rpm and the player's solid
 // colour (their minimap marker's hue, fully saturated: P1 green, P2 red, P3 blue, P4 amber; the bar washes pale
 // colours out, so no channel is mixed in except where the hue needs it). Kept per seat until the game closes.
-static const uint8_t kPlayerColour[MAX_LOCAL_PLAYERS][3] = {{0, 255, 0}, {255, 0, 0}, {0, 64, 255}, {255, 150, 0}};
+static const uint8_t kPlayerColour[MAX_LOCAL_PLAYERS][3] = {{0, 255, 0}, {255, 0, 0}, {0, 64, 255}, {255, 150, 0},
+                                                             {160, 0, 255}, {0, 220, 220}};   // P5 purple, P6 cyan
 static bool g_lightColourMode[MAX_LOCAL_PLAYERS];
 
 static bool ReadCarLight(void* player, float* t, bool* shiftLight, bool* nitrous) {
@@ -96,7 +97,7 @@ static bool CarLightbar(int k, uint8_t rgb[3]) {
 }
 static bool g_playerLeds = true;          // [LIGHTS] PlayerLeds
 
-static const uint8_t kPlayerLedPattern[MAX_LOCAL_PLAYERS] = {0x04, 0x0A, 0x15, 0x1B};
+static const uint8_t kPlayerLedPattern[MAX_LOCAL_PLAYERS] = {0x04, 0x0A, 0x15, 0x1B, 0x1F, 0x0E};   // 5 = xxxxx, 6 = -xxx-
 
 // The pad that drives the frontend now (-1: none, in a split race every seat drives its own player).
 static int ControllingPad() {

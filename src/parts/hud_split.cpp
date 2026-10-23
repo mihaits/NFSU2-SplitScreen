@@ -91,10 +91,15 @@ static void AddMinimapObject(uint8_t* obj, bool child) {
 
 // Car markers of players 3/4: PlayerCarIndicator_1/_2 of P3's copy of the package (registered as markers of the
 // minimap manager, see ExtendMinimapManager); drawn per player like P1's minimap objects, with their own colours.
-static uint8_t* g_mmExtraIcon[2];
+static uint8_t* g_mmExtraIcon[MAX_EXTRA_PLAYERS];   // players 3..6 (5/6 not set yet)
 static uint8_t* g_mmMarker[MAX_LOCAL_PLAYERS];   // car markers: P1's package _1/_2 (P1, P2), P3's copy _1/_2 (P3, P4)
 static unsigned g_mmFrame = 0, g_mmMarkersFrame = 0;
-static const uint8_t kMarkerColour[2][4] = {{230, 90, 40, 255}, {40, 210, 230, 255}};  // P3 blue, P4 yellow (B, G, R, A)
+static const uint8_t kMarkerColour[MAX_EXTRA_PLAYERS][4] = {   // B, G, R, A: P3 blue, P4 yellow, P5 purple, P6 cyan
+    {230, 90, 40, 255}, {40, 210, 230, 255}, {255, 0, 160, 255}, {220, 220, 0, 255}};
+static bool IsExtraMarker(const void* obj) {
+    for (const uint8_t* icon : g_mmExtraIcon) if (icon && obj == icon) return true;
+    return false;
+}
 
 static uint8_t* FindFeObject(const uint8_t* pkg, uint32_t hash) {
     for (auto* obj = *reinterpret_cast<uint8_t* const*>(pkg + 0x4C); obj; obj = *reinterpret_cast<uint8_t**>(obj + 4))
@@ -155,7 +160,7 @@ static void HideCopyMinimap(const uint8_t* copy) {
     if (!copy) return;
     for (auto* obj = *reinterpret_cast<uint8_t* const*>(copy + 0x4C); obj && g_mmHideCount < MM_MAX_OBJS;
          obj = *reinterpret_cast<uint8_t**>(obj + 4))
-        if (obj != g_mmExtraIcon[0] && obj != g_mmExtraIcon[1] && IsMinimapObject(obj))
+        if (!IsExtraMarker(obj) && IsMinimapObject(obj))
             g_mmHideData[g_mmHideCount++] = *reinterpret_cast<void**>(obj + 0x2C);
 }
 
@@ -164,7 +169,7 @@ static void MapMinimapObjects(const uint8_t* pkg, const uint8_t* p3pkg, const ui
     if (!pkg) g_mmSnapCount = 0;
     g_mmHideCount = 0;
     g_mmObjCount = g_mmDataCount = g_mmGroupCount = g_mmChildCount = 0;
-    g_mmExtraIcon[0] = g_mmExtraIcon[1] = nullptr;
+    memset(g_mmExtraIcon, 0, sizeof(g_mmExtraIcon));
     memset(g_mmMarker, 0, sizeof(g_mmMarker));
     if (!pkg) return;
     using HashFn = uint32_t(__cdecl*)(const char*);
@@ -180,7 +185,7 @@ static void MapMinimapObjects(const uint8_t* pkg, const uint8_t* p3pkg, const ui
         g_mmMarker[3] = g_mmExtraIcon[1];
         for (auto* obj = *reinterpret_cast<uint8_t* const*>(p3pkg + 0x4C); obj && g_mmHideCount < MM_MAX_OBJS;
              obj = *reinterpret_cast<uint8_t**>(obj + 4))
-            if (obj != g_mmExtraIcon[0] && obj != g_mmExtraIcon[1] && IsMinimapObject(obj))
+            if (!IsExtraMarker(obj) && IsMinimapObject(obj))
                 g_mmHideData[g_mmHideCount++] = *reinterpret_cast<void**>(obj + 0x2C);
     }
     HideCopyMinimap(p2pkg);
@@ -297,7 +302,7 @@ static void UpdateMinimapOwner() {          // per frame
 static void UpdateQuadHud() {
     g_quadHud = false;
     if (g_mmExtraIcon[0] && !HudPackageOf(2)) {   // P3's HUD gone (back in the menus): the frontend reuses the memory
-        g_mmExtraIcon[0] = g_mmExtraIcon[1] = nullptr;   // (help bar buttons matched these and were skipped)
+        memset(g_mmExtraIcon, 0, sizeof(g_mmExtraIcon));   // (help bar buttons matched these and were skipped)
         memset(g_mmMarker, 0, sizeof(g_mmMarker));
     }
     if (!SplitRacing() || g_screenViews < 3) {

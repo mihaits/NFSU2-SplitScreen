@@ -86,10 +86,12 @@ is up. Its player's pause menus show Feedback greyed and off: `FfCapable` (jump 
 mouse free camera follows the keyboard player.
 
 **Players 3/4.**
-- The port tables are relocated to `g_portTables[4]` (`RelocatePortTables`: 15 refs, loop bounds 0x57B3AC/0x580AD4,
+- The port tables are relocated to `g_portTables[INPUT_PORTS]` (4) (`RelocatePortTables`: 15 refs, loop bounds 0x57B3AC/0x580AD4,
   static ctor/dtor counts 0x77D9CB/0x782296). This runs before the game's static init.
-- The binding node pool is raised from 0xA0 to 0x140 (0x579559).
-- `InputInit` (call at 0x57ED80) gives ports 2/3 their id and action 1.
+- The binding node pool is raised from 0xA0 (2 ports) to 0x50 per port (0x579559).
+- `INPUT_PORTS` stays 4 for now: with 6, `InputInit`'s action 1 for ports 4/5 (handler 0x571A20: per-port bytes
+  `[port + 0x864788]`, 0x5726A0(port), 0x50C5D0(port, ..)) broke the frontend input (no pad advanced the splash).
+- `InputInit` (call at 0x57ED80) gives ports 2.. their id and action 1.
 - `PollPortHook` serves ports 2/3 from P3/P4's XInput pads (`PollExtraPort`) with their own bindings (below).
   Players 3/4 have ports 2/3.
 - Player port = index 0..3 (0x50D2A0 maps FE masks 1/2/4/8 to 0..3).
@@ -135,8 +137,8 @@ there rather than tuned by feel:
   DIDC_FORCEFEEDBACK (0x5B8240 returns 0x87078C, set at 0x5C1221; only the two option screens read it); it is forced
   selectable while rumble is on.
 - The channel state exists for 2 ports (channels 0xC0 bytes, strengths 0x864728, 0x60 bytes indexed type*2 + port).
-  P3/P4 (ports 2/3) get a shadow copy that `RumbleExtraPort` swaps in for their events and for a second run of the
-  update.
+  Each further pair of ports (2/3 for P3/P4, 4/5 for P5/P6) gets a shadow copy that `RumbleExtraPort` swaps in for
+  its events and for one more run of the update; `g_ffPortBase` (2 or 4) maps the game's port 0/1 back to the real one.
 - Collisions (0x572E50 → 0x865360) only drive the wheels' constant force, as on PS2 (`ImpactRumbleHook` ignores
   players >= 2). `JoySlotPresent` (0x5BFD70: slot >= 2 → false) guards the driving force feedback 0x406460, which read
   past the 2-slot array.

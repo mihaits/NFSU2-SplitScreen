@@ -35,9 +35,9 @@ P1/P2 (0 for anyone else). While P3/P4 owns the pause (`g_pauseOwner`), `SyncPla
 game's table at entry owner & 1, and `PausingPlayer` (jump at 0x4A7AE0) returns that entry. The menus then show and
 change the pausing player's own settings; the table goes back to P1/P2 when the pause menus close.
 
-**Seat store (players 3/4's own data).** The game keeps per-player data for 2 players only. P3/P4's settings entry,
+**Seat store (players 3..6's own data).** The game keeps per-player data for 2 players only. P3/P4's settings entry,
 joypad bindings (record tables + axis setup, [input](input.md)) and last car are kept in `g_seatStore` and saved to
-`NFSU2SplitScreen_Players.ini` ([Player3] / [Player4], hex) whenever they change.
+`NFSU2SplitScreen_Players.ini` ([Player3] .. [Player6], hex) whenever they change.
 - Last car: `SwitchSeat` opens a P3/P4 pick on the stored car if it is still in the garage (`GarageHasCar`: P1's
   quick race car list 0x844968, 0x5B entry pointers, car id at +8, as the lookup at 0x525FBB). Each pick is stored
   (`SaveSeat`). P1/P2's last cars are the game's (0x83AAB8 in their profile blocks).

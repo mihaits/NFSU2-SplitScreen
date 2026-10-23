@@ -16,7 +16,7 @@
 #define AT_INPUT_INIT_CALL 0x57ED80          // call 0x579550 (input init: port ids, pool, action 1 per port)
 #define FN_INPUT_INIT      0x579550
 #define FN_ADD_BINDING     0x579410          // void __cdecl (port, action, handler, arg)
-alignas(16) static uint8_t g_portTables[MAX_LOCAL_PLAYERS * PORT_TABLE_SIZE];
+alignas(16) static uint8_t g_portTables[INPUT_PORTS * PORT_TABLE_SIZE];
 
 static int RelocatePortTables() {
     auto* dos = reinterpret_cast<IMAGE_DOS_HEADER*>(0x400000);
@@ -41,13 +41,13 @@ static int RelocatePortTables() {
         }
         VirtualProtect(p, n, old, &old);
     }
-    uint32_t end = base + MAX_LOCAL_PLAYERS * PORT_TABLE_SIZE;
+    uint32_t end = base + INPUT_PORTS * PORT_TABLE_SIZE;
     Write(AT_PORT_BOUND_1, &end, 4);
     Write(AT_PORT_BOUND_2, &end, 4);
-    const uint8_t count = MAX_LOCAL_PLAYERS;
+    const uint8_t count = INPUT_PORTS;
     Write(AT_PORT_TABLES_CTOR_COUNT, &count, 1);
     Write(AT_PORT_TABLES_DTOR_COUNT, &count, 1);
-    const uint32_t pool = 0x140;
+    const uint32_t pool = 0x50 * INPUT_PORTS;   // the game's 0xA0 for 2 ports
     Write(AT_INPUT_NODE_POOL, &pool, 4);
     return patched;
 }
@@ -82,33 +82,35 @@ static int RelocatePortTables() {
 // by 0.7 (0x7A6700) and force the LOD range to 1..1 (the low model), and the car parts renderer 0x615630 scales the size
 // too. Each `jne` past that block becomes `jmp`: split cars use the Car Geometry Detail option like single player.
 static const uintptr_t kSplitCarLodJumps[] = {0x620C8C, 0x616316, 0x6156CC};
-static uint8_t g_ffShadowChannels[FF_CHANNELS_SIZE], g_ffShadowStrengths[FF_STRENGTHS_SIZE];
-static int g_ffPortBase = 0;                 // 2 while the players 3/4 state is swapped in
-static int g_ffMotor[4];                     // per port: motor value 0..255
+static uint8_t g_ffShadowChannels[MAX_EXTRA_PLAYERS / 2][FF_CHANNELS_SIZE];      // per pair of ports 2/3, 4/5
+static uint8_t g_ffShadowStrengths[MAX_EXTRA_PLAYERS / 2][FF_STRENGTHS_SIZE];
+static int g_ffPortBase = 0;                 // 2 / 4 while the players 3/4 / 5/6 state is swapped in
+static int g_ffMotor[MAX_LOCAL_PLAYERS];     // per port: motor value 0..255
 static bool g_rumble = true;
 static float g_rumbleStrength = 1.0f;
-static int g_rumblePad[MAX_LOCAL_PLAYERS] = {-1, -1, -1, -1};   // pad last sent to (to silence it)
+static int g_rumblePad[MAX_LOCAL_PLAYERS] = {-1, -1, -1, -1, -1, -1};   // pad last sent to (to silence it)
 static void* g_origRumble;
 
-static void SwapFfShadow() {
+static void SwapFfShadow(int pair) {              // pair 1: ports 2/3, pair 2: ports 4/5
     auto swap = [](uint8_t* a, uint8_t* b, size_t n) { for (size_t i = 0; i < n; ++i) { uint8_t t = a[i]; a[i] = b[i]; b[i] = t; } };
-    swap(reinterpret_cast<uint8_t*>(FF_CHANNELS), g_ffShadowChannels, FF_CHANNELS_SIZE);
-    swap(reinterpret_cast<uint8_t*>(FF_STRENGTHS), g_ffShadowStrengths, FF_STRENGTHS_SIZE);
+    swap(reinterpret_cast<uint8_t*>(FF_CHANNELS), g_ffShadowChannels[pair - 1], FF_CHANNELS_SIZE);
+    swap(reinterpret_cast<uint8_t*>(FF_STRENGTHS), g_ffShadowStrengths[pair - 1], FF_STRENGTHS_SIZE);
 }
 
 static void __cdecl RumbleExtraPort(int type, int port, float amount) {
-    if (g_extraPlayers <= 0 || port > 3) return;
-    SwapFfShadow();
-    g_ffPortBase = 2;
-    reinterpret_cast<void(__cdecl*)(int, int, float)>(g_origRumble)(type, port - 2, amount);
+    if (port - 2 >= g_extraPlayers || port >= MAX_LOCAL_PLAYERS) return;
+    int pair = port / 2;
+    SwapFfShadow(pair);
+    g_ffPortBase = 2 * pair;
+    reinterpret_cast<void(__cdecl*)(int, int, float)>(g_origRumble)(type, port & 1, amount);
     g_ffPortBase = 0;
-    SwapFfShadow();
+    SwapFfShadow(pair);
 }
 
 // the stub's arguments: (port, value, value) - sub-channel 0's motor value twice (the PS2 passes the same byte for
 // both actuators too: 0x2E87E4 / 0x2E87EC load +0x28 of the same sub-channel)
 static void __cdecl FfPadOutput(int port, int value, int) {
-    g_ffMotor[((port & 1) + g_ffPortBase) & 3] = value;
+    g_ffMotor[(port & 1) + g_ffPortBase] = value;
 }
 
 static bool PauseMenuOpen() {

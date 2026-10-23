@@ -263,7 +263,7 @@ static void __fastcall HudDtorHook(void* hud) {
 // Custom gauge textures: the race load (0x577F60) loads GLOBAL\HUD_CustomTextures_<HUDINDEX>.bin for P1's car only
 // and makes its 8 textures resident (names from 0x5ED9B0); the other players' packs are loaded the same way first.
 static uint32_t g_hudTexList[MAX_LOCAL_PLAYERS][8];
-static int g_hudTexIndex[MAX_LOCAL_PLAYERS] = {-1, -1, -1, -1};
+static int g_hudTexIndex[MAX_LOCAL_PLAYERS] = {-1, -1, -1, -1, -1, -1};
 static bool g_hudTexFile[MAX_LOCAL_PLAYERS];   // this player's entry loaded the pack file (unloads it)
 static void __cdecl HudTexLoaded(void*) {}
 
@@ -380,7 +380,7 @@ static void __stdcall RenderFeObjectWith(void* obj, int arg, void* ctx) {
     if (g_debug) { static int s_d = -1; int d = X87Depth(); if (d != s_d) { Log("x87 depth %d entering FE object render", d); s_d = d; } }
     // P3/P4's car markers (recoloured and unhidden for the per-player minimaps) are only drawn by the quad HUD; after the
     // race (Street X results switch to layout 1) they showed up at their raw positions (user: blue marker on results)
-    if (!g_quadHud && obj && (obj == g_mmExtraIcon[0] || obj == g_mmExtraIcon[1])) return;
+    if (!g_quadHud && obj && IsExtraMarker(obj)) return;
     if ((!g_gaugeShow.empty() || !g_gaugeHide.empty()) && obj) {
         static unsigned s_n, s_show, s_hide;
         if (g_debug && ++s_n % 20000 == 0) Log("gauge render: %u objs, %u shown, %u hidden", s_n, s_show, s_hide);
@@ -407,7 +407,7 @@ static void __stdcall RenderFeObjectWith(void* obj, int arg, void* ctx) {
         g_renderSlot = -1;
         return;
     }
-    int markers = 2 + (g_extraPlayers < 2 ? g_extraPlayers : 2);
+    int markers = 2 + (g_extraPlayers < MAX_EXTRA_PLAYERS ? g_extraPlayers : MAX_EXTRA_PLAYERS);
     bool marker = false;
     for (int j = 0; j < markers; ++j) marker |= obj == g_mmMarker[j];
     if (mm >= 0 && marker && g_mmTarget < 0) {

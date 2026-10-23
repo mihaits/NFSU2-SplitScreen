@@ -112,8 +112,14 @@ static bool g_nativeDualSense = true;    // native DualSense pads (off while DS4
 static int  g_dsRumbleMode = -1;         // -1 auto by firmware, 1 old, 2 new
 static bool g_menuSplit = false;         // set by the main menu "Split Screen" option, consumed by Quick Race
 static int  g_prevMode = 0;
-#define MAX_LOCAL_PLAYERS 4
-static const int kPlayerViewId[MAX_LOCAL_PLAYERS] = {1, 2, 5, 6};   // views 5..8 are unused by the game
+#define MAX_LOCAL_PLAYERS 6
+#define MAX_EXTRA_PLAYERS (MAX_LOCAL_PLAYERS - 2)   // players 3.. on top of the game's 2
+#define SPLIT_PLAYERS_MAX 4              // Players row / debug ExtraPlayers cap until players 5/6 are wired up
+// Input ports: 4 until players 5/6 get theirs. Giving ports 4/5 an id and action 1 (InputInit -> handler 0x571A20)
+// broke the frontend input (splash ignored every pad): the handler writes per-port bytes [port + 0x864788] and calls
+// 0x5726A0(port) / 0x50C5D0(port, ..), arrays sized for fewer ports.
+#define INPUT_PORTS 4
+static const int kPlayerViewId[MAX_LOCAL_PLAYERS] = {1, 2, 5, 6, 7, 8};   // views 5..8 are unused by the game
 static RenderTarget g_rt[MAX_LOCAL_PLAYERS]; // private targets for the player views (one per screen region)
 static int g_screenViews = 2;            // player views drawn this frame (2, or 4 for quadrants)
 static bool g_viewTintInit[2];           // views 5/6 have their own screen tint entries (see TintUpdateWrapper)
@@ -122,7 +128,7 @@ static int  g_extraPlayers = 0;          // debug: players 3.. added to 2P races
 static int g_vpLogFrames = 0;            // debug: log SetViewport calls for N frames (mailbox command 6)
 static int  g_currentView = 0;           // view being drawn by the player-view loop (read by asm)
 static void* g_origSetViewport = nullptr;
-static uint8_t g_portCur[4][16], g_portPrev[4][16];
+static uint8_t g_portCur[MAX_LOCAL_PLAYERS][16], g_portPrev[MAX_LOCAL_PLAYERS][16];
 static int g_port0Type = 0;
 
 static void ResetAssignments();

@@ -164,6 +164,10 @@ Test with the debug clone path: 5P and 6P circuit, sprint, drift, URL, Street X;
 Test with real pads for 5-6 seats as far as the pads go, debug pads for the rest.
 
 ### 6. Input for players 5/6
+- Input ports 4/5: step 1 kept `INPUT_PORTS` = 4 (input_ports.cpp). With 6 ports the splash ignored every pad: the
+  action 1 binding that `InputInit` adds per port (handler 0x571A20) writes `[port + 0x864788]` and calls
+  0x5726A0(port) / 0x50C5D0(port, ..), per-port arrays sized for fewer ports. Size them (or remap ports 4/5 for that
+  handler) before raising `INPUT_PORTS`. Port tables at 6 and the node pool at 0x1E0 alone were fine.
 - `PollExtraPort` for ports 4/5, `PadForDevice`, `KeyboardPort` (ports 4/5), pause by P5/P6 (`PauseInputMask`,
   `g_pauseOwner`), `SyncPlayerSettings` swap for seats 4/5.
 - Controls pages: relocate the page table (0x835930, 77 disp32 refs) to 8+ entries, then pages for P5/P6
