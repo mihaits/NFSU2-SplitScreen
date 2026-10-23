@@ -2,9 +2,10 @@
 #include <cstdint>
 
 // Replaces the DirectInput8Create import at `importSlot` so game-controller enumeration reports the plugin's
-// virtual gamepads (joystick slot N = virtual device N). Returns false if no XInput runtime is available.
+// virtual gamepads (joystick slot N = virtual device N) and hides the real game controllers. Returns false if no
+// XInput runtime is available.
 // nativeDualSense: also starts the native DualSense backend (pads 8..11, DualSense.h); dsRumbleMode -1 auto, 1, 2.
-bool InstallXInputDevices(uintptr_t importSlot, bool hideRealControllers, bool nativeDualSense, int dsRumbleMode,
+bool InstallXInputDevices(uintptr_t importSlot, bool nativeDualSense, int dsRumbleMode,
                           void (*log)(const char* fmt, ...));
 
 // Chooses the XInput user index that feeds a virtual device (-1 = idle). Default: device N reads pad N.

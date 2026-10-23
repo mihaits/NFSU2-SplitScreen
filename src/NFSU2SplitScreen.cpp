@@ -91,8 +91,6 @@ static void LoadConfig(HMODULE self) {
     g_gaugeScale = GetPrivateProfileIntA("HUD", "GaugeScalePercent", 60, path) / 100.0f;
     g_rumble = GetPrivateProfileIntA("INPUT", "Rumble", 1, path) != 0;
     g_rumbleStrength = GetPrivateProfileIntA("INPUT", "RumbleStrength", 100, path) / 100.0f;
-    g_xinputPads = GetPrivateProfileIntA("INPUT", "XInputPads", 1, path) != 0;
-    g_hideDirectInputPads = GetPrivateProfileIntA("INPUT", "HideDirectInputControllers", 1, path) != 0;
     g_nativeDualSense = GetPrivateProfileIntA("INPUT", "NativeDualSense", 1, path) != 0;
     g_dsRumbleMode = GetPrivateProfileIntA("INPUT", "DualSenseRumbleMode", 0, path);
     g_playerLeds = GetPrivateProfileIntA("LIGHTS", "PlayerLeds", 1, path) != 0;
@@ -133,13 +131,11 @@ static void Install(HMODULE self) {
     }
     Log("mailbox at %p", &g_mailbox);
 
-    if (g_xinputPads) {
-        if (InstallXInputDevices(IMPORT_DIRECTINPUT8CREATE, g_hideDirectInputPads, g_nativeDualSense,
-                                g_dsRumbleMode, &Log))
-            XPadSetResolver(&PadForDevice);
-        else
-            Log("XInput runtime not found; using DirectInput controllers");
-    }
+    g_xinputPads = InstallXInputDevices(IMPORT_DIRECTINPUT8CREATE, g_nativeDualSense, g_dsRumbleMode, &Log);
+    if (g_xinputPads)
+        XPadSetResolver(&PadForDevice);
+    else
+        Log("XInput runtime not found; using DirectInput controllers");
 
     bool tablesBuilt = *reinterpret_cast<uint32_t*>(OLD_PORT_TABLES) == OLD_PORT_TABLES;
     int portRefs = RelocatePortTables();

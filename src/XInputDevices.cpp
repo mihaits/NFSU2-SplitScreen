@@ -3,7 +3,7 @@
 // The PC game only knows DirectInput, opens at most two game controllers in enumeration order, and gets no data
 // from some devices (e.g. a raw DualSense, which only works through DS4Windows' virtual Xbox pad). We wrap the
 // game's IDirectInput8A: game-controller enumeration always reports kVirtualDevices virtual "Xbox 360 gamepads"
-// (optionally hiding the real DirectInput controllers), and CreateDevice returns a small IDirectInputDevice8A that
+// (the real DirectInput controllers are hidden), and CreateDevice returns a small IDirectInputDevice8A that
 // answers GetDeviceState from XInput in the layout Windows uses for Xbox pads under DirectInput, so the game's own
 // controller mapping and bindings keep working. Which physical pad feeds which virtual device (= joystick slot =
 // player) is decided by the plugin through a resolver callback; a missing pad reads as idle, so the game never
@@ -46,7 +46,6 @@ constexpr int kDebugPads = 4;           // test pads 4..7 driven by XPadSetVirtu
 constexpr int kDsFirst = kRealPads + kDebugPads;   // native DualSense pads 8..11
 constexpr int kMaxPads = kDsFirst + kDsMax;
 constexpr int kVirtualDevices = 2;     // the game has two joystick slots
-bool g_hideRealControllers = true;
 int (*g_resolver)(int device);         // virtual device -> XInput user index (-1 = idle)
 
 // per-frame pad snapshot (XPadUpdate)
@@ -412,18 +411,6 @@ typedef HRESULT(STDMETHODCALLTYPE* EnumDevicesFn)(IDirectInput8A*, DWORD, LPDIEN
 CreateDeviceFn g_origCreateDevice;
 EnumDevicesFn g_origEnumDevices;
 
-struct FilterContext {
-    LPDIENUMDEVICESCALLBACKA cb;
-    LPVOID ref;
-    bool stopped;
-};
-
-BOOL CALLBACK ForwardRealControllers(LPCDIDEVICEINSTANCEA d, LPVOID ctx) {
-    auto* f = static_cast<FilterContext*>(ctx);
-    if (f->cb(d, f->ref) == DIENUM_STOP) { f->stopped = true; return DIENUM_STOP; }
-    return DIENUM_CONTINUE;
-}
-
 HRESULT STDMETHODCALLTYPE EnumDevicesHook(IDirectInput8A* self, DWORD type, LPDIENUMDEVICESCALLBACKA cb, LPVOID ref,
                                           DWORD flags) {
     if (type != DI8DEVCLASS_GAMECTRL || !cb) return g_origEnumDevices(self, type, cb, ref, flags);
@@ -433,9 +420,7 @@ HRESULT STDMETHODCALLTYPE EnumDevicesHook(IDirectInput8A* self, DWORD type, LPDI
         FillDeviceInstance(&d, i);
         if (cb(&d, ref) == DIENUM_STOP) return DI_OK;
     }
-    if (g_hideRealControllers) return DI_OK;
-    FilterContext f = {cb, ref, false};
-    return g_origEnumDevices(self, type, ForwardRealControllers, &f, flags);
+    return DI_OK;                        // the real game controllers stay hidden (they'd take the two slots)
 }
 
 // The system mouse: its movement is recorded as the game reads it (GetDeviceState, DIMOUSESTATE/2), for the plugin's
@@ -607,7 +592,7 @@ bool XPadDiState(int pad, void* out, unsigned size) {
     return true;
 }
 
-bool InstallXInputDevices(uintptr_t importSlot, bool hideRealControllers, bool nativeDualSense, int dsRumbleMode,
+bool InstallXInputDevices(uintptr_t importSlot, bool nativeDualSense, int dsRumbleMode,
                           void (*log)(const char* fmt, ...)) {
     static const char* const dlls[] = {"xinput1_4.dll", "xinput1_3.dll", "xinput9_1_0.dll"};
     for (const char* dll : dlls) {
@@ -618,7 +603,6 @@ bool InstallXInputDevices(uintptr_t importSlot, bool hideRealControllers, bool n
         }
     }
     if (!g_xinputGetState) return false;
-    g_hideRealControllers = hideRealControllers;
     for (int i = 0; i < kDsMax; ++i) {     // until the lights policy exists: dim blue + player 1 LED mark a native pad
         g_dsOut[i].rgb[2] = 64;
         g_dsOut[i].playerLeds = 0x04;

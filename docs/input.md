@@ -9,7 +9,7 @@ read port = 0x83A9D8[player]. Input port tables: 0x8655A0, 2 × 0x1C8 (binding n
 **XInputDevices.cpp.** It hooks the DirectInput8Create IAT slot 0x783024 and wraps IDirectInput8A.
 EnumDevices/CreateDevice expose virtual "Split Screen Pad N" gamepads with full DirectInput emulation (objects with
 Xbox names, GetObjectInfo, properties, buffered GetDeviceData — Options > Controls needs all of these). Real DirectInput
-controllers are hidden (ini). Pads 0..3 are the real XInput pads, 4..7 debug pads driven through the mailbox, 8..11 native DualSense pads (below).
+controllers are hidden. Pads 0..3 are the real XInput pads, 4..7 debug pads driven through the mailbox, 8..11 native DualSense pads (below).
 
 **Native DualSense (`DualSense.cpp`).**
 - HID through SetupAPI + hid.dll (`hid.lib setupapi.lib`), USB and Bluetooth, DualSense 054C:0CE6 and Edge 054C:0DF2.
