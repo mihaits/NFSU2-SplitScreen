@@ -27,12 +27,27 @@ lanes: `SplitPlayers()` and the row stop at `MaxRacers()` (4 in drag, else 6); t
 0xB5AF2461. `PressStartHook`/`PressStartFilter` instead waits for XInput Start on an unassigned pad or keyboard Enter
 (any seat, one keyboard player per round: `g_keyboardSeat`), records `g_assignedPad[seat]`, and injects START with mask 1 << player. The popup text object 0x2EBB974D is
 set to "Player Three/Four/Five/Six Press START" for seats 2..5 (English only). A pad that has joined can't join again.
+On a later seat's popup only the previous seat's pad or keyboard drives the frontend (`CarselDriverSeat`, used by
+`PadForDevice` and `KeyboardPort`), so only the player who joined last can press Back to undo their pick. P1's popup
+starts a new round, so any pad or the keyboard drives it (the previous round's pads no longer count).
+
+**Car select sounds: one per action.** Every FE sound goes through 0x458520 (thiscall sound manager [0x82B884]; id),
+hooked by `FeSound`. Two layers play them: the generic package layer (0x51DD40: runs the package's handler, then plays
+the table 0x837FE0 sound of the input it handled, call at 0x51DD81) plays Back (5) / Start (6) for whatever the
+controlling device presses, and the car select plays its own for each action it takes (0x50D180 from 0x4FC728 /
+0x4FC753 / 0x4FC7AF and `CarselFilter`). Together Back played twice on popups and FE 0's pick but once on FE 1's pick,
+a join played 6 only for the device that drove the frontend (not other pads or the keyboard), and an ignored Start or
+a Start still held after joining played it as well. In the split car select the generic 5/6 is dropped, and
+`PressStartFilter` plays 6 on each join. With `Debug = 1` every car select sound (source, "dropped") and every
+Start/Back/A/B, Enter/Esc/Backspace press is logged with the seat state (`LogCarselInput`).
 
 **Seats (3-6 players).** The car select serves FE players 0/1 (0x4FA2A0(fe)). The player 1 pick switches to FE 1
 (calls at 0x4FC3A8 / 0x4FC9B6, `CarselToP2`), and the player 2 pick starts the race (0x4FC3BE / 0x4FC9C2 → 0x53FC20,
 `CarselStartHook`). With 3-6 players the seats go in order on FE seat & 1: P2's pick goes to seat 2 on FE 0, P3's to
 seat 3 on FE 1, P4's to seat 4, ... and the last seat's pick starts the race. Cars (0x83AAB8) and ports (0x83A9D8) are saved per seat, and P1/P2's are restored before the race.
-Back returns to the previous seat: FE 1 seats (P2/P4/P6) at 0x4FC723 (`CarselBackToP1`), P3/P5 through `CarselFilter`. The car select
+Back on a seat's pick screen undoes only that seat's join: the game's own Back reopens its popup (0x4FC739 on FE 1,
+0x4FC795 on FE 0; the switch 0x4FA2A0 also opens it at 0x4FA423 unless it is still active). Back on a seat's popup
+returns to the previous seat's pick: FE 1 seats (P2/P4/P6) at 0x4FC723 (`CarselBackToP1`), P3/P5 through `CarselFilter`. The car select
 message handler 0x4FC1F0 (`CarSelectHook`) retags FE messages with the current seat's port: PC tags every message with
 mask 1, and the handler drops messages whose port doesn't match `FE_PORTS[feplayer]`. While the FE player has no port it
 retags to 0 (= any), which fixed a softlock on Back. The name box ("Player_Name") is set each frame to the seat's name.

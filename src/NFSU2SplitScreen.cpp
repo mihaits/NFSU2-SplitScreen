@@ -227,6 +227,8 @@ static void Install(HMODULE self) {
     WriteJump(AT_CARSELECT, &CarSelectHook, 5);
     g_origHelpBarSet = reinterpret_cast<HelpBarSetFn>(MakeTrampoline(FN_HELP_BAR_SET, 5));
     WriteJump(FN_HELP_BAR_SET, &HelpBarSet, 5);
+    g_origFeSound = reinterpret_cast<FeSoundFn>(MakeTrampoline(FN_FE_SOUND, 5));   // car select: one sound per action
+    WriteJump(FN_FE_SOUND, &FeSound, 5);
     {   // split-mode Customize straight to the car shop (shared garage)
         const uint8_t* b = reinterpret_cast<const uint8_t*>(AT_CUSTOMIZE_MODE4);
         if (b[0] == 0x83 && b[1] == 0xFF && b[2] == 0x04 && b[3] == 0x75) {

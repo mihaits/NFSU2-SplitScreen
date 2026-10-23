@@ -238,6 +238,7 @@ static void __cdecl LayoutApplyHook() {
     UpdateEditingSlot2();
     UpdateBindSwap();
     UpdateSeats();
+    LogCarselInput();
     UpdatePadLights();
     RunMailbox();
     UpdateModeTransitions();

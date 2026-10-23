@@ -39,8 +39,8 @@ static int KeyboardPort() {
         return g_keyboardSeat;
     }
     if (g_inCarSelect) {
-        int fe = at<int>(FE_PLAYER);
-        return ((g_seat & 1) == fe ? g_seat : fe) == g_keyboardSeat ? 0 : -1;
+        int seat = CarselDriverSeat();
+        return seat < 0 || seat == g_keyboardSeat ? 0 : -1;    // -1: player 1's popup, anyone
     }
     return 0;
 }

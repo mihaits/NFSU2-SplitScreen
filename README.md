@@ -21,7 +21,8 @@ real controllers ([open issues](docs/open-issues.md)).
 2. Pick the race type, track, the number of **Players**, **Opponents** (AI) and their **Difficulty**. **Free Run**
    (the last mode) drops you in the city with no race.
 3. Each player presses **START** on their own pad and picks a car. One player can use the keyboard instead: press
-   **Enter** on their Press START screen.
+   **Enter** on their Press START screen. Back undoes only your own step: on your car choice it returns to your Press
+   START screen, and on the next player's Press START screen only you can go back to your car choice.
 
 Every player has their own controls page (Options → Controls) and their own player options. Pausing opens the
 options of whoever paused.
