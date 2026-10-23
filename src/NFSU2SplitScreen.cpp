@@ -54,6 +54,7 @@
 #include "parts/race_rules.cpp"
 #include "parts/input_ports.cpp"
 #include "parts/camera.cpp"
+#include "parts/pad_lights.cpp"
 #include "parts/streaming.cpp"
 
 // ---------------------------------------------------------------- setup
@@ -94,6 +95,7 @@ static void LoadConfig(HMODULE self) {
     g_hideDirectInputPads = GetPrivateProfileIntA("INPUT", "HideDirectInputControllers", 1, path) != 0;
     g_nativeDualSense = GetPrivateProfileIntA("INPUT", "NativeDualSense", 1, path) != 0;
     g_dsRumbleMode = GetPrivateProfileIntA("INPUT", "DualSenseRumbleMode", 0, path);
+    g_playerLeds = GetPrivateProfileIntA("LIGHTS", "PlayerLeds", 1, path) != 0;
     if (g_dsRumbleMode != 1 && g_dsRumbleMode != 2) g_dsRumbleMode = -1;   // 0 = auto
     strcpy_s(g_iniPath, path);
     strcpy_s(g_playersPath, path);

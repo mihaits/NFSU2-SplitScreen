@@ -215,6 +215,7 @@ static void SyncPlayerSettings(bool newRace);
 static void UpdateFreeCamHook();
 static void UpdateStartZoom();
 static void UpdateIntroHiding();
+static void UpdatePadLights();
 
 static void __cdecl LayoutApplyHook() {
     if (g_debug) CheckX87("frame start");
@@ -235,6 +236,7 @@ static void __cdecl LayoutApplyHook() {
     UpdateEditingSlot2();
     UpdateBindSwap();
     UpdateSeats();
+    UpdatePadLights();
     RunMailbox();
     UpdateModeTransitions();
     ApplySplitLayout();

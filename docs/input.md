@@ -39,6 +39,13 @@ controllers are hidden (ini). Pads 0..3 are the real XInput pads, 4..7 debug pad
   while rumbling and every 500 ms on BT. Rumble v2 (flag2 0x04) when `update_version >= 0x0215` or on an Edge, else v1
   (flag0 0x01); `DualSenseRumbleMode` overrides. The small motor is halved (as SDL does) to match an Xbox pad.
   Large motor = the game's left/low value, small = right/high.
+- **Player LEDs (`parts/pad_lights.cpp`, `UpdatePadLights` from `LayoutApplyHook`, `[LIGHTS] PlayerLeds`):** from the
+  car-select join until the race is left, a pad a player joined with shows that player's number (1 `--x--`, 2 `-x-x-`,
+  3 `x-x-x`, 4 `xx-xx`); the session counts as on in the split car select and in game states 4..6 of a split game (state 3 is the frontend,
+  also after a race).
+  While a Press START popup is open (`2P_PressStart.fng`) no pad controls, so every pad that has not joined flashes.
+  Otherwise the controlling pad (last pad used; on the car select the pad whose turn it is) shows 1, and every other
+  DualSense flashes all 5 at 1 Hz. The lightbar stays dim blue until its step.
 - Tested with one DualSense; two native pads are untested.
 
 **Pad resolver (`PadForDevice`).**

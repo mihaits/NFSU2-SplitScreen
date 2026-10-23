@@ -51,6 +51,7 @@ and attach `scripts\NFSU2SplitScreen.log` (set `Debug = 1` in the ini to write i
 |---|---|---|
 | `Rumble` | 1 | controller rumble |
 | `RumbleStrength` | 100 | rumble strength (%) |
+| `PlayerLeds` | 1 | DualSense player LEDs show the player number |
 | `NativeDualSense` | 1 | DualSense pads without DS4Windows (off while DS4Windows's virtual pad is active) |
 | `DualSenseRumbleMode` | 0 | 0 auto, 1 old firmware mode, 2 new firmware mode |
 | `SinglePlayerGauges` | 1 | single-player style gauges for every player |
