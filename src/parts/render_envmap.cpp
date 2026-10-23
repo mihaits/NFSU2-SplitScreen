@@ -262,7 +262,8 @@ static void WorldTableProbe(int viewId) {
         len += wsprintfA(line + len, " v%d=%u", v ? v->id : -1,
                          *reinterpret_cast<uint32_t*>(e + 0x4C) - *reinterpret_cast<uint32_t*>(e + 0x48));
     }
-    Log("%s", line);
+    Log("%s; frame scratch %u / %u bytes, worst overflow %u", line, at<uint32_t>(FRAME_SCRATCH_USED),
+        at<uint32_t>(0x82DA54), at<uint32_t>(FRAME_SCRATCH_OVER));
 }
 static void SharedWorldEntryFor(int k) {
     uint8_t* world = g_worldViews;

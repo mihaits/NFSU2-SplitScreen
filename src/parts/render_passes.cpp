@@ -280,9 +280,10 @@ static void RecullWorldEntry(View& v9) {
     if (!e) return;
     reinterpret_cast<void(__cdecl*)(View*, void*)>(FN_WORLD_ENTRY_FRUSTUM)(&v9, e);
     const float* cam = reinterpret_cast<const float*>(v9.camera + 0x40);
-    float* pos = reinterpret_cast<float*>(e + 0x60);
-    pos[0] = cam[0]; pos[1] = cam[1]; pos[2] = cam[2];          // +0x60 position, +0x6C direction (camera +0x50)
-    pos[3] = cam[4]; pos[4] = cam[5]; pos[5] = cam[6];
+    float* pos = reinterpret_cast<float*>(e + 0x60);            // +0x60 position (camera +0x40)
+    float* dir = reinterpret_cast<float*>(e + 0x70);            // +0x70 direction (camera +0x50), as pass 1 at 0x5E9AA2
+    pos[0] = cam[0]; pos[1] = cam[1]; pos[2] = cam[2];
+    dir[0] = cam[4]; dir[1] = cam[5]; dir[2] = cam[6];
     *reinterpret_cast<int*>(e + 0x80) = *reinterpret_cast<int*>(reinterpret_cast<uint8_t*>(&v9) + 0xC);
     int mode = at<int>(WORLD_SECTION_MODE), section = -1;
     if (mode == 1 || (mode == 2 && at<int>(0x7FB708) % 0x3D >= 0xF)) {   // as pass 1 (mode 3 left unrestricted)

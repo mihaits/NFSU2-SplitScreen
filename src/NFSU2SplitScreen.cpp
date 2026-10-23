@@ -175,6 +175,7 @@ static void Install(HMODULE self) {
     InstallFreeRun();
     InstallScenePicks();
     PatchViewUpdateLoop();
+    Log("frame scratch: %d of 4 size sites -> %u KB", EnlargeFrameScratch(), FRAME_SCRATCH_SIZE / 1024);
     Log("sound listener arrays relocated: %d refs", RelocateListenerArrays());
     WriteCall(AT_LISTENER_UPDATE_CALL, &ListenerUpdate);
     WriteJump(AT_LISTENER_CHOICE, &ListenerChoiceHook, 5);

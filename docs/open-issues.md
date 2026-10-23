@@ -22,8 +22,12 @@ Everything below was built and smoke-tested on virtual pads only (race start, dr
   (rebind, survives a restart); rumble per pad; finish, results, restart, quit.
 - 5-6P joining: Press START for players 5/6, car select order P1..P6 and Back from every seat, Customize from seats
   5/6 and the return to the right seat.
-- 5-6P racing in every race type (drag is capped at 4 players); 5P with 1 AI opponent; finish, results and the post-race
-  scene with 6 humans (`FollowCameraForSceneCars`, untested), restart, quit.
+- 5-6P racing in every race type (drag is capped at 4 players); 5P with 1 AI opponent; finish and the post-race
+  scene with 6 humans (`FollowCameraForSceneCars`, untested), restart, quit. Done 2026-10-24: 6P drift results
+  screen after the Hurry timer (4 real pads, 2 idle virtual pads), correct.
+- 6P with real pads after the frame scratch fix ([rendering](rendering.md)): P5/P6's views drew no cars and P6's
+  almost no world (the 400 KB per-frame scratch overflowed), and P4-P6 drew scenery only close to the camera
+  (re-cull direction written one float off). Both fixed; check a full race with real pads.
 - Pause by P5/P6; Controls pages P5/P6 (rebind, saved to `[Player5]`/`[Player6]` of `NFSU2SplitScreen_Players.ini`);
   rumble for P5/P6.
 - Two or more native DualSense pads at once (`kDsMax` raised to 8; only one was ever tested); P5/P6 player LEDs and

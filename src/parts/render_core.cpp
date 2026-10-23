@@ -218,6 +218,22 @@ static __declspec(naked) void WorldViewsHook() {
     }
 }
 
+// Per-frame render scratch (0x48CD60: two malloc'd 0x64000-byte buffers, swapped every frame by 0x488800; cursor
+// 0x82DA5C, limit 0x82DA60). Car matrices and world draw data are taken from it; when it is full an allocation returns
+// null (overflow flag 0x82DA6C, bytes 0x82DA70, worst 0x82DA74) and that car or mesh is skipped. 6 views needed ~470 KB:
+// views 7/8, drawn last, lost their cars and most of the world. The size immediates are raised to FRAME_SCRATCH_SIZE.
+#define FRAME_SCRATCH_SIZE 0x100000
+#define FRAME_SCRATCH_USED 0x82DA7C      // bytes used last frame (0x82DA78: the most)
+#define FRAME_SCRATCH_OVER 0x82DA74      // most bytes a frame was short
+static int EnlargeFrameScratch() {
+    static const uintptr_t imms[] = {0x48CD62, 0x48CD6C, 0x48CD91, 0x48CDA2};
+    const uint32_t size = FRAME_SCRATCH_SIZE;
+    int n = 0;
+    for (uintptr_t a : imms)
+        if (*reinterpret_cast<const uint32_t*>(a) == 0x64000) Write(a, &size, 4), ++n;
+    return n;
+}
+
 // The sky dome is only drawn for view ids 1..3 (and env map faces); the extra player views pose as view 1.
 static void __cdecl DrawSky(View* v) {
     int id = v->id;

@@ -71,7 +71,10 @@ redirect their view or player choice to the view currently being drawn (`g_curre
 - `HeadlightsForPlayer(k)` (called from `RefreshViewTarget`) re-aims it at player k's car for each view.
 - `RecullWorldEntry` redoes view 9's entry of the world view table per player: frustum 0x5C26E0, cull 0x5E9A30 /
   0x5E99C0 into the space after the cursor (world +0x6C8, limit +0x6CC) without advancing it. This is needed because
-  the projector's geometry was culled from P1's position.
+  the projector's geometry was culled from P1's position. It sets the entry's fields as pass 1 does (0x5E9A70..):
+  +0x60 camera position (camera +0x40), +0x70 direction (camera +0x50), +0x80 view +0xC, +0x84 scenery section.
+  The direction used to go to +0x6C, one float off: views 6..8 (P4-P6) then culled with a direction mixed from
+  view 5's camera and drew scenery only close to the camera.
 - **Projectors for every player** (`WorldDrawWithBeams`, call 0x5D6AD0 at 0x5CB23B). The headlight pass
   (0x5D6D20(world; view 9, 0x488B90) at 0x5CB218) only flags the meshes in view 9's culled list (+8 → +0x1B |= 0x80).
   The world draw turns the flag into render flag 0x200 (0x5D6B85), which picks the material's headlight shader
@@ -88,6 +91,13 @@ redirect their view or player choice to the view currently being drawn (`g_curre
 - Light pools on the road (0x615490(view), "2PLAYERHEADLIGHT1" decal) are for traffic only: player cars have their
   lights flag (+0x550) cleared during the call (`PoolsForTraffic`). The split path calls it after 0x566400
   (`SplitPassWithHeadlightPools`, 0x5CB2E3); the 1P path (intro) at 0x5CAC07.
+
+**Frame scratch.** Car matrices and world draw data come from a per-frame scratch allocator: two malloc'd
+0x64000-byte (400 KB) buffers (0x48CD60), swapped every frame by 0x488800 (cursor 0x82DA5C, limit 0x82DA60). A full
+buffer returns null (overflow flag 0x82DA6C, bytes 0x82DA70, worst 0x82DA74) and that car or mesh is silently skipped
+(0x620D0C.. in the car renderer 0x620AE0). 6 views needed ~470-550 KB: views 7/8, drawn last, lost every car and
+most of the world. `EnlargeFrameScratch` raises the four size immediates to 1 MB; the debug "world views" line
+prints the last frame's use and the worst overflow (6P drift: 549 KB, no overflow).
 
 **Car skins.** A car's paint and vinyls are composited into the texture DUMMY_SKIN<n> named by its ride info
 (+0x584, set by 0x61C280(ride; n), composited by 0x61D790). The garage entries choose n from the player index
