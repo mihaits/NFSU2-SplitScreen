@@ -6,6 +6,13 @@
   listener arrays, or the original 2P behaviour.
 - **Black results background**, seen once after a 2P race. If it happens again, capture state while it is still
   happening (g_currentView, views 1-4 active/rt, viewport).
+- **Boot hang at the splash, about 1 boot in 5** (2026-10-23, before any split code runs). Game not responding, all
+  threads waiting; 2-3 in the game's `WaitForSingleObject(INFINITE)` wrapper 0x6F6335 (from 0x6F71F7 / 0x6F5B29 ->
+  0x6F57E3 -> 0x75F617), log ends at `sound fs: N free handles (opened bf:/speech/UG2_Speech...)`. Suspect: the
+  plugin's `SoundFsOpen`/`SoundFsClose` critical section (threads_memory.cpp) around the game's open/close, which take
+  the game's own mutex inside: lock-order inversion with a thread that holds that mutex and closes.
+- **Pause opened by P2/P4 doesn't close with START**, only with Back / Continue (frontend slot 1; the game's own P2
+  pause behaves the same).
 
 ## Found by static analysis (2026-10-23, not fixed yet)
 Same class as the custom gauge texture fix (35c1974): plugin work done before / around the game's step it depends on.
