@@ -177,7 +177,7 @@ Test with real pads for 5-6 seats as far as the pads go, debug pads for the rest
 - Free camera (`g_freeCam`, `XPadRightStick`) for P5/P6.
 Test: gameplay with real pads (user), rebinding P5/P6 controls, pause/resume from each seat, rumble per pad.
 
-### 7. HUD for players 5/6
+### 7. HUD for players 5/6 (done: markers and minimaps for P5/P6, tested 5P/6P on virtual pads)
 - Package copies for P5/P6 (`CloneFePackage`: "2PHudTo5"/"2PHudTo6", Top variant for every cell); the clone choice
   (`hud_players.cpp:103` `who == 1 || who == 3`) becomes "every seat except P1".
 - `UpdateQuadHud` / `UpdateMinimapOwner` for 6 packages; `g_mmFinished`, snapshots.

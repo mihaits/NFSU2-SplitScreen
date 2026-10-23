@@ -20,7 +20,7 @@ static bool AddCarMarker(uint8_t* obj) {
     return true;
 }
 
-// Players 3/4 get car entities (type 4, id 2/3) in the minimap manager; their markers are P3's package copy's.
+// Players 3..6 get car entities (type 4, id 2..5) in the minimap manager; their markers are P3's / P5's package copies'.
 // Redone whenever the manager is rebuilt (0x4F92A0 recreates it with a fresh pool).
 static void ExtendMinimapManager(uint8_t* mgr) {
     if (mgr == g_mmExtendedMgr || !g_mmExtraIcon[0]) return;

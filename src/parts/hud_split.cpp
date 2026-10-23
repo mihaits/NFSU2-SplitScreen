@@ -89,10 +89,11 @@ static void AddMinimapObject(uint8_t* obj, bool child) {
     if (data && g_mmDataCount < MM_MAX_OBJS) g_mmData[g_mmDataCount++] = data;
 }
 
-// Car markers of players 3/4: PlayerCarIndicator_1/_2 of P3's copy of the package (registered as markers of the
-// minimap manager, see ExtendMinimapManager); drawn per player like P1's minimap objects, with their own colours.
-static uint8_t* g_mmExtraIcon[MAX_EXTRA_PLAYERS];   // players 3..6 (5/6 not set yet)
-static uint8_t* g_mmMarker[MAX_LOCAL_PLAYERS];   // car markers: P1's package _1/_2 (P1, P2), P3's copy _1/_2 (P3, P4)
+// Car markers of players 3..6: PlayerCarIndicator_1/_2 of P3's (P3/P4) and P5's (P5/P6) copies of the package
+// (registered as markers of the minimap manager, see ExtendMinimapManager); drawn per player like P1's minimap
+// objects, with their own colours.
+static uint8_t* g_mmExtraIcon[MAX_EXTRA_PLAYERS];   // players 3..6
+static uint8_t* g_mmMarker[MAX_LOCAL_PLAYERS];   // car markers: P1's package _1/_2 (P1, P2), P3's / P5's copies _1/_2
 static unsigned g_mmFrame = 0, g_mmMarkersFrame = 0;
 static const uint8_t kMarkerColour[MAX_EXTRA_PLAYERS][4] = {   // B, G, R, A: P3 blue, P4 yellow, P5 purple, P6 cyan
     {230, 90, 40, 255}, {40, 210, 230, 255}, {255, 0, 160, 255}, {220, 220, 0, 255}};
@@ -164,7 +165,9 @@ static void HideCopyMinimap(const uint8_t* copy) {
             g_mmHideData[g_mmHideCount++] = *reinterpret_cast<void**>(obj + 0x2C);
 }
 
-static void MapMinimapObjects(const uint8_t* pkg, const uint8_t* p3pkg, const uint8_t* p2pkg, const uint8_t* p4pkg) {
+// pk: every player's HUD package (P1's holds the minimap objects; P3's / P5's copies hold the markers of P3/P4 / P5/P6)
+static void MapMinimapObjects(const void* const* pk) {
+    auto* pkg = static_cast<const uint8_t*>(pk[0]);
     InitMinimapNames();
     if (!pkg) g_mmSnapCount = 0;
     g_mmHideCount = 0;
@@ -176,20 +179,14 @@ static void MapMinimapObjects(const uint8_t* pkg, const uint8_t* p3pkg, const ui
     auto hash = reinterpret_cast<HashFn>(0x505450);       // FE name hash
     g_mmMarker[0] = FindFeObject(pkg, hash("PlayerCarIndicator_1"));
     g_mmMarker[1] = FindFeObject(pkg, hash("PlayerCarIndicator_2"));
-    if (p3pkg) {
-        g_mmExtraIcon[0] = FindFeObject(p3pkg, hash("PlayerCarIndicator_1"));
-        g_mmExtraIcon[1] = g_extraPlayers >= 2 ? FindFeObject(p3pkg, hash("PlayerCarIndicator_2")) : nullptr;   // P4
-        for (uint8_t* icon : g_mmExtraIcon)
-            if (icon) AddMinimapObject(icon, false);
-        g_mmMarker[2] = g_mmExtraIcon[0];
-        g_mmMarker[3] = g_mmExtraIcon[1];
-        for (auto* obj = *reinterpret_cast<uint8_t* const*>(p3pkg + 0x4C); obj && g_mmHideCount < MM_MAX_OBJS;
-             obj = *reinterpret_cast<uint8_t**>(obj + 4))
-            if (!IsExtraMarker(obj) && IsMinimapObject(obj))
-                g_mmHideData[g_mmHideCount++] = *reinterpret_cast<void**>(obj + 0x2C);
+    for (int i = 0; i < MAX_EXTRA_PLAYERS && i < g_extraPlayers; ++i) {
+        auto* src = static_cast<const uint8_t*>(pk[2 + (i & ~1)]);    // P3's copy for P3/P4, P5's for P5/P6
+        if (!src) continue;
+        g_mmExtraIcon[i] = FindFeObject(src, hash(i & 1 ? "PlayerCarIndicator_2" : "PlayerCarIndicator_1"));
+        if (g_mmExtraIcon[i]) AddMinimapObject(g_mmExtraIcon[i], false);
+        g_mmMarker[2 + i] = g_mmExtraIcon[i];
     }
-    HideCopyMinimap(p2pkg);
-    HideCopyMinimap(p4pkg);
+    for (int k = 1; k < MAX_LOCAL_PLAYERS; ++k) HideCopyMinimap(static_cast<const uint8_t*>(pk[k]));
     for (auto* obj = *reinterpret_cast<uint8_t* const*>(pkg + 0x4C); obj; obj = *reinterpret_cast<uint8_t**>(obj + 4))
         if (IsMinimapObject(obj)) AddMinimapObject(obj, false);
     // snapshot entries of objects no longer mapped (left the map, or freed with a rebuilt HUD) are dropped
@@ -328,8 +325,7 @@ static void UpdateQuadHud() {
             if (pk[k]) MapHudObjects(*reinterpret_cast<const uint8_t* const*>(
                 static_cast<const uint8_t*>(pk[k]) + 0x4C), k);
         }
-        MapMinimapObjects(static_cast<const uint8_t*>(pk[0]), static_cast<const uint8_t*>(pk[2]),
-                          static_cast<const uint8_t*>(pk[1]), static_cast<const uint8_t*>(pk[3]));
+        MapMinimapObjects(pk);
         static size_t lastCount = 0;
         if (g_hudObjSlot.size() != lastCount)
             Log("quad HUD: mapped %d objects", static_cast<int>(g_hudObjSlot.size()));
