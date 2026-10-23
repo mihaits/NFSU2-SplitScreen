@@ -51,6 +51,10 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
   - `boot.py` gets to the main menu (re-focusing the game and retrying while it loads).
   - `go_race_nointro.sh <mode>` starts a split race without the intro, joining players on virtual pads. Optional
     `POKES="addr=value"`; `INTRO=1` keeps the intro.
+  - Fewer real pads than players: set `[DEBUG] ExtraPlayers` for the player count (read at boot), then
+    `VIRTUAL=2 go_race_nointro.sh <mode>` joins P1/P2 on virtual pads and stops at P3's Press START; the user joins
+    the rest on real pads. P1/P2 idle at the start line, so a real player finishing starts the Hurry timer and the
+    results show the idle ones as unfinished. Set `ExtraPlayers` back afterwards.
   - `go_1p.sh <mode>` starts a single-player race (a reference for comparisons).
   - `race_again.sh` starts the race again; `quit_race.py` quits to the menu.
   - `rec.py record|play` records and replays real pad input keyed to the active FE screens

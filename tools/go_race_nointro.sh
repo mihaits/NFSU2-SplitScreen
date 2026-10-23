@@ -3,6 +3,7 @@
 # 2 drag, 3 drift, 4 Street X ...), skipping the race intro (2P intro filter patched to reject every scene).
 # Players: the [DEBUG] ExtraPlayers default of the Players row (0 -> 2 players). P2..P6 join on virtual pads 2, 3, 0, 4, 5 (P1 = pad 1).
 # INTRO=1 keeps the race intro.
+# VIRTUAL=n joins only players 1..n on virtual pads and stops at the next Press START, for the rest on real pads.
 # POKES="addr=value ..." (hex address, decimal value) are written right after boot, e.g. POKES="870CFC=1" (overbright).
 cd "$(dirname "$0")"
 sh restart.sh --noskip
@@ -28,7 +29,8 @@ def wait_top(pred, timeout):
     return fe.top(g) or ''
 if 'dialog' in wait_top(lambda s: 'dialog' in s.lower() or s == '2P_PressStart.fng', 1.5).lower():
     fe.press(g, 1, 'a')
-for pad in (2, 3, 0, 4, 5):   # virtual pads of P2..P6 (pad 1 = P1)
+virtual = int(os.environ.get('VIRTUAL', '6'))
+for pad in (2, 3, 0, 4, 5)[:max(virtual - 1, 0)]:   # virtual pads of P2..P6 (pad 1 = P1)
     if wait_top(lambda s: s == '2P_PressStart.fng', 3.0) != '2P_PressStart.fng': break
     fe.press(g, pad, 'start')
     wait_top(lambda s: s != '2P_PressStart.fng', 1.5)
@@ -37,4 +39,6 @@ for pad in (2, 3, 0, 4, 5):   # virtual pads of P2..P6 (pad 1 = P1)
     fe.press(g, pad, 'a')
     if 'dialog' in wait_top(lambda s: 'dialog' in s.lower() or s == '2P_PressStart.fng', 1.0).lower():
         fe.press(g, pad, 'a')
+if virtual < 6 and wait_top(lambda s: s == '2P_PressStart.fng', 3.0) == '2P_PressStart.fng':
+    print(f'players 1..{virtual} joined; P{virtual + 1}.. press START on real pads', flush=True)
 PY
