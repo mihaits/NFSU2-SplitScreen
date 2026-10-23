@@ -234,15 +234,14 @@ static const void* HudPackageOf(int k) {
 // player's minimap is drawn from among them (user: the others' maps vanished when P1 finished). The minimap objects
 // that were visible right before stay visible for the players still racing; a finished player's own minimap is not
 // drawn (P1's HUD hidden; P2-P4's are drawn from P1's objects too, user: P2's stayed after P2 finished).
-// The pause menus hide the HUD the same way: only a hide with P1 finished (racer progress +0x14 >= 1) and no menu over
+// The pause menus hide the HUD the same way: only a hide with P1 finished (player +0x50; racer progress +0x14 counts laps) and no menu over
 // the HUD counts, and during a pause the kept objects are hidden too (user: P2's minimap showed through P1's pause).
 void* GetLocalPlayer(int);
-static const uint8_t* RacerOfLocalPlayer(void* player);
 static bool g_mmOwnerHidden = false;     // P1's HUD hidden mid-race
 static bool g_mmFinished[MAX_LOCAL_PLAYERS];   // per frame: player k finished -> no minimap of its own (like P1's)
-static bool PlayerFinished(int k) {
-    const uint8_t* racer = RacerOfLocalPlayer(GetLocalPlayer(k));
-    return racer && *reinterpret_cast<const float*>(racer + 0x14) >= 1.0f;
+static bool PlayerFinished(int k) {   // player +0x50 (the mode picker 0x5EA650 then picks mode 9, finish race)
+    const uint8_t* player = static_cast<const uint8_t*>(GetLocalPlayer(k));
+    return player && *reinterpret_cast<const int*>(player + 0x50) != 0;
 }
 static uint8_t* g_mmVisible[MM_MAX_OBJS];   // minimap objects visible on the last frame before
 static int g_mmVisibleCount = 0;
