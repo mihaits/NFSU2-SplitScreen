@@ -261,7 +261,9 @@ static void __fastcall HudDtorHook(void* hud) {
 }
 
 // Custom gauge textures: the race load (0x577F60) loads GLOBAL\HUD_CustomTextures_<HUDINDEX>.bin for P1's car only
-// and makes its 8 textures resident (names from 0x5ED9B0); the other players' packs are loaded the same way first.
+// and makes its 8 textures resident (names from 0x5ED9B0); the other players' packs are loaded the same way right
+// after it. Before it, a player sharing P1's index made its textures resident while P1's pack wasn't loaded yet: no
+// tach numbers / dots for that player (user: P3 with P1's custom gauges, 4P).
 static uint32_t g_hudTexList[MAX_LOCAL_PLAYERS][8];
 static int g_hudTexIndex[MAX_LOCAL_PLAYERS] = {-1, -1, -1, -1, -1, -1};
 static bool g_hudTexFile[MAX_LOCAL_PLAYERS];   // this player's entry loaded the pack file (unloads it)
@@ -291,6 +293,7 @@ static void __fastcall HudTexLoadHook(void* self, void*, void* cb, void* ctx) {
     bool asOne = g_spGauges && SplitMode() && at<int>(NUM_PLAYERS) == 2 && IsDragRace();
     int savedPlayers = at<int>(NUM_PLAYERS);
     if (asOne) at<int>(NUM_PLAYERS) = 1;
+    reinterpret_cast<void(__thiscall*)(void*, void*, void*)>(FN_HUD_TEX_LOAD)(self, cb, ctx);   // P1's pack first
     if (g_spGauges && SplitMode() && savedPlayers == 2) {
         int loaded[MAX_LOCAL_PLAYERS];
         int n = 0;
@@ -321,7 +324,6 @@ static void __fastcall HudTexLoadHook(void* self, void*, void* cb, void* ctx) {
             Log("custom HUD textures %02d %s for player %d", idx, fileLoaded ? "(pack already loaded)" : "loaded", k + 1);
         }
     }
-    reinterpret_cast<void(__thiscall*)(void*, void*, void*)>(FN_HUD_TEX_LOAD)(self, cb, ctx);
     if (asOne) at<int>(NUM_PLAYERS) = savedPlayers;
 }
 
