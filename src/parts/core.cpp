@@ -109,6 +109,8 @@ static View& GetView(int n) { return reinterpret_cast<View*>(VIEWS)[n]; }
 // ---------------------------------------------------------------- state
 static bool g_xinputPads = true;          // XInput pads appear to the game as DirectInput gamepads
 static bool g_hideDirectInputPads = true; // ...and the real DirectInput game controllers are hidden
+static bool g_nativeDualSense = true;    // native DualSense pads (off while DS4Windows runs)
+static int  g_dsRumbleMode = -1;         // -1 auto by firmware, 1 old, 2 new
 static bool g_menuSplit = false;         // set by the main menu "Split Screen" option, consumed by Quick Race
 static int  g_prevMode = 0;
 #define MAX_LOCAL_PLAYERS 4

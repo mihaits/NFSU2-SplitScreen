@@ -9,7 +9,37 @@ read port = 0x83A9D8[player]. Input port tables: 0x8655A0, 2 × 0x1C8 (binding n
 **XInputDevices.cpp.** It hooks the DirectInput8Create IAT slot 0x783024 and wraps IDirectInput8A.
 EnumDevices/CreateDevice expose virtual "Split Screen Pad N" gamepads with full DirectInput emulation (objects with
 Xbox names, GetObjectInfo, properties, buffered GetDeviceData — Options > Controls needs all of these). Real DirectInput
-controllers are hidden (ini). Virtual pads 4..7 (after the 4 real XInput pads) are debug pads driven through the mailbox.
+controllers are hidden (ini). Pads 0..3 are the real XInput pads, 4..7 debug pads driven through the mailbox, 8..11 native DualSense pads (below).
+
+**Native DualSense (`DualSense.cpp`).**
+- HID through SetupAPI + hid.dll (`hid.lib setupapi.lib`), USB and Bluetooth, DualSense 054C:0CE6 and Edge 054C:0DF2.
+  Native slots 0..3 are pads 8..11 of the pad layer (`kDsFirst`), so joining, bindings, P3/P4, pause ownership and
+  rumble work as for XInput pads. `XInputDevices.cpp` keeps one merged `DsOutput` per native pad (rumble, lights,
+  triggers) and hands it to `DsSetOutput`; `XPadIsDualSense`, `XPadSetLights`, `XPadSetTriggers` and
+  `XPadTouchClickPressed` are the exports for the lights and triggers (the lights/triggers policy is not there yet:
+  a native pad shows dim blue and player LED 1 meanwhile).
+- A hotplug thread rescans every 2 s (gamepad interface only, usage page 1 / usage 5); one I/O thread per pad does
+  overlapped reads into the slot's latest state and overlapped writes (100 ms timeout). A read error frees the slot
+  (the pad then reads idle) and the next rescan reopens it. `[INPUT] NativeDualSense = 0` turns the backend off.
+- **DS4Windows:** native pads are closed, and none opened, only while `DS4Windows.exe` runs *and* exposes a virtual
+  pad: a present device whose parent has hardware id `Nefarius\ViGEmBus\Gen1` (SetupAPI `DIGCF_PRESENT`,
+  `CM_Get_Parent`; checked live: started = `USB\VID_045E&PID_028E` under the bus, stopped = no child). Open but
+  stopped, native stays on. The rule is re-checked on every 2 s rescan and each change is logged ("DS4Windows not
+  running / running but stopped / is exposing a virtual pad"). Its virtual pad is a normal XInput pad.
+- **Init per pad:** read feature 0x20 (firmware; logged as "DualSense N: USB|Bluetooth, hardware, firmware, update,
+  rumble vN"; on Bluetooth this switches the pad to the full 0x31 report), feature 0x05, then a light-out report that
+  releases the startup blue.
+- **Bluetooth quirks (seen on a real pad):** the device path reads `VID&0002054C_PID&0CE6` (not `VID_054C&PID_0CE6`),
+  and `HidP_GetCaps` reports an output size of 547 (the largest report in the descriptor); the 0x31 report is 78 bytes
+  and a 78-byte `WriteFile` is accepted, so the buffer is capped at 78. Transport = `InputReportByteLength` (64 = USB).
+- **Input:** USB report 0x01 (64 bytes) or BT 0x31 (78 bytes, offsets +1; the short BT report 0x01 is ignored).
+  Cross/Circle/Square/Triangle = A/B/X/Y, L1/R1 = LB/RB, Create = Back, Options = Start, L3/R3, hat = D-pad, analog
+  L2/R2 = triggers, sticks `(v - 128) * 258` with Y negated. PS, Mute and touchpad click go to `DsExtra` only.
+- **Output:** USB report 0x02 (48 bytes) or BT 0x31 (78 bytes, CRC32 seed 0xA2 at 74..77). Sent on change, every 4 s
+  while rumbling and every 500 ms on BT. Rumble v2 (flag2 0x04) when `update_version >= 0x0215` or on an Edge, else v1
+  (flag0 0x01); `DualSenseRumbleMode` overrides. The small motor is halved (as SDL does) to match an Xbox pad.
+  Large motor = the game's left/low value, small = right/high.
+- Tested with one DualSense; two native pads are untested.
 
 **Pad resolver (`PadForDevice`).**
 - Outside split: device 0 = the last active XInput pad.

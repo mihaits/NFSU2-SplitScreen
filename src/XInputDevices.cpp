@@ -17,6 +17,7 @@
 #include <cstring>
 
 #include "XInputDevices.h"
+#include "DualSense.h"
 
 namespace {
 
@@ -41,7 +42,9 @@ enum : WORD {
 };
 
 constexpr int kRealPads = 4;            // XInput user indices 0..3
-constexpr int kMaxPads = 8;             // + test pads 4..7 driven by XPadSetVirtual
+constexpr int kDebugPads = 4;           // test pads 4..7 driven by XPadSetVirtual
+constexpr int kDsFirst = kRealPads + kDebugPads;   // native DualSense pads 8..11
+constexpr int kMaxPads = kDsFirst + kDsMax;
 constexpr int kVirtualDevices = 2;     // the game has two joystick slots
 bool g_hideRealControllers = true;
 int (*g_resolver)(int device);         // virtual device -> XInput user index (-1 = idle)
@@ -51,11 +54,21 @@ bool g_connected[kMaxPads];
 WORD g_buttons[kMaxPads], g_prevButtons[kMaxPads];
 int g_lastActive = 0;
 
-bool g_virtualConnected[kMaxPads - kRealPads];
-XPadState g_virtual[kMaxPads - kRealPads];
+bool g_virtualConnected[kDebugPads];
+XPadState g_virtual[kDebugPads];
+
+// native DualSense: merged output per pad, touchpad click edge
+DsOutput g_dsOut[kDsMax];
+bool g_touch[kMaxPads], g_prevTouch[kMaxPads];
+bool g_dsConnected[kDsMax];
 
 DWORD GetPad(int pad, XPadState* s) {
-    if (pad >= kRealPads && pad < kMaxPads) {
+    if (pad >= kDsFirst && pad < kMaxPads) {
+        static_assert(sizeof(DsPadState) == sizeof(XPadState), "DsPadState mirrors XPadState");
+        return DsState(pad - kDsFirst, reinterpret_cast<DsPadState*>(s), nullptr) ? ERROR_SUCCESS
+                                                                                 : ERROR_DEVICE_NOT_CONNECTED;
+    }
+    if (pad >= kRealPads && pad < kDsFirst) {
         if (!g_virtualConnected[pad - kRealPads]) return ERROR_DEVICE_NOT_CONNECTED;
         *s = g_virtual[pad - kRealPads];
         return ERROR_SUCCESS;
@@ -494,6 +507,14 @@ void XPadUpdate() {
         g_prevButtons[i] = g_buttons[i];
         g_connected[i] = GetPad(i, &s) == ERROR_SUCCESS;
         g_buttons[i] = g_connected[i] ? s.buttons : 0;
+        g_prevTouch[i] = g_touch[i];
+        g_touch[i] = false;
+        if (i >= kDsFirst) {
+            DsPadState ds;
+            DsExtra ex = {};
+            if (DsState(i - kDsFirst, &ds, &ex)) g_touch[i] = ex.touchClick;
+            g_dsConnected[i - kDsFirst] = g_connected[i];
+        }
         if (g_connected[i] && PadActive(s)) g_lastActive = i;
     }
 }
@@ -513,7 +534,7 @@ bool XPadRawState(int pad, uint16_t* buttons, uint8_t* lt, uint8_t* rt, int16_t*
 
 void XPadSetVirtual(int index, bool connected, uint16_t buttons, uint8_t lt, uint8_t rt, int16_t lx, int16_t ly,
                     int16_t rx, int16_t ry) {
-    if (index < 0 || index >= kMaxPads - kRealPads) return;
+    if (index < 0 || index >= kDebugPads) return;
     g_virtualConnected[index] = connected;
     XPadState& v = g_virtual[index];
     ++v.packet;
@@ -524,11 +545,44 @@ void XPadSetVirtual(int index, bool connected, uint16_t buttons, uint8_t lt, uin
 int XPadMax() { return kMaxPads; }
 
 void XPadSetRumble(int pad, float low, float high) {
+    auto toByte = [](float v) { return static_cast<uint8_t>((v < 0 ? 0 : v > 1 ? 1 : v) * 255.0f + 0.5f); };
+    if (pad >= kDsFirst && pad < kMaxPads) {     // native DualSense: left = large motor, right = small motor
+        DsOutput& o = g_dsOut[pad - kDsFirst];
+        uint8_t lo = toByte(low), hi = toByte(high);
+        if (o.largeMotor == lo && o.smallMotor == hi) return;
+        o.largeMotor = lo; o.smallMotor = hi;
+        DsSetOutput(pad - kDsFirst, o);
+        return;
+    }
     if (pad < 0 || pad >= kRealPads || !g_xinputSetState) return;     // test pads have no motors
     auto speed = [](float v) { return static_cast<WORD>((v < 0 ? 0 : v > 1 ? 1 : v) * 65535.0f); };
     XPadVibration v = {speed(low), speed(high)};
     if (v.left == g_rumbleSent[pad][0] && v.right == g_rumbleSent[pad][1]) return;   // only changes
     if (g_xinputSetState(pad, &v) == ERROR_SUCCESS) { g_rumbleSent[pad][0] = v.left; g_rumbleSent[pad][1] = v.right; }
+}
+
+bool XPadIsDualSense(int pad) { return pad >= kDsFirst && pad < kMaxPads && g_dsConnected[pad - kDsFirst]; }
+
+void XPadSetLights(int pad, const uint8_t rgb[3], uint8_t playerLeds) {
+    if (pad < kDsFirst || pad >= kMaxPads) return;
+    DsOutput& o = g_dsOut[pad - kDsFirst];
+    if (!memcmp(o.rgb, rgb, 3) && o.playerLeds == playerLeds) return;
+    memcpy(o.rgb, rgb, 3);
+    o.playerLeds = playerLeds;
+    DsSetOutput(pad - kDsFirst, o);
+}
+
+void XPadSetTriggers(int pad, const uint8_t l[11], const uint8_t r[11]) {
+    if (pad < kDsFirst || pad >= kMaxPads) return;
+    DsOutput& o = g_dsOut[pad - kDsFirst];
+    if (!memcmp(o.trigL, l, 11) && !memcmp(o.trigR, r, 11)) return;
+    memcpy(o.trigL, l, 11);
+    memcpy(o.trigR, r, 11);
+    DsSetOutput(pad - kDsFirst, o);
+}
+
+bool XPadTouchClickPressed(int pad) {
+    return pad >= kDsFirst && pad < kMaxPads && g_touch[pad] && !g_prevTouch[pad];
 }
 
 void XPadSetResolver(int (*resolver)(int device)) { g_resolver = resolver; }
@@ -553,7 +607,8 @@ bool XPadDiState(int pad, void* out, unsigned size) {
     return true;
 }
 
-bool InstallXInputDevices(uintptr_t importSlot, bool hideRealControllers) {
+bool InstallXInputDevices(uintptr_t importSlot, bool hideRealControllers, bool nativeDualSense, int dsRumbleMode,
+                          void (*log)(const char* fmt, ...)) {
     static const char* const dlls[] = {"xinput1_4.dll", "xinput1_3.dll", "xinput9_1_0.dll"};
     for (const char* dll : dlls) {
         if (HMODULE m = LoadLibraryA(dll)) {
@@ -564,6 +619,14 @@ bool InstallXInputDevices(uintptr_t importSlot, bool hideRealControllers) {
     }
     if (!g_xinputGetState) return false;
     g_hideRealControllers = hideRealControllers;
+    for (int i = 0; i < kDsMax; ++i) {     // until the lights policy exists: dim blue + player 1 LED mark a native pad
+        g_dsOut[i].rgb[2] = 64;
+        g_dsOut[i].playerLeds = 0x04;
+    }
+    if (nativeDualSense) {
+        DsInstall(true, dsRumbleMode, log);
+        for (int i = 0; i < kDsMax; ++i) DsSetOutput(i, g_dsOut[i]);
+    }
 
     auto* slot = reinterpret_cast<void**>(importSlot);
     g_origDirectInput8Create = reinterpret_cast<DirectInput8CreateFn>(*slot);

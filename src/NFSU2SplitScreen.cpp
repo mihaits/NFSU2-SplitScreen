@@ -92,6 +92,9 @@ static void LoadConfig(HMODULE self) {
     g_rumbleStrength = GetPrivateProfileIntA("INPUT", "RumbleStrength", 100, path) / 100.0f;
     g_xinputPads = GetPrivateProfileIntA("INPUT", "XInputPads", 1, path) != 0;
     g_hideDirectInputPads = GetPrivateProfileIntA("INPUT", "HideDirectInputControllers", 1, path) != 0;
+    g_nativeDualSense = GetPrivateProfileIntA("INPUT", "NativeDualSense", 1, path) != 0;
+    g_dsRumbleMode = GetPrivateProfileIntA("INPUT", "DualSenseRumbleMode", 0, path);
+    if (g_dsRumbleMode != 1 && g_dsRumbleMode != 2) g_dsRumbleMode = -1;   // 0 = auto
     strcpy_s(g_iniPath, path);
     strcpy_s(g_playersPath, path);
     strcpy_s(g_playersPath + (dot - path), MAX_PATH - (dot - path), "_Players.ini");
@@ -121,7 +124,8 @@ static void Install(HMODULE self) {
     Log("mailbox at %p", &g_mailbox);
 
     if (g_xinputPads) {
-        if (InstallXInputDevices(IMPORT_DIRECTINPUT8CREATE, g_hideDirectInputPads))
+        if (InstallXInputDevices(IMPORT_DIRECTINPUT8CREATE, g_hideDirectInputPads, g_nativeDualSense,
+                                g_dsRumbleMode, &Log))
             XPadSetResolver(&PadForDevice);
         else
             Log("XInput runtime not found; using DirectInput controllers");

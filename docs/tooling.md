@@ -10,6 +10,11 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
   - `opscan.py substr [lo hi]` finds instructions by operand text.
 - **Live process**:
   - `trainer.py` reads/writes memory and takes window screenshots.
+  - `telemetry.py [interval] [seconds]` streams every local player's car values live (race stage, engine and
+    shift-light rpm, gear, nitrous, grip used per wheel, wheels in the air, position, finished); read-only, needs the
+    plugin loaded. The values the DualSense lights and triggers use.
+  - `drcheck.py [--clear]` lists game threads that still have hardware breakpoints armed (e.g. after a `hwwatch.py`
+    run); `--clear` zeroes DR0-3/6/7 on them.
   - `packages.py` lists the FE package cache.
   - `fe_objects.py <pkg>` dumps a package's object tree (flags, colour, texture key, position).
   - `strscan.py` / `ptrscan.py` search memory.

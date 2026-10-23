@@ -11,7 +11,7 @@ Local **split screen for 2-4 players** in *Need for Speed Underground 2* on PC.
    [WidescreenFix](https://github.com/ThirteenAG/WidescreenFixesPack/releases/tag/nfsu2) is recommended.
 2. Download the [latest release](https://github.com/mihaits/NFSU2-SplitScreen/releases) and copy
    `NFSU2SplitScreen.asi` and `NFSU2SplitScreen.ini` into the game's `scripts` folder.
-3. One controller per player. Xbox pads work directly; PlayStation pads through DS4Windows.
+3. One controller per player. Xbox pads work directly; PlayStation DualSense pads work natively (USB or Bluetooth) or through DS4Windows.
 
 ## Play
 1. Main menu → **Split-Screen** (next to Quick Race).
@@ -37,7 +37,7 @@ options of whoever paused.
 - [ ] Session results: standings across back-to-back races
 - [ ] Replays of split-screen races
 - [ ] Rear-view mirror in the bumper and hood cameras, like single player
-- [ ] Native PlayStation pads (DualShock 4, DualSense) without DS4Windows, with rumble and player-coloured lightbars
+- [ ] DualSense: player LEDs, RPM lightbar, race lights and adaptive triggers (native input and rumble work)
 - [ ] Maybe: everyone picking a car at once; press START to join at any time
 
 This is an alpha, so expect the odd bug. If you hit one, please
@@ -51,6 +51,8 @@ and attach `scripts\NFSU2SplitScreen.log` (set `Debug = 1` in the ini to write i
 |---|---|---|
 | `Rumble` | 1 | controller rumble |
 | `RumbleStrength` | 100 | rumble strength (%) |
+| `NativeDualSense` | 1 | DualSense pads without DS4Windows (off while DS4Windows's virtual pad is active) |
+| `DualSenseRumbleMode` | 0 | 0 auto, 1 old firmware mode, 2 new firmware mode |
 | `SinglePlayerGauges` | 1 | single-player style gauges for every player |
 | `GaugeScalePercent` | 60 | gauge size |
 
