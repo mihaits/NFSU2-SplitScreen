@@ -1,0 +1,85 @@
+diff --git a/src/NFSU2SplitScreen.cpp b/src/NFSU2SplitScreen.cpp
+index 46edb05..ca65180 100644
+--- a/src/NFSU2SplitScreen.cpp
++++ b/src/NFSU2SplitScreen.cpp
+@@ -85,6 +85,8 @@ static void LoadConfig(HMODULE self) {
+     g_debug = GetPrivateProfileIntA("MAIN", "Debug", 0, path) != 0;
+     g_quadTest = GetPrivateProfileIntA("DEBUG", "QuadTest", 0, path) != 0;
+     g_extraPlayers = GetPrivateProfileIntA("DEBUG", "ExtraPlayers", 0, path);
++    g_sharedWorldEntry = GetPrivateProfileIntA("DEBUG", "SharedWorldEntry", 0, path) != 0;   // SPIKE
++    g_worldProbe = GetPrivateProfileIntA("DEBUG", "WorldProbe", 0, path) != 0;               // SPIKE
+     g_splitPlayers = 2 + (g_extraPlayers < 0 ? 0 : g_extraPlayers > 2 ? 2 : g_extraPlayers);   // debug default
+     g_splitOpponents = GetPrivateProfileIntA("DEBUG", "Opponents", 0, path);                   // debug default
+     g_spGauges = GetPrivateProfileIntA("HUD", "SinglePlayerGauges", 1, path) != 0;
+diff --git a/src/parts/render_core.cpp b/src/parts/render_core.cpp
+index 655271a..2d78af8 100644
+--- a/src/parts/render_core.cpp
++++ b/src/parts/render_core.cpp
+@@ -191,10 +191,12 @@ static void HookDeviceSetViewport() {
+ // The world renderer collects the views to draw every frame (0x5B9C20: views 1..3, env map 0x10..0x15, 4, 9; 12
+ // entries). Add the extra player views after 1..3 (the mirror view 3 is off in split screen, so they fit).
+ static uint8_t* g_worldViews;            // this frame's world view table (on the frame render's stack)
++static bool g_sharedWorldEntry;          // SPIKE (6P): one table entry for views 5.., re-culled per player view
++static bool g_worldProbe;                // SPIKE (6P): log the table and the shared cull buffer use
+ static void __cdecl RegisterExtraWorldViews(uint8_t* world) {
+     g_worldViews = world;
+     int& count = *reinterpret_cast<int*>(world + WORLD_VIEW_COUNT);
+-    for (int k = 2; k < g_screenViews; ++k) {
++    for (int k = 2; k < (g_sharedWorldEntry && g_screenViews > 2 ? 3 : g_screenViews); ++k) {
+         View& v = GetView(kPlayerViewId[k]);
+         if (!v.active || !v.rt || !v.rt->surface || count >= 12 - 8) continue;   // keep room for 0x10..0x15, 4, 9
+         uint8_t* entry = world + count * 0x90;
+diff --git a/src/parts/render_envmap.cpp b/src/parts/render_envmap.cpp
+index c84fe41..ac6b765 100644
+--- a/src/parts/render_envmap.cpp
++++ b/src/parts/render_envmap.cpp
+@@ -243,8 +243,49 @@ static void __fastcall WorldDrawWithBeams(void* world, void*, View* v, int flags
+     HeadlightsForPlayer(k);              // the projector back on the view's own car for the rest of the view
+ }
+ 
++// SPIKE (6P): the world view table has 12 entries. With g_sharedWorldEntry the extra player views share one entry:
++// before each of them it points at that view and is re-culled into the free buffer space, and the cursor is moved
++// past it so the headlight re-cull doesn't overwrite it. The cursor goes back at the next player view.
++static uint32_t g_cullBase;
++static void WorldProbe(int viewId) {
++    uint8_t* world = g_worldViews;
++    if (!world || !g_worldProbe || viewId != 1 || g_mmFrame % 300) return;
++    int n = *reinterpret_cast<int*>(world + WORLD_VIEW_COUNT);
++    uint32_t cur = *reinterpret_cast<uint32_t*>(world + 0x6C8);
++    char line[512];
++    int len = wsprintfA(line, "probe: %d entries, cull buffer %u / %u bytes:", n, cur - 0x876DE0u, 0x8832C0u - 0x876DE0u);
++    for (int i = 0; i < n && i < 12; ++i) {
++        uint8_t* e = world + i * 0x90;
++        View* v = *reinterpret_cast<View**>(e + 0x40);
++        len += wsprintfA(line + len, " v%d=%u", v ? v->id : -1,
++                         *reinterpret_cast<uint32_t*>(e + 0x4C) - *reinterpret_cast<uint32_t*>(e + 0x48));
++    }
++    Log("%s", line);
++}
++static void SharedEntryFor(int k) {
++    uint8_t* world = g_worldViews;
++    if (!g_sharedWorldEntry || !world) return;
++    uint32_t& cursor = *reinterpret_cast<uint32_t*>(world + 0x6C8);
++    if (k == 0) g_cullBase = cursor;
++    else if (g_cullBase) cursor = g_cullBase;
++    if (k < 2) return;
++    int n = *reinterpret_cast<int*>(world + WORLD_VIEW_COUNT);
++    for (int i = 0; i < n && i < 12; ++i) {
++        uint8_t* e = world + i * 0x90;
++        View*& owner = *reinterpret_cast<View**>(e + 0x40);
++        if (!owner || owner->id < 5 || owner->id > 8) continue;
++        View& v = GetView(kPlayerViewId[k]);
++        owner = &v;
++        RecullHeadlightView(v);                      // generic: finds the entry by its view
++        cursor = *reinterpret_cast<uint32_t*>(e + 0x4C);
++        return;
++    }
++}
++
+ static void __cdecl RefreshViewTarget(int viewId) {
+     if (!SplitRacing()) return;
++    WorldProbe(viewId);
++    for (int k = 0; k < g_screenViews; ++k) if (kPlayerViewId[k] == viewId) SharedEntryFor(k);
+     if (g_screenViews > 2) memset(reinterpret_cast<void*>(GLARE_SLOT_COUNTS), 0, 8);
+     auto* bb = reinterpret_cast<RenderTarget*>(RT_BACKBUFFER);
+     for (int k = 0; k < g_screenViews; ++k)
