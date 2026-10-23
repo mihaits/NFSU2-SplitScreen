@@ -1,7 +1,7 @@
 # Tooling and workflow
 
-The `tools/` scripts expect this repo checked out **inside the game folder** (`<game>/<repo>/tools`). They read
-`<game>/speed2.exe` and `<game>/scripts/NFSU2SplitScreen.log`. Python 3 (32/64-bit), `capstone` for disassembly.
+The `tools/` scripts expect this repo checked out **somewhere inside the game folder**; `paths.py` finds the game
+folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` and `<game>/scripts/NFSU2SplitScreen.log`. Python 3 (32/64-bit), `capstone` for disassembly.
 
 - **Static analysis** (from the exe file, no game needed):
   - `sdis.py addr [n]` disassembles.

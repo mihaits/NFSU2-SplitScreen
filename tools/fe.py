@@ -9,7 +9,7 @@ python -I fe.py padoff <n>              disconnect virtual pad n
 python -I fe.py page <n>                Controls screen page (0 keyboard, 1 joypad P1, 2 joypad P2)"""
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import trainer as t
+import paths, trainer as t
 
 PKG_LIST = 0x8637B0          # FE package cache (0x51BB70): list head at +4, node = entry+4
 
@@ -26,7 +26,7 @@ def name_for_hash(h):
     global _names
     if _names is None:
         import re
-        exe = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'speed2.exe'), 'rb').read()
+        exe = open(paths.EXE, 'rb').read()
         _names = {fe_hash(m.decode('latin1')): m.decode('latin1') for m in set(re.findall(rb'[A-Za-z0-9_]+\.fng', exe))}
     return _names.get(h)
 
@@ -64,7 +64,7 @@ def top(g):
 
 def mailbox(g):
     import re
-    log = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'scripts', 'NFSU2SplitScreen.log')).read()
+    log = open(paths.LOG).read()
     a = int(re.findall(r'mailbox at ([0-9A-Fa-f]+)', log)[-1], 16)
     assert g.u32(a) == 0x424D464E, 'mailbox magic'
     return a

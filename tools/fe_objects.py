@@ -4,9 +4,9 @@ flags bit 0 = hidden, 0x400000 = transform changed; names resolved from strings 
 import os, sys, struct, re
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-import fe, trainer as t
+import fe, paths, trainer as t
 g = t.Game()
-exe = open(os.path.join(HERE, '..', '..', 'speed2.exe'), 'rb').read()
+exe = open(paths.EXE, 'rb').read()
 names = {fe.fe_hash(m.decode()): m.decode() for m in set(re.findall(rb'[A-Za-z0-9_%]{3,40}', exe))}
 def walk(o, d=0):
     n = 0

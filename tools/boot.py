@@ -21,6 +21,8 @@ while time.time() < deadline:
         print('main menu after %.1f s' % (time.time() - deadline + (float(sys.argv[1]) if len(sys.argv) > 1 else 60)))
         sys.exit(0)
     if s and time.time() - last > 0.5:   # title, splash, profile list / confirmation: all advance with A
-        fe.press(g, 1, 'a'); last = time.time()
+        try: fe.press(g, 1, 'a')
+        except TimeoutError: focused = False   # no frames: still loading, or the window lost focus (focus again)
+        last = time.time()
     time.sleep(0.1)
 sys.exit('timeout; screens: %s' % sorted(s))

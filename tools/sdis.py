@@ -1,6 +1,7 @@
 """Disassemble speed2.exe from the file (no running game needed). python sdis.py addr [count]"""
 import os, struct, sys, capstone
-EXE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'speed2.exe')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from paths import EXE
 d = open(EXE, 'rb').read()
 pe = struct.unpack_from('<I', d, 0x3C)[0]
 nsec = struct.unpack_from('<H', d, pe + 6)[0]; opt = struct.unpack_from('<H', d, pe + 20)[0]
