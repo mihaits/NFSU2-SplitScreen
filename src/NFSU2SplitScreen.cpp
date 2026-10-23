@@ -146,6 +146,7 @@ static void Install(HMODULE self) {
     int portRefs = RelocatePortTables();
     Log("port tables relocated: %d refs%s", portRefs, tablesBuilt ? " (WARNING: already constructed)" : "");
     WriteCall(AT_INPUT_INIT_CALL, &InputInit);
+    Log("controls page table relocated: %d refs", RelocateControlsPages());
     g_origRumble = MakeTrampoline(FN_RUMBLE, 5);
     WriteJump(FN_RUMBLE, &RumbleHook, 5);
     WriteCall(AT_FF_UPDATE_CALL, &FfUpdate);

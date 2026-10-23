@@ -82,8 +82,36 @@ static void MergeKeyboard(uint8_t* out, int port) {
 #define DEVICE_RECORD_SIZE 0x370
 #define AT_CONTROLS_PAGES_CALL 0x4ECFD5  // call 0x4ACE00 (thiscall screen)
 #define FN_CONTROLS_PAGES  0x4ACE00
-#define CONTROLS_PAGES     0x835930
-#define CONTROLS_PAGE_MAX  6
+#define OLD_CONTROLS_PAGES 0x835930      // 6 x 12 bytes; the next object starts at 0x835978
+#define CONTROLS_PAGES     reinterpret_cast<uintptr_t>(g_controlsPages)
+// Every .text reference to the table is a disp32/imm32 inside it (77: `mov ebp, 0x835930` at 0x4ACE69 and 76
+// `[reg*4 + 0x835938]`; a blind scan finds the same 77).
+static int RelocateControlsPages() {
+    memcpy(g_controlsPages, reinterpret_cast<void*>(OLD_CONTROLS_PAGES), 6 * 12);
+    auto* dos = reinterpret_cast<IMAGE_DOS_HEADER*>(0x400000);
+    auto* nt = reinterpret_cast<IMAGE_NT_HEADERS*>(0x400000 + dos->e_lfanew);
+    auto* sec = IMAGE_FIRST_SECTION(nt);
+    int patched = 0;
+    for (int i = 0; i < nt->FileHeader.NumberOfSections; ++i, ++sec) {
+        if (memcmp(sec->Name, ".text", 6) != 0) continue;
+        auto* p = reinterpret_cast<uint8_t*>(0x400000 + sec->VirtualAddress);
+        size_t n = sec->Misc.VirtualSize;
+        DWORD old;
+        VirtualProtect(p, n, PAGE_EXECUTE_READWRITE, &old);
+        for (size_t o = 0; o + 4 <= n; ++o) {
+            uint32_t v;
+            memcpy(&v, p + o, 4);
+            if (v < OLD_CONTROLS_PAGES || v >= OLD_CONTROLS_PAGES + 6 * 12) continue;
+            uint32_t nv = static_cast<uint32_t>(CONTROLS_PAGES) + (v - OLD_CONTROLS_PAGES);
+            memcpy(p + o, &nv, 4);
+            ++patched;
+            o += 3;
+        }
+        VirtualProtect(p, n, old, &old);
+        FlushInstructionCache(GetCurrentProcess(), p, n);
+    }
+    return patched;
+}
 #define AT_PROFILE_SAVE_BINDINGS 0x52A42A  // call 0x5B9420 (cdecl (out) -> end)
 #define FN_PROFILE_SAVE_BINDINGS 0x5B9420
 #define AT_PROFILE_LOAD_BINDINGS 0x534660  // call 0x5B9570 (cdecl (in) -> end)
@@ -102,7 +130,7 @@ static uint8_t* PadRecord(int slot) {
 
 static int ControlsPageSeat() {
     int page = at<int>(CONTROLS_PAGE);
-    if (g_ctrlPageBase < 0 || page < g_ctrlPageBase || page >= g_ctrlPageBase + 2) return -1;
+    if (g_ctrlPageBase < 0 || page < g_ctrlPageBase || page >= g_ctrlPageBase + MAX_EXTRA_PLAYERS) return -1;
     using ActiveFn = bool(__cdecl*)(const char*);
     if (!reinterpret_cast<ActiveFn>(FN_FE_PACKAGE_ACTIVE)("UI_Options_PC_Controller.fng")) return -1;
     return 2 + page - g_ctrlPageBase;
@@ -161,17 +189,17 @@ static void __fastcall BuildControlsPages(uint8_t* screen) {
     int record = -1;
     for (int d = 0; d < INPUT_DEVICE_MAX; ++d)
         if (reinterpret_cast<uint8_t*>(INPUT_DEVICES + d * DEVICE_RECORD_SIZE) == PadRecord(0)) record = d;
-    if (!g_xinputPads || record < 0 || count + 2 > CONTROLS_PAGE_MAX) return;
+    if (!g_xinputPads || record < 0 || count + MAX_EXTRA_PLAYERS > CONTROLS_PAGE_MAX) return;
     g_ctrlPageBase = count;
-    for (int k = 0; k < 2; ++k) {
+    for (int k = 0; k < MAX_EXTRA_PLAYERS; ++k) {
         int* entry = reinterpret_cast<int*>(CONTROLS_PAGES + (count + k) * 12);
         entry[0] = 1;                    // joypad page
         entry[1] = 0;
         entry[2] = record;
     }
-    count += 2;
-    *reinterpret_cast<int*>(screen + 0x154) += 2;
-    Log("controls: pages %d/%d for players 3/4 (record %d)", g_ctrlPageBase, g_ctrlPageBase + 1, record);
+    count += MAX_EXTRA_PLAYERS;
+    *reinterpret_cast<int*>(screen + 0x154) += MAX_EXTRA_PLAYERS;
+    Log("controls: pages %d..%d for players 3..6 (record %d)", g_ctrlPageBase, g_ctrlPageBase + MAX_EXTRA_PLAYERS - 1, record);
 }
 
 static uint8_t* __cdecl ProfileSaveBindings(uint8_t* out) {

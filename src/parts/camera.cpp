@@ -275,10 +275,14 @@ static __declspec(naked) void JoySlotPresent() {
     }
 }
 
+// Action 1's handler 0x571A20 keeps per-port state in arrays of 4: bytes [port + 0x864788] / [port + 0x8647A0]
+// (0x86478C is another variable) and the frontend's per-port flags 0x50C5D0(port): [0x7F91D4 + row * 0x1C + port * 4],
+// 21 rows of 4 port columns + 3 other dwords. Ports 4/5 with action 1 zeroed those other dwords: no pad worked in the
+// menus any more. Ports 4/5 get their id only; their state comes from PollExtraPort like ports 2/3.
 static void __cdecl InputInit() {
     reinterpret_cast<void(__cdecl*)()>(FN_INPUT_INIT)();
     for (int port = 2; port < INPUT_PORTS; ++port) {
         *reinterpret_cast<int*>(g_portTables + port * PORT_TABLE_SIZE + 0x1B4) = port;
-        reinterpret_cast<void(__cdecl*)(int, int, uint32_t, int)>(FN_ADD_BINDING)(port, 1, 0x571A20, 0);
+        if (port < 4) reinterpret_cast<void(__cdecl*)(int, int, uint32_t, int)>(FN_ADD_BINDING)(port, 1, 0x571A20, 0);
     }
 }

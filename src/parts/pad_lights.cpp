@@ -2,7 +2,7 @@
 // Included by NFSU2SplitScreen.cpp in a fixed order (one translation unit); not compiled on its own.
 
 // ---------------------------------------------------------------- player LEDs
-// A native DualSense (pad 8..11, see docs/input.md) shows who controls the game with its 5 player LEDs:
+// A native DualSense (pad 10..17, see docs/input.md) shows who controls the game with its 5 player LEDs:
 // - from the car-select join until the race is left, a pad that a player joined with shows that player's number
 //   (patterns of PS5: 1 = --x--, 2 = -x-x-, 3 = x-x-x, 4 = xx-xx; the mod's 5 = xxxxx, 6 = -xxx-). Seats are g_assignedPad[k]; the session counts as
 //   on in the split car select and in game states 4..6 (loading, racing, results). Back in the frontend (state 3)

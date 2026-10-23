@@ -9,11 +9,11 @@ read port = 0x83A9D8[player]. Input port tables: 0x8655A0, 2 × 0x1C8 (binding n
 **XInputDevices.cpp.** It hooks the DirectInput8Create IAT slot 0x783024 and wraps IDirectInput8A.
 EnumDevices/CreateDevice expose virtual "Split Screen Pad N" gamepads with full DirectInput emulation (objects with
 Xbox names, GetObjectInfo, properties, buffered GetDeviceData — Options > Controls needs all of these). Real DirectInput
-controllers are hidden. Pads 0..3 are the real XInput pads, 4..7 debug pads driven through the mailbox, 8..11 native DualSense pads (below).
+controllers are hidden. Pads 0..3 are the real XInput pads, 4..9 debug pads driven through the mailbox, 10..17 native DualSense pads (below).
 
 **Native DualSense (`DualSense.cpp`).**
 - HID through SetupAPI + hid.dll (`hid.lib setupapi.lib`), USB and Bluetooth, DualSense 054C:0CE6 and Edge 054C:0DF2.
-  Native slots 0..3 are pads 8..11 of the pad layer (`kDsFirst`), so joining, bindings, P3/P4, pause ownership and
+  Native slots 0..7 (`kDsMax` 8) are pads 10..17 of the pad layer (`kDsFirst`), so joining, bindings, P3..P6, pause ownership and
   rumble work as for XInput pads. `XInputDevices.cpp` keeps one merged `DsOutput` per native pad (rumble, lights,
   triggers) and hands it to `DsSetOutput`; `XPadIsDualSense`, `XPadSetLights`, `XPadSetTriggers` and
   `XPadTouchClickPressed` are the exports for the lights and triggers (the lights/triggers policy is not there yet:
@@ -78,23 +78,24 @@ controllers are hidden. Pads 0..3 are the real XInput pads, 4..7 debug pads driv
 **Per-port merge.** Ports 0/1 are merged per device slot, which separates P1 and P2.
 
 **Keyboard player.** The keyboard (record 0, slot 0, type 0x13) is left out of the slot merge and goes to one port
-(`KeyboardPort`): racing, its player's port 0..3 (ports 2/3 in `PollExtraPort`); during a pause the menu's port, only
-when its player paused (`g_pausePort`; P3/P4: port & 1); on the car select only on its player's turn
+(`KeyboardPort`): racing, its player's port 0..5 (ports 2..5 in `PollExtraPort`); during a pause the menu's port, only
+when its player paused (`g_pausePort`; P3..P6: port & 1); on the car select only on its player's turn
 (`PadForDevice` gives that turn no pad); elsewhere in the split menus port 0. After a change it waits until every key
 is up. Its player's pause menus show Feedback greyed and off: `FfCapable` (jump at 0x5B8240) returns false, and
 `SyncPlayerSettings` clears the game entry's +4 while they are open and puts it back after (the setting is kept). The
 mouse free camera follows the keyboard player.
 
-**Players 3/4.**
-- The port tables are relocated to `g_portTables[INPUT_PORTS]` (4) (`RelocatePortTables`: 15 refs, loop bounds 0x57B3AC/0x580AD4,
+**Players 3..6.**
+- The port tables are relocated to `g_portTables[INPUT_PORTS]` (6) (`RelocatePortTables`: 15 refs, loop bounds 0x57B3AC/0x580AD4,
   static ctor/dtor counts 0x77D9CB/0x782296). This runs before the game's static init.
 - The binding node pool is raised from 0xA0 (2 ports) to 0x50 per port (0x579559).
-- `INPUT_PORTS` stays 4 for now: with 6, `InputInit`'s action 1 for ports 4/5 (handler 0x571A20: per-port bytes
-  `[port + 0x864788]`, 0x5726A0(port), 0x50C5D0(port, ..)) broke the frontend input (no pad advanced the splash).
-- `InputInit` (call at 0x57ED80) gives ports 2.. their id and action 1.
-- `PollPortHook` serves ports 2/3 from P3/P4's XInput pads (`PollExtraPort`) with their own bindings (below).
-  Players 3/4 have ports 2/3.
-- Player port = index 0..3 (0x50D2A0 maps FE masks 1/2/4/8 to 0..3).
+- `InputInit` (call at 0x57ED80) gives ports 2..5 their id, and ports 2/3 action 1. Action 1's handler 0x571A20 keeps
+  per-port state in the game's 4-slot arrays: bytes `[port + 0x864788]` / `[port + 0x8647A0]` (0x86478C is another
+  variable) and the frontend flags 0x50C5D0(port): `[0x7F91D4 + row * 0x1C + port * 4]`, 21 rows of 4 port columns
+  and 3 other dwords. Action 1 on ports 4/5 zeroed those other dwords and no pad worked in the menus.
+- `PollPortHook` serves ports 2..5 from P3..P6's pads (`PollExtraPort`) with their own bindings (below).
+  Player k has port k.
+- 0x50D2A0 maps FE masks 1/2/4/8 to ports 0..3; the frontend only uses masks 1/2 (see the pause below).
 
 **Pause by P3/P4.** The pause ctor 0x4EB410 sets the package input mask to 1 << the pausing port (at 0x4EB469), but
 frontend input only has masks 1/2. `PauseInputMask` maps it to slot (port & 1), and `PadForDevice` feeds that slot from
@@ -107,10 +108,11 @@ analog values (+0x10..+0x13) every frame: 0x5CF220 → 0x5C1840. For joysticks i
 +0x18/+0x98/+0x118/+0x198 (16 buttons, then axis directions/POV), axis setup +0x344..+0x368, POV count +0x36C. The
 profile saves table 0 and the axis setup per device GUID (0x5B9420 called at 0x52A42A; load 0x5B9570 at 0x534660).
 
-**Controls for players 3/4.** They have no joystick slot, so their bindings live in the seat store ([players](players.md)).
+**Controls for players 3..6.** They have no joystick slot, so their bindings live in the seat store ([players](players.md)).
 - The Controls screen (ctor 0x4ECD10) builds its pages with 0x4ACE00 (call at 0x4ECFD5 → `BuildControlsPages`): table
-  0x835930, stride 12 {type, ?, record}, 6 max, count at screen+0x158, joypad pages at +0x154. Two pages are appended
-  for P3/P4, both on the slot-0 pad record.
+  0x835930, stride 12 {type, ?, record}, 6 max, count at screen+0x158, joypad pages at +0x154. The table is relocated
+  to `g_controlsPages[8]` (`RelocateControlsPages`: 77 refs, 0x4ACE69 `mov ebp, 0x835930` and 76 `[reg*4 + 0x835938]`;
+  the next object starts at 0x835978). Four pages are appended for P3..P6, all on the slot-0 pad record.
 - While one of them is shown (`ControlsPageSeat`: page index and UI_Options_PC_Controller.fng active), that record
   holds the player's bindings and P1's are kept aside (`SetBindSwap`). The game's editing, capture and "Reset Keys To
   Default" then work unchanged. The swap is applied when the joypad page is built (`SetJoypadPageTitle`, called at

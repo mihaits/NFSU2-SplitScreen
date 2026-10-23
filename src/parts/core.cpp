@@ -44,7 +44,9 @@
 #define FN_SET_TEXT_FMT    0x537BE0    // int __cdecl (FEObject*, const char* fmt, ...)
 #define FN_LOCALIZE        0x4FFA80    // const char* __cdecl (languageHash)
 #define CONTROLS_PAGE      0x8364EC    // current Controls page
-#define CONTROLS_PAGE_DEV  0x835938    // [page * 3] = input device record shown on that page
+#define CONTROLS_PAGE_MAX  8           // Controls pages, relocated from the game's 6 (RelocateControlsPages)
+static uint8_t g_controlsPages[CONTROLS_PAGE_MAX * 12];
+#define CONTROLS_PAGE_DEV  (reinterpret_cast<uintptr_t>(g_controlsPages) + 8)   // [page * 3] = device record of the page
 #define AT_FE_OBJ_XFORM    0x51B0B0    // FE object transform (thiscall: data, out mtx, out color, level, scale) entry
 #define AT_FE_OBJ_XFORM_RET 0x51B0B6   // (6 bytes: push ebp; mov ebp,esp; and esp,-16)
 #define FN_FE_PACKAGE_ACTIVE 0x52CF60  // bool __cdecl (const char* fng)
@@ -114,10 +116,8 @@ static bool g_menuSplit = false;         // set by the main menu "Split Screen" 
 static int  g_prevMode = 0;
 #define MAX_LOCAL_PLAYERS 6
 #define MAX_EXTRA_PLAYERS (MAX_LOCAL_PLAYERS - 2)   // players 3.. on top of the game's 2
-// Input ports: 4 until players 5/6 get theirs. Giving ports 4/5 an id and action 1 (InputInit -> handler 0x571A20)
-// broke the frontend input (splash ignored every pad): the handler writes per-port bytes [port + 0x864788] and calls
-// 0x5726A0(port) / 0x50C5D0(port, ..), arrays sized for fewer ports.
-#define INPUT_PORTS 4
+// Input ports, one per local player. The game's own per-port arrays have 4 slots (see InputInit).
+#define INPUT_PORTS MAX_LOCAL_PLAYERS
 static const int kPlayerViewId[MAX_LOCAL_PLAYERS] = {1, 2, 5, 6, 7, 8};   // views 5..8 are unused by the game
 static RenderTarget g_rt[MAX_LOCAL_PLAYERS]; // private targets for the player views (one per screen region)
 static int g_screenViews = 2;            // player views drawn this frame (2, or 4 for quadrants)

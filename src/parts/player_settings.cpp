@@ -54,7 +54,7 @@ static void SyncPlayerSettings(bool newRace) {
             memcpy(game + e * PLAYER_SETTING_SIZE, g_settings[seat], PLAYER_SETTING_SIZE);
             memcpy(g_settingsSeen[seat], g_settings[seat], PLAYER_SETTING_SIZE);
         }
-        Log("player settings: %s", swap >= 0 ? "pause menu edits player 3/4" : "game table back to players 1/2");
+        Log("player settings: %s", swap >= 0 ? "pause menu edits the pausing player 3..6" : "game table back to players 1/2");
     }
     for (int k = 2; k < MAX_LOCAL_PLAYERS; ++k) {
         SeatStore& st = g_seatStore[k - 2];

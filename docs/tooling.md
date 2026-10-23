@@ -40,7 +40,7 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
   | 1 | send FE message |
   | 2 | switch screen |
   | 3 | write dword |
-  | 4 | virtual pad state (pads 4-7 = `fe.py pad n`) |
+  | 4 | virtual pad state (pads 4-9 = `fe.py pad n`, n 0..5) |
   | 5 | hardware write watch (logs the writer's code address and a stack scan) |
   | 6 | log SetViewport calls for N frames |
   | 7 | dump an IDirect3DSurface9* global to surfdump.raw |

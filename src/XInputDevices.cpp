@@ -42,8 +42,8 @@ enum : WORD {
 };
 
 constexpr int kRealPads = 4;            // XInput user indices 0..3
-constexpr int kDebugPads = 4;           // test pads 4..7 driven by XPadSetVirtual
-constexpr int kDsFirst = kRealPads + kDebugPads;   // native DualSense pads 8..11
+constexpr int kDebugPads = 6;           // test pads 4..9 driven by XPadSetVirtual
+constexpr int kDsFirst = kRealPads + kDebugPads;   // native DualSense pads 10..17
 constexpr int kMaxPads = kDsFirst + kDsMax;
 constexpr int kVirtualDevices = 2;     // the game has two joystick slots
 int (*g_resolver)(int device);         // virtual device -> XInput user index (-1 = idle)

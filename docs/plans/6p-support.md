@@ -164,7 +164,7 @@ Test with the debug clone path: 5P and 6P circuit, sprint, drift, URL, Street X;
 - Seat store last car for P5/P6.
 Test with real pads for 5-6 seats as far as the pads go, debug pads for the rest.
 
-### 6. Input for players 5/6
+### 6. Input for players 5/6 (done: ports 4/5, Controls pages 8, kDebugPads 6, kDsMax 8; 2+ native pads untested)
 - Input ports 4/5: step 1 kept `INPUT_PORTS` = 4 (input_ports.cpp). With 6 ports the splash ignored every pad: the
   action 1 binding that `InputInit` adds per port (handler 0x571A20) writes `[port + 0x864788]` and calls
   0x5726A0(port) / 0x50C5D0(port, ..), per-port arrays sized for fewer ports. Size them (or remap ports 4/5 for that

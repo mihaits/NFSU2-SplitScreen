@@ -5,7 +5,7 @@
 // DS4Windows. One I/O thread per open pad keeps the latest input report and sends output reports (rumble, lights,
 // triggers) when the wanted output changes. A hotplug thread rescans every 2 s. See docs/input.md.
 
-constexpr int kDsMax = 4;                 // native pad slots
+constexpr int kDsMax = 8;                 // native pad slots
 
 // Same field layout as the XInput state XInputDevices.cpp uses.
 struct DsPadState {
