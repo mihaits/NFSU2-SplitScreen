@@ -38,7 +38,10 @@ static int KeyboardPort() {
         if (g_pausePort >= 0) return g_pausePort == g_keyboardSeat ? (g_keyboardSeat & 1) : -1;
         return g_keyboardSeat;
     }
-    if (g_inCarSelect) return CarselDriverSeat() == g_keyboardSeat ? 0 : -1;
+    if (g_inCarSelect) {
+        int seat = CarselDriverSeat();
+        return seat < 0 || seat == g_keyboardSeat ? 0 : -1;    // -1: player 1's popup, anyone
+    }
     return 0;
 }
 static void UpdateKeyboardPort() {       // once per frame (port 0's poll)

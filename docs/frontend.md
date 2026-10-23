@@ -27,7 +27,18 @@ Outrun (race type 0x83AAB4 == 8) is a 2-player mode: the row isn't added and `Sp
 (any seat, one keyboard player per round: `g_keyboardSeat`), records `g_assignedPad[seat]`, and injects START with mask 1 << player. The popup text object 0x2EBB974D is
 set to "Player Three/Four Press START" for seats 2/3. A pad that has joined can't join again.
 On a later seat's popup only the previous seat's pad or keyboard drives the frontend (`CarselDriverSeat`, used by
-`PadForDevice` and `KeyboardPort`), so only the player who joined last can press Back to undo their pick.
+`PadForDevice` and `KeyboardPort`), so only the player who joined last can press Back to undo their pick. P1's popup
+starts a new round, so any pad or the keyboard drives it (the previous round's pads no longer count).
+
+**Car select sounds: one per action.** Every FE sound goes through 0x458520 (thiscall sound manager [0x82B884]; id),
+hooked by `FeSound`. Two layers play them: the generic package layer (0x51DD40: runs the package's handler, then plays
+the table 0x837FE0 sound of the input it handled, call at 0x51DD81) plays Back (5) / Start (6) for whatever the
+controlling device presses, and the car select plays its own for each action it takes (0x50D180 from 0x4FC728 /
+0x4FC753 / 0x4FC7AF and `CarselFilter`). Together Back played twice on popups and FE 0's pick but once on FE 1's pick,
+a join played 6 only for the device that drove the frontend (not other pads or the keyboard), and an ignored Start or
+a Start still held after joining played it as well. In the split car select the generic 5/6 is dropped, and
+`PressStartFilter` plays 6 on each join. With `Debug = 1` every car select sound (source, "dropped") and every
+Start/Back/A/B, Enter/Esc/Backspace press is logged with the seat state (`LogCarselInput`).
 
 **Seats (3-4 players).** The car select serves FE players 0/1 (0x4FA2A0(fe)). The player 1 pick switches to FE 1
 (calls at 0x4FC3A8 / 0x4FC9B6, `CarselToP2`), and the player 2 pick starts the race (0x4FC3BE / 0x4FC9C2 → 0x53FC20,

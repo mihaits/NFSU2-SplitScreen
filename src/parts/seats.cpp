@@ -121,11 +121,12 @@ static int __cdecl PauseInputMask(int port) {
 
 // Car select: the seat whose pad / keyboard drives the frontend. On a later seat's Press START popup that is the
 // previous seat: joining is read from XInput directly, so the frontend only needs it for Back, which only the player
-// who joined last may press. The popup's own seat may still hold a stale pad / keyboard from going back.
+// who joined last may press. The popup's own seat may still hold a stale pad / keyboard from going back. Player 1's
+// popup starts a new round: -1 = any pad or the keyboard (the previous round's pads no longer count).
 static int CarselDriverSeat() {
     int fe = at<int>(FE_PLAYER);
     int seat = (g_seat & 1) == fe ? g_seat : fe;
-    if (seat >= 1 && reinterpret_cast<bool(__cdecl*)(const char*)>(FN_FE_PACKAGE_ACTIVE)("2P_PressStart.fng"))
+    if (reinterpret_cast<bool(__cdecl*)(const char*)>(FN_FE_PACKAGE_ACTIVE)("2P_PressStart.fng"))
         return seat - 1;
     return seat;
 }
@@ -153,6 +154,7 @@ static int __cdecl PadForDevice(int device) {
     if (g_inCarSelect) {
         if (device != 0) return PAD_NONE;
         int seat = CarselDriverSeat();
+        if (seat < 0) return XPadLastActive();                  // player 1's popup: anyone
         if (seat == g_keyboardSeat) return PAD_NONE;            // the keyboard player's turn: keyboard only
         int pad = g_assignedPad[seat];
         return pad != PAD_NONE ? pad : XPadLastActive();
@@ -160,6 +162,8 @@ static int __cdecl PadForDevice(int device) {
     if (device != at<int>(FE_PLAYER)) return PAD_NONE;
     return XPadLastActive();
 }
+
+#define FN_PLAY_FE_SOUND   0x50D180      // void __cdecl (sound id; -1 = none)
 
 static bool KeyboardEnterPressed() {
     static bool wasDown = false;
@@ -199,6 +203,7 @@ static uint32_t __stdcall PressStartFilter(uint8_t* popup, uint32_t msg, uint32_
             if (g_keyboardSeat >= seat) g_keyboardSeat = -1;    // (left over from going back)
             *port = 1u << player;
             Log("player %d joined with pad %d", seat + 1, pad + 1);
+            reinterpret_cast<void(__cdecl*)(int)>(FN_PLAY_FE_SOUND)(6);    // join sound (see FeSound)
             return MSG_START;
         }
         if (keyboard) {
@@ -207,6 +212,7 @@ static uint32_t __stdcall PressStartFilter(uint8_t* popup, uint32_t msg, uint32_
             g_keyboardSeat = seat;
             *port = 1u << player;
             Log("player %d joined with keyboard", seat + 1);
+            reinterpret_cast<void(__cdecl*)(int)>(FN_PLAY_FE_SOUND)(6);    // join sound (see FeSound)
             return MSG_START;
         }
         return msg;
@@ -467,6 +473,57 @@ static void __fastcall HelpBarSet(uint8_t* bar, void*, uint32_t flags, uint32_t 
         Log("help bar shown again (split menus, buttons %X)", flags);
     }
     g_origHelpBarSet(bar, flags, arg);
+}
+
+// Car select sounds: one per action. Every FE sound goes through 0x458520 (thiscall sound manager [0x82B884]; id),
+// 5 bytes stolen. The generic package layer (0x51DD40: the package's handler, then the sound of the input it handled,
+// table 0x837FE0, call at 0x51DD81) plays Back (5) / Start (6) for whatever the controlling device presses, while the
+// car select plays its own for each action it takes (0x50D180 from 0x4FC728 / 0x4FC753 / 0x4FC7AF, CarselFilter). So
+// Back played twice on popups and FE player 0's pick, once on FE player 1's pick; a join played 6 only for the device
+// that happened to drive the frontend (not for other pads or the keyboard), and an ignored Start played it too. In the
+// split car select the generic 5/6 is dropped and joins play 6 themselves (PressStartFilter).
+// Debug (Log only writes with Debug = 1): every car select sound and press with the seat state.
+#define FN_FE_SOUND        0x458520
+#define AT_FE_GENERIC_SOUND_RET 0x51DD86
+typedef void(__thiscall* FeSoundFn)(void*, int);
+static FeSoundFn g_origFeSound;
+static const char* CarselStateText() {
+    static char s[96];
+    int fe = at<int>(FE_PLAYER);
+    bool popup = reinterpret_cast<bool(__cdecl*)(const char*)>(FN_FE_PACKAGE_ACTIVE)("2P_PressStart.fng");
+    sprintf_s(s, "seat %d fe %d %s driver %d kb %d pads %d,%d,%d,%d", g_seat + 1, fe, popup ? "popup" : "pick",
+              CarselDriverSeat() + 1, g_keyboardSeat + 1, g_assignedPad[0], g_assignedPad[1], g_assignedPad[2],
+              g_assignedPad[3]);
+    return s;
+}
+static void __fastcall FeSound(void* mgr, void*, int id) {
+    if (g_inCarSelect) {
+        uintptr_t ret = reinterpret_cast<uintptr_t>(_ReturnAddress());
+        bool generic = ret == AT_FE_GENERIC_SOUND_RET && (id == 5 || id == 6);
+        if (g_debug) Log("sound %d from %08X%s (%s)", id, ret - 5, generic ? " dropped" : "", CarselStateText());
+        if (generic) return;
+    }
+    g_origFeSound(mgr, id);
+}
+static void LogCarselInput() {
+    static uint16_t prev[32];
+    static bool prevKey[3];
+    if (!g_debug || !g_inCarSelect) { memset(prev, 0, sizeof(prev)); return; }
+    for (int pad = 0; pad < XPadMax() && pad < 32; ++pad) {
+        uint16_t b = 0; uint8_t lt, rt; int16_t lx;
+        if (!XPadRawState(pad, &b, &lt, &rt, &lx)) b = 0;
+        uint16_t down = b & ~prev[pad] & (0x0010 | 0x0020 | 0x1000 | 0x2000);   // Start, Back, A, B
+        prev[pad] = b;
+        if (down) Log("pad %d pressed%s%s%s%s (%s)", pad, down & 0x10 ? " Start" : "", down & 0x20 ? " Back" : "",
+                      down & 0x1000 ? " A" : "", down & 0x2000 ? " B" : "", CarselStateText());
+    }
+    static const int keys[3] = {VK_RETURN, VK_ESCAPE, VK_BACK};
+    static const char* const names[3] = {"Enter", "Esc", "Backspace"};
+    for (int i = 0; i < 3; ++i) {
+        bool d = (GetAsyncKeyState(keys[i]) & 0x8000) != 0;
+        if (d && !prevKey[i]) Log("key %s (%s)", names[i], CarselStateText());
+        prevKey[i] = d;
+    }
 }
 
 static void PrepareExtraNames();
