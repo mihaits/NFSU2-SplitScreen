@@ -12,41 +12,12 @@ How: player +0x230 is the racing mode the per-frame mode picker 0x5EA650 applies
 debug joy event 0xB5 toggles it at 0x602BD0). Entering mode 4 (0x605C70) calls 0x5FAE20: the car's driver controller
 becomes the AI racer's (0x5EBA30(car, 3), car +0x24 = 3) and its mover the AI's; leaving it calls 0x5FAF10 (human
 controller 1 back). The game uses the same for rolling starts and after the finish line (mode 9, 0x606CB0)."""
-import ctypes, ctypes.wintypes as W, os, re, struct, sys, tempfile, time
+import os, struct, sys, tempfile, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import paths, trainer as t, fe
+import trainer as t, fe, plugin
 
 MODE_RACING, MODE_AUTO_PILOT = 2, 4
 STAGES = {0: 'none', 1: 'flyby', 2: 'prerace', 3: 'countdown', 4: 'racing'}
-
-k32 = ctypes.WinDLL('kernel32')
-class ME(ctypes.Structure):
-    _fields_ = [('dwSize', W.DWORD), ('id', W.DWORD), ('pid', W.DWORD), ('g', W.DWORD), ('p', W.DWORD),
-                ('base', ctypes.c_void_p), ('size', W.DWORD), ('h', W.HMODULE), ('name', ctypes.c_char * 256),
-                ('path', ctypes.c_char * 260)]
-
-def module_base(pid, name=b'nfsu2splitscreen.asi'):
-    snap = k32.CreateToolhelp32Snapshot(0x18, pid); e = ME(); e.dwSize = ctypes.sizeof(e)
-    ok = k32.Module32First(snap, ctypes.byref(e))
-    try:
-        while ok:
-            if e.name.lower() == name: return e.base
-            ok = k32.Module32Next(snap, ctypes.byref(e))
-    finally:
-        k32.CloseHandle(snap)
-
-def symbol(name):
-    """VA of a plugin global from the linker map (preferred base 0x10000000)."""
-    for line in open(os.path.join(paths.HERE, '..', 'build', 'NFSU2SplitScreen.map')):
-        if name in line: return int(line.split()[2], 16)
-    raise KeyError(name)
-
-
-def max_players():
-    """MAX_LOCAL_PLAYERS of the checkout that built the map (4 on main, 6 on 6p-support): the plugin's array size."""
-    src = open(os.path.join(paths.HERE, '..', 'src', 'parts', 'core.cpp')).read()
-    return int(re.search(r'#define MAX_LOCAL_PLAYERS (\d+)', src).group(1))
-
 
 T0 = time.time()
 def say(msg):
@@ -58,14 +29,8 @@ def opt(name, default):
 
 
 g = t.Game()
-MAX = max_players()
-LOCAL_PLAYERS = symbol('?g_localPlayers@@') - 0x10000000 + module_base(g.pid)   # {byIndex[MAX], inOrder[MAX], count}
+players = plugin.LocalPlayers(g)
 f32 = lambda a: struct.unpack('<f', g.read(a, 4))[0]
-
-
-def players():
-    n = min(g.u32(LOCAL_PLAYERS + 8 * MAX), MAX)
-    return [g.u32(LOCAL_PLAYERS + 4 * k) for k in range(n)]
 
 
 def stage():

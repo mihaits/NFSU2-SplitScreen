@@ -3,35 +3,12 @@ python -I telemetry.py [interval_s=0.25] [seconds=0 (forever)]
 Per player: race stage, engine rpm (what the tach shows), shift-light rpm, gear, nitrous burning, grip used per wheel
 (FL FR RL RR, 1.0 = at the limit), wheels in the air (grip used 0), position, finished. Needs the plugin loaded (its local
 player array); reads only."""
-import ctypes, ctypes.wintypes as W, os, struct, sys, time
+import os, struct, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import paths, trainer as t
-
-k32 = ctypes.WinDLL('kernel32')
-class ME(ctypes.Structure):
-    _fields_ = [('dwSize', W.DWORD), ('id', W.DWORD), ('pid', W.DWORD), ('g', W.DWORD), ('p', W.DWORD),
-                ('base', ctypes.c_void_p), ('size', W.DWORD), ('h', W.HMODULE), ('name', ctypes.c_char * 256),
-                ('path', ctypes.c_char * 260)]
-
-def module_base(pid, name=b'nfsu2splitscreen.asi'):
-    snap = k32.CreateToolhelp32Snapshot(0x18, pid); e = ME(); e.dwSize = ctypes.sizeof(e)
-    ok = k32.Module32First(snap, ctypes.byref(e))
-    try:
-        while ok:
-            if e.name.lower() == name: return e.base
-            ok = k32.Module32Next(snap, ctypes.byref(e))
-    finally:
-        k32.CloseHandle(snap)
-
-def symbol(name):
-    """VA of a plugin global from the linker map (preferred base 0x10000000)."""
-    for line in open(os.path.join(os.path.dirname(paths.__file__), '..', 'build', 'NFSU2SplitScreen.map')):
-        if name in line: return int(line.split()[2], 16)
-    raise KeyError(name)
+import trainer as t, plugin
 
 g = t.Game()
-base = module_base(g.pid)
-LOCAL_PLAYERS = symbol('?g_localPlayers@@') - 0x10000000 + base   # struct { byIndex[4], inOrder[4], count }
+players = plugin.LocalPlayers(g)
 f32 = lambda a: struct.unpack('<f', g.read(a, 4))[0]
 STAGES = {0: 'none', 1: 'flyby', 2: 'prerace', 3: 'countdown', 4: 'racing'}
 
@@ -61,8 +38,7 @@ end = time.time() + float(sys.argv[2]) if len(sys.argv) > 2 and float(sys.argv[2
 while time.time() < end:
     try:
         mgr = g.u32(0x890118); stage = g.u32(mgr) if mgr else -1
-        n = min(g.u32(LOCAL_PLAYERS + 32), 4)
-        lines = [player_line(k, g.u32(LOCAL_PLAYERS + 4 * k)) for k in range(n)] if g.u32(0x8654A4) == 6 else []
+        lines = [player_line(k, p) for k, p in enumerate(players())] if g.u32(0x8654A4) == 6 else []
         print(f'{time.strftime("%H:%M:%S")} state {g.u32(0x8654A4)} stage {STAGES.get(stage, stage)} clock '
               f'{f32(0x7FB718):.2f}' + ''.join('\n  ' + s for s in lines), flush=True)
     except OSError as e:

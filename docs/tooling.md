@@ -10,6 +10,8 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
   - `opscan.py substr [lo hi]` finds instructions by operand text.
 - **Live process**:
   - `trainer.py` reads/writes memory and takes window screenshots.
+  - `plugin.py` (for tools): the loaded plugin's base, map symbols and `LocalPlayers` (its local player array; the
+    size comes from `MAX_LOCAL_PLAYERS` in the checkout's source, 4 on main, 6 on 6p-support).
   - `telemetry.py [interval] [seconds]` streams every local player's car values live (race stage, engine and
     shift-light rpm, gear, nitrous, grip used per wheel, wheels in the air, position, finished); read-only, needs the
     plugin loaded. The values the DualSense lights and triggers use.
