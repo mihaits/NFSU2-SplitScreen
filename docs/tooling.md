@@ -13,6 +13,11 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
   - `packages.py` lists the FE package cache.
   - `fe_objects.py <pkg>` dumps a package's object tree (flags, colour, texture key, position).
   - `strscan.py` / `ptrscan.py` search memory.
+  - `hwwatch.py addr[,addr..] [--size] [--rw] [--seconds] [--max] [--all]`: hardware data breakpoints (DR0-3 on every
+    game thread, attached as a debugger). Prints each new code site that writes (or reads) the address live, with
+    registers and the code addresses on the stack. Found the post-race fall-through reset (body position writer).
+    Stop it with Ctrl+C, never kill it: armed breakpoints without the debugger crash the game. Unlike the mailbox
+    write watch (cmd 5) it needs no plugin and also catches other threads (sound).
   - `minidump.py <dmp>` shows the exception, registers and code addresses on the stack (dumps land in
     `%LOCALAPPDATA%\CrashDumps`).
 - **Device loss / flicker log** (ini `Debug = 1`, `HookDeviceDebug`, installed from the first frame): logs Present
