@@ -20,7 +20,7 @@
     0x60D4F0: body 0x6317A2, lights 0x60D594, headlight pools 0x6154D3) hides every car the scene doesn't drive
     (mover car +0x28 != 5) until the scene releases its cars.
 - **Post-race scene (outro).** The picker is the intro's (0x436840, branch 1 = outros EndingNis01-04; random 0x43C1C0
-  at 0x436BC5). It binds its car tracks to race cars by car array index (table 0x827B9C, +0xC car index; binder
+  at 0x436BC5; with `Debug = 1` picks are logged and `[DEBUG] ForceOutro` forces one, see [tooling](tooling.md)). It binds its car tracks to race cars by car array index (table 0x827B9C, +0xC car index; binder
   0x4309D0 sets mover mode 5 = NISMvr) and drives the cars it doesn't feature to the world origin (body target via
   0x5A44A0 from NISMvr::Update 0x5AB3C0). With 3-4 players these can be human cars:
   - The fall-through check 0x5ECBA0 (below ground → car +0x96C = 1) reset the car onto the road every ~0.5 s (0x6009A0

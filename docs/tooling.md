@@ -39,11 +39,13 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
   | 5 | hardware write watch (logs the writer's code address and a stack scan) |
   | 6 | log SetViewport calls for N frames |
   | 7 | dump an IDirect3DSurface9* global to surfdump.raw |
+- **Scene picks** (ini `Debug = 1`, `InstallScenePicks` in `parts/intro.cpp`): every intro/outro pick is logged
+  ("scene pick: kind K, N candidates -> i"); `[DEBUG] ForceIntro` / `ForceOutro` = list index (-1 = random) force it.
 - **Automation**:
-  - `restart.sh` installs build/NFSU2SplitScreen.asi and launches the game.
-  - `boot.py` gets to the main menu.
+  - `restart.sh` kills the game (waits until it is gone), installs build/NFSU2SplitScreen.asi and launches the game.
+  - `boot.py` gets to the main menu (re-focusing the game and retrying while it loads).
   - `go_race_nointro.sh <mode>` starts a split race without the intro, joining players on virtual pads. Optional
-    `POKES="addr=value"`.
+    `POKES="addr=value"`; `INTRO=1` keeps the intro.
   - `go_1p.sh <mode>` starts a single-player race (a reference for comparisons).
   - `race_again.sh` starts the race again; `quit_race.py` quits to the menu.
   - `rec.py record|play` records and replays real pad input keyed to the active FE screens

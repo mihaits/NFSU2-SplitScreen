@@ -2,11 +2,12 @@
 # Restart the game and start a split race in quick race mode $1 (number of right presses in the mode list: 0 circuit,
 # 2 drag, 3 drift, 4 Street X ...), skipping the race intro (2P intro filter patched to reject every scene).
 # Players: the [DEBUG] ExtraPlayers default of the Players row (0 -> 2 players). P2..P4 join on virtual pads 2, 3, 0 (P1 = pad 1).
+# INTRO=1 keeps the race intro.
 # POKES="addr=value ..." (hex address, decimal value) are written right after boot, e.g. POKES="870CFC=1" (overbright).
 cd "$(dirname "$0")"
 sh restart.sh --noskip
 python -I boot.py 60 || exit 1
-python -I -c "import sys;sys.path.insert(0,'.');import trainer as t;g=t.Game();g.write(0x42FDA0,bytes([0x32,0xC0,0xC2,0x04,0x00]),code=True)"
+[ "$INTRO" = 1 ] || python -I -c "import sys;sys.path.insert(0,'.');import trainer as t;g=t.Game();g.write(0x42FDA0,bytes([0x32,0xC0,0xC2,0x04,0x00]),code=True)"
 python -I -c "import sys;sys.path.insert(0,'.');import trainer as t;g=t.Game();[g.w32(int(a,16),int(v)) for a,v in (x.split('=') for x in sys.argv[1:])]" $POKES
 python -I rec.py play start_to_split2p --from 3 --to 5 >/dev/null || exit 1
 sleep 1

@@ -5,7 +5,9 @@
 # sh restart.sh [--noskip]
 HERE="$(cd "$(dirname "$0")" && pwd)"
 GAME="$HERE"; until [ -f "$GAME/speed2.exe" ]; do [ "$GAME" = / ] && { echo "speed2.exe not found"; exit 1; }; GAME="$(dirname "$GAME")"; done
-taskkill //F //IM speed2.exe >/dev/null 2>&1; sleep 2
+taskkill //F //IM speed2.exe >/dev/null 2>&1
+for i in $(seq 50); do tasklist //FI "IMAGENAME eq speed2.exe" | grep -qi speed2 || break; sleep 0.2; done
+sleep 0.5   # the exe and the plugin stay locked for a moment after the process is gone
 cp "$HERE/../build/NFSU2SplitScreen.asi" "$GAME/scripts/" || exit 1
 rm -f "$GAME/scripts/NFSU2SplitScreen.log"
 explorer.exe "$(cygpath -w "$HERE/launch_game.bat")"

@@ -159,3 +159,37 @@ static void UpdateIntroHiding() {        // per frame
         g_introHideExtra = g_introSceneSeen = false;
     }
 }
+
+// Debug: scene picks. The scene picker 0x436840(kind, ...) draws each scene with the game's random 0x43C1C0(count)
+// (cdecl, 0..count-1 over the filtered list), one call per kind: 0 race intros (0x436A26), 1 post-race outros
+// EndingNis01-04 (0x436BC5), 2 (0x436CDF) and 4 (0x4370E3) the other kinds. With Debug = 1 every pick is logged, and
+// [DEBUG] ForceIntro / ForceOutro = list index (-1 = random) override kinds 0 / 1, to reproduce scene-specific bugs
+// (the black post-race world needed one 2-car outro). The random number is still drawn: the game's sequence is kept.
+#define FN_SCENE_RANDOM 0x43C1C0
+static const uintptr_t kScenePickSites[4] = {0x436A26, 0x436BC5, 0x436CDF, 0x4370E3};
+static const int kScenePickKind[4] = {0, 1, 2, 4};
+static int g_forceScene[4] = {-1, -1, -1, -1};
+static unsigned ScenePick(int site, unsigned count) {
+    unsigned pick = reinterpret_cast<unsigned(__cdecl*)(unsigned)>(FN_SCENE_RANDOM)(count);
+    int forced = g_forceScene[site];
+    if (forced >= 0 && unsigned(forced) < count) pick = forced;
+    Log("scene pick: kind %d, %u candidates -> %u%s", kScenePickKind[site], count, pick,
+        forced >= 0 ? (unsigned(forced) < count ? " (forced)" : " (forced index out of range)") : "");
+    return pick;
+}
+template <int Site> static unsigned __cdecl ScenePickAt(unsigned count) { return ScenePick(Site, count); }
+static void InstallScenePicks() {
+    if (!g_debug) return;
+    g_forceScene[0] = GetPrivateProfileIntA("DEBUG", "ForceIntro", -1, g_iniPath);
+    g_forceScene[1] = GetPrivateProfileIntA("DEBUG", "ForceOutro", -1, g_iniPath);
+    const void* hooks[4] = {&ScenePickAt<0>, &ScenePickAt<1>, &ScenePickAt<2>, &ScenePickAt<3>};
+    for (int i = 0; i < 4; ++i) {
+        uint8_t* at = reinterpret_cast<uint8_t*>(kScenePickSites[i]);
+        if (at[0] != 0xE8 || kScenePickSites[i] + 5 + *reinterpret_cast<int32_t*>(at + 1) != FN_SCENE_RANDOM) {
+            Log("scene pick: site %p not the expected call, not hooked", at);
+            continue;
+        }
+        WriteCall(kScenePickSites[i], hooks[i]);
+    }
+    Log("scene picks logged; forced intro %d, outro %d", g_forceScene[0], g_forceScene[1]);
+}

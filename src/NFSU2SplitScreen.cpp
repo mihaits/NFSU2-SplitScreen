@@ -157,6 +157,7 @@ static void Install(HMODULE self) {
     InstallCatchup();
     InstallHurry();
     InstallFreeRun();
+    InstallScenePicks();
     PatchViewUpdateLoop();
     Log("sound listener arrays relocated: %d refs", RelocateListenerArrays());
     WriteCall(AT_LISTENER_UPDATE_CALL, &ListenerUpdate);
