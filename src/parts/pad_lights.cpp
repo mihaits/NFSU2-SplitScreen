@@ -70,12 +70,13 @@ static bool ReadCarLight(void* player, float* t, bool* shiftLight, bool* nitrous
     }
 }
 
-// Finished (racer = *(car+0x1C), finished when *(float*)(racer+0x14) >= 1, position = *(u8*)(racer+0xA), 1-based).
+// Finished (player +0x50 != 0; racer progress +0x14 counts laps), position = *(u8*)(racer+0xA), 1-based, racer =
+// *(car+0x1C).
 static int FinishedPosition(void* player) {
     __try {
         auto* car = *reinterpret_cast<uint8_t**>(static_cast<uint8_t*>(player) + 4);
         auto* racer = car ? *reinterpret_cast<uint8_t**>(car + 0x1C) : nullptr;
-        if (racer && *reinterpret_cast<float*>(racer + 0x14) >= 1.0f) return racer[0xA] ? racer[0xA] : 99;
+        if (racer && *reinterpret_cast<int*>(static_cast<uint8_t*>(player) + 0x50)) return racer[0xA] ? racer[0xA] : 99;
     } __except (EXCEPTION_EXECUTE_HANDLER) {
     }
     return 0;

@@ -52,7 +52,7 @@ def player_line(k, p):
     grip = '/'.join(f'{f32(w + 0x170):.2f}' for w in wheels)
     air = ''.join('A' if f32(w + 0x170) < 0.005 else '-' for w in wheels)     # no load: grip used reads 0
     racer = g.u32(car + 0x1C)
-    pos = g.u8(racer + 0xA) if racer else 0; done = racer and f32(racer + 0x14) >= 1.0
+    pos = g.u8(racer + 0xA) if racer else 0; done = g.u32(p + 0x50) != 0      # racer +0x14 counts laps
     return (f'P{k + 1} rpm {rpm:6.0f} shift {shift or 0:6.0f} gear {gear} nos {"ON " if nos else "off"} '
             f'grip {grip} air {air} pos {pos}{" FIN" if done else ""}')
 
