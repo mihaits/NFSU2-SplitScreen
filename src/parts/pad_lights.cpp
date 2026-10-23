@@ -1,4 +1,4 @@
-// Part of NFSU2SplitScreen.cpp: DualSense lights (player LEDs, RPM lightbar; triggers follow in a later step).
+// Part of NFSU2SplitScreen.cpp: DualSense lights (player LEDs, lightbar) and adaptive triggers.
 // Included by NFSU2SplitScreen.cpp in a fixed order (one translation unit); not compiled on its own.
 
 // ---------------------------------------------------------------- player LEDs
@@ -111,6 +111,125 @@ static int ControllingPad() {
     return XPadLastActive();
 }
 
+// ---------------------------------------------------------------- adaptive triggers
+// While a player races (stage >= 4, not paused, not finished) the pad that drives them gets trigger effects from the
+// tyres' grip. Per wheel w = *(*(car+0x34) + 0x38 + 4*i) (0 FL, 1 FR, 2 RL, 3 RR): *(float*)(w+0x170) is the grip used
+// (request / limit, 1.0 = at the limit; all four < 0.005 = airborne, which never reads as the limit) and
+// *(float*)(w+0x124) the longitudinal force. Effects (modes of docs/input.md; never the calibration modes 0xFC..0xFE):
+//   L2 (brake): feedback from zone 2, strength 3; vibration (zone 2, amplitude 5, 35 Hz) while braking with the front axle at the limit (the rear reads 1.0
+//     when slow or stopped, so it isn't used; wheel speed *(float*)(w+0x28) must be above 15)
+//   R2 (throttle): feedback from zone 3, strength 2; vibration (zone 3, amplitude 4, 25 Hz) while the driven wheels
+//     are at the limit (wheelspin); (zone 2, amplitude 3, 60 Hz) at the shift-light rpm; feedback strength 8 for the
+//     first 300 ms of a nitrous burn
+// "At the limit" = grip >= 0.98 for 50 ms, released after 100 ms below, so a one-frame kerb spike doesn't buzz.
+// Driven wheels: the axle with the larger longitudinal force, all four if both axles are within 10%.
+// Anything else (menus, countdown, pause, finish, [LIGHTS] AdaptiveTriggers = 0) sends Off on both triggers.
+static bool g_adaptiveTriggers = true;    // [LIGHTS] AdaptiveTriggers
+static int  g_triggerStrength = 100;      // [LIGHTS] TriggerStrength, percent
+
+static bool ReadWheels(void* player, float grip[4], float force[4], float speed[4]) {
+    __try {
+        auto* car = *reinterpret_cast<uint8_t**>(static_cast<uint8_t*>(player) + 4);
+        auto* mover = car ? *reinterpret_cast<uint8_t**>(car + 0x34) : nullptr;
+        if (!mover) return false;
+        for (int i = 0; i < 4; ++i) {
+            auto* w = *reinterpret_cast<uint8_t**>(mover + 0x38 + 4 * i);
+            if (!w) return false;
+            grip[i] = *reinterpret_cast<float*>(w + 0x170);
+            force[i] = *reinterpret_cast<float*>(w + 0x124);
+            speed[i] = *reinterpret_cast<float*>(w + 0x28);
+        }
+        return true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+}
+
+struct Hold { DWORD onSince, offSince; bool active; };
+static bool HoldUpdate(Hold& h, bool raw, DWORD now) {
+    if (raw) {
+        h.offSince = 0;
+        if (!h.onSince) h.onSince = now;
+        if (now - h.onSince >= 50) h.active = true;
+    } else {
+        h.onSince = 0;
+        if (h.active) {
+            if (!h.offSince) h.offSince = now;
+            if (now - h.offSince >= 100) h.active = false;
+        }
+    }
+    return h.active;
+}
+
+static int TrigScale(int v) {
+    int s = v * g_triggerStrength / 100;
+    return v > 0 && s < 1 ? 1 : s > 8 ? 8 : s;
+}
+static void TrigOff(uint8_t* b) { memset(b, 0, 11); b[0] = 0x05; }
+static void TrigPack(uint8_t* b, int start, int v) {      // zones start..9, strength / amplitude v-1 in 3 bits each
+    uint16_t act = 0;
+    uint32_t f = 0;
+    for (int i = start; i < 10; ++i) { act |= 1u << i; f |= static_cast<uint32_t>((v - 1) & 7) << (3 * i); }
+    b[1] = act & 0xFF; b[2] = act >> 8; b[3] = f & 0xFF; b[4] = f >> 8; b[5] = f >> 16; b[6] = f >> 24;
+}
+static void TrigFeedback(uint8_t* b, int start, int strength) {
+    int v = TrigScale(strength);
+    memset(b, 0, 11);
+    if (v <= 0) { TrigOff(b); return; }
+    b[0] = 0x21;
+    TrigPack(b, start, v);
+}
+static void TrigVibration(uint8_t* b, int start, int amp, int hz) {
+    int v = TrigScale(amp);
+    memset(b, 0, 11);
+    if (v <= 0 || hz <= 0) { TrigOff(b); return; }
+    b[0] = 0x26;
+    TrigPack(b, start, v);
+    b[9] = static_cast<uint8_t>(hz);
+}
+
+// player k (>= 0) races with this pad now; -1 = no effects
+static void UpdatePadTriggers(int pad, int k) {
+    uint8_t left[11], right[11];
+    TrigOff(left);
+    TrigOff(right);
+    void* player = k >= 0 && g_adaptiveTriggers ? GetLocalPlayer(k) : nullptr;
+    static Hold brakeHold[MAX_LOCAL_PLAYERS], spinHold[MAX_LOCAL_PLAYERS];
+    static DWORD nosStart[MAX_LOCAL_PLAYERS];
+    static bool nosWas[MAX_LOCAL_PLAYERS];
+    float grip[4], force[4], speed[4], t;
+    bool shiftLight, nitrous;
+    if (player && ReadWheels(player, grip, force, speed) && ReadCarLight(player, &t, &shiftLight, &nitrous)) {
+        DWORD now = GetTickCount();
+        uint16_t buttons;
+        uint8_t lt = 0, rt = 0;
+        int16_t lx;
+        XPadRawState(pad, &buttons, &lt, &rt, &lx);
+        bool airborne = grip[0] < 0.005f && grip[1] < 0.005f && grip[2] < 0.005f && grip[3] < 0.005f;
+        float maxGrip = 0;
+        for (float g : grip) if (g > maxGrip) maxGrip = g;
+        // braking limit: the front axle (the rear reads 1.0 whenever the car is slow or standing still); needs speed
+        float frontGrip = grip[0] > grip[1] ? grip[0] : grip[1], frontSpeed = (speed[0] + speed[1]) * 0.5f;
+        float front = fabsf(force[0]) + fabsf(force[1]), rear = fabsf(force[2]) + fabsf(force[3]);
+        float drivenGrip = maxGrip;                                 // both axles within 10%: all four
+        if (fabsf(front - rear) > 0.1f * (front > rear ? front : rear))
+            drivenGrip = front > rear ? (grip[0] > grip[1] ? grip[0] : grip[1]) : (grip[2] > grip[3] ? grip[2] : grip[3]);
+        bool braking = HoldUpdate(brakeHold[k], !airborne && lt > 40 && frontGrip >= 0.98f && frontSpeed > 15.0f, now);
+        bool spinning = HoldUpdate(spinHold[k], !airborne && rt > 40 && drivenGrip >= 0.98f, now);
+        if (nitrous && !nosWas[k]) nosStart[k] = now;
+        nosWas[k] = nitrous;
+        TrigFeedback(left, 2, 3);
+        TrigFeedback(right, 3, 2);
+        if (!airborne) {
+            if (braking) TrigVibration(left, 2, 5, 35);
+            if (nitrous && now - nosStart[k] < 300) TrigFeedback(right, 0, 8);
+            else if (shiftLight && rt > 40) TrigVibration(right, 2, 3, 60);
+            else if (spinning) TrigVibration(right, 3, 4, 25);
+        }
+    }
+    XPadSetTriggers(pad, left, right);
+}
+
 static void UpdatePadLights() {
     int state = at<int>(GAME_STATE);
     // Game state 3 is the frontend (menus before and after a race), 4/5 loading, 6 racing and results, 7/1 the way back.
@@ -188,5 +307,12 @@ static void UpdatePadLights() {
             } else CarLightbar(k, rgb);
         }
         XPadSetLights(pad, rgb, leds);
+        int drives = -1;                   // local player this pad drives, while it races and isn't paused or finished
+        if (racing && !paused) {
+            if (SplitMode()) { for (int q = 0; q < MAX_LOCAL_PLAYERS; ++q) if (g_assignedPad[q] == pad) drives = q; }
+            else if (pad == XPadLastActive()) drives = 0;
+            if (drives >= 0 && FinishedPosition(GetLocalPlayer(drives))) drives = -1;
+        }
+        UpdatePadTriggers(pad, drives);
     }
 }

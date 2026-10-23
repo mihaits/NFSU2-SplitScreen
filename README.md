@@ -38,7 +38,6 @@ options of whoever paused.
 - [ ] Session results: standings across back-to-back races
 - [ ] Replays of split-screen races
 - [ ] Rear-view mirror in the bumper and hood cameras, like single player
-- [ ] DualSense: race lights and adaptive triggers (native input and rumble work)
 - [ ] Maybe: everyone picking a car at once; press START to join at any time
 
 This is an alpha, so expect the odd bug. If you hit one, please
@@ -52,6 +51,8 @@ and attach `scripts\NFSU2SplitScreen.log` (set `Debug = 1` in the ini to write i
 |---|---|---|
 | `Rumble` | 1 | controller rumble |
 | `RumbleStrength` | 100 | rumble strength (%) |
+| `AdaptiveTriggers` | 1 | DualSense triggers: resistance, grip-limit / limiter buzz, nitrous kick |
+| `TriggerStrength` | 100 | trigger effect strength (%) |
 | `Lightbar` | 1 | DualSense lightbar shows engine rpm / nitrous while racing |
 | `PlayerLeds` | 1 | DualSense player LEDs show the player number |
 | `NativeDualSense` | 1 | DualSense pads without DS4Windows (off while DS4Windows's virtual pad is active) |

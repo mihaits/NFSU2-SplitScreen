@@ -48,6 +48,21 @@ Race types (0x83AAB4): 0/1/7 circuit/sprint/lap KO, 2 drag, 3 drift, 4 URL, 5/10
 | 0x8364D4 | minimap manager |
 | 0x7F4460 / 0x7F446C | quick race options screen / Free Run screen |
 
+Car and race values the DualSense lights and triggers read (`parts/pad_lights.cpp`; `car = *(player + 4)`):
+
+| address | meaning |
+|---|---|
+| car +0x440 | wheel-driven engine rpm; the tach's rpm is `*(*(car+0x968) + 0x58)` (not drag/drift, spec +4 == 1, spec +0x900 == 0, spec = `*(car+0x14)`) |
+| `*(car+0x20)` +0x1F0 / +0x1F4 | idle / max rpm |
+| car +0x434 | gear: 0 reverse, 1 neutral, 2 = 1st |
+| `*(*(car+0x34)+0x4C)` | drivetrain: +0x84 + 4*gear up-shift rpm, +0xE4 and +0xF0 shift-light factors; shift rpm = up - `*(float*)0x7FBF5C` * `*(float*)(0x7FBF60 + 4*(gear + 9**(drv+0xF0)))` * `*(float*)(drv+0xE4)` (tach shift light 0x4C6ACF..0x4C6B45) |
+| car +0x460 | nitrous burn start time (0 / 0x7FFFFFFF = off); nitrous object at car +0x40 (+0x41C remaining, +0x418 capacity) |
+| `*(car+0x34)` +0x38 + 4*i | wheels (0 FL, 1 FR, 2 RL, 3 RR): +0x170 grip used (1.0 = at the limit, 0 on all four = airborne), +0x124 longitudinal force, +0x28 angular speed. The rear reads 1.0 when slow or stopped. |
+| `*(car+0x1C)` (racer) | +0x14 progress (>= 1 finished), +0xA position (1-based) |
+| `**(int**)0x890118` | race stage: 0 none, 1 flyby, 2 prerace, 3 countdown (3.0 s), 4 racing |
+| 0x7FB718 | game clock (seconds) |
+| 0x8654A4 | game state: 3 frontend, 4/5 loading, 6 race (results included) |
+
 The game reads graphics options from the per-user VirtualStore registry copy
 (`HKCU\Software\Classes\VirtualStore\MACHINE\SOFTWARE\WOW6432Node\EA Games\Need for Speed Underground 2`). If you
 launch it from an elevated shell, HKLM is read instead and the settings differ.

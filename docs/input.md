@@ -59,6 +59,13 @@ controllers are hidden (ini). Pads 0..3 are the real XInput pads, 4..7 debug pad
   colours out: P1 (0, 255, 0), P2 (255, 0, 0), P3 (0, 64, 255), P4 (255, 150, 0)), kept per seat until the game closes. In other
   situations the
   bar keeps a dim blue until the pause, countdown, finish and player-colour steps.
+- **Adaptive triggers (`[LIGHTS] AdaptiveTriggers`, `TriggerStrength`):** while a player races with the pad (not paused,
+  not finished) L2 has light resistance and buzzes (35 Hz) while braking with the front tyres at their grip limit (above a minimum wheel speed; the rear tyres read
+  1.0 whenever the car is slow or stopped, so they aren't used); R2 has light
+  resistance, buzzes at 25 Hz in wheelspin (driven wheels at the limit), at 60 Hz at the rev limiter (shift-light rpm) and
+  pushes harder for the first 300 ms of a nitrous burn. The grip signal (`wheel+0x170`, 1.0 = at the limit, 0 on all four
+  wheels = airborne) and the hold times are described in `parts/pad_lights.cpp`. Everything else sends Off. Only the
+  official trigger modes are used (0x05 off, 0x21 feedback, 0x26 vibration); 0xFC..0xFE break the trigger.
 - Tested with one DualSense; two native pads are untested.
 
 **Pad resolver (`PadForDevice`).**
