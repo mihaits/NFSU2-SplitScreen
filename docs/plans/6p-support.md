@@ -146,7 +146,7 @@ Tested with `[DEBUG] ExtraPlayers = 2` + `CloneViews = 1/2` (views 7/8 on P1/P2'
 in the 5-view layout a white line crossed P3's minimap (narrower cell). Was: test with `[DEBUG] ExtraPlayers = 3/4`: all 6 views draw the world, sky, rain, headlights,
 reflections, glares. Measure FPS and memory here.
 
-### 4. Racers and players 5/6
+### 4. Racers and players 5/6 (done for debug `ExtraPlayers = 3/4`: 5P/6P circuit, 75 fps, 858 MB virtual)
 - `CreateHumanRacers`: the second pass covers players 3..6; `RacerSpecIndexShift` shifts by 2/4 (spec index =
   player index), car and name per seat (`g_extraNames` "Player 5/6"), skins DUMMY_SKIN5/6 (`ExtraRacerSkin`);
   `AiSetSkin` starts the AI after every human.

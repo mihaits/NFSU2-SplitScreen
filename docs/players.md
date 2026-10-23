@@ -9,19 +9,22 @@ hung.
 
 **Human racers.** 0x525ED0(numPlayers) creates human racers (racer spec ctor 0x6373E0(spec; playerIndex, human, car,
 profile, ...), AddRacer 0x601600; AddRacer stops at 2 humans). Its 8 call sites → `CreateHumanRacers`: the original,
-then a second pass for the extra players with `RacerSpecIndexShift` (call 0x52602A), which shifts playerIndex by 2 and
-uses P3/P4's car and name. The human component manager capacity (type 1) imm at 0x4856C8 is raised from 2 to 4.
+then one more pass per pair of extra players (P3/P4, P5/P6) with `RacerSpecIndexShift` (call 0x52602A), which shifts
+playerIndex by `g_extraRacerShift` (2 or 4) and uses that seat's car and name (`g_extraNames[index - 2]`, skin
+DUMMY_SKIN<index + 1>). The human component manager capacity (type 1) imm at 0x4856C8 is raised from 2 to
+`MAX_LOCAL_PLAYERS`. 6 humans fill the 6 start spots (Opponents row max = max racers - players).
 
 **Racer of player.** 0x5ED960(index) reads the race's 3 human slots, so `RacerOfPlayer` sends index >= 2 directly to
 0x5ED920 (find racer by player index).
 
-**Players.** The call at 0x60A798 → `CreatePlayers`. After the original, for each extra player k = 2..3:
+**Players.** The call at 0x60A798 → `CreatePlayers`. After the original, for each extra player k = 2..5:
 1. racer 0x5ED920(0x89E7A0, k); car = race car list [0x890080] entry with short +0xA == k;
-2. `InitPlayerView(5/6)` and its own camera (malloc 0x320 + 0x44F5A0). This must happen before the player: camera
+2. `InitPlayerView(5..8)` and its own camera (malloc 0x320 + 0x44F5A0). This must happen before the player: camera
    movers (0x44AB90) read view->camera.
-3. The player is allocated (0x9C0 bytes) and built with ctor 0x5F1670(port, k & 1). It's built as P1/P2 so that a
+3. The player is allocated (0x9C0 bytes) and built with ctor 0x5F1670(port, k & 1). Port = k, but P5/P6 use port
+   0/1 (P1's / P2's input) until input ports 4/5 exist (`INPUT_PORTS`, step 6 of the 6P plan). It's built as P1/P2 so that a
    loaded 2P HUD package is used.
-4. byIndex is fixed up; +0x10 = k, +0x18 = view 5/6, +0x1C = 0 (no mirror); `0x5F3E10(player, car)` attaches it.
+4. byIndex is fixed up; +0x10 = k, +0x18 = view 5..8, +0x1C = 0 (no mirror); `0x5F3E10(player, car)` attaches it.
 
 **Per-player settings.** Table 0x83AA64 + i*0x28 has 2 entries (camera +0x10, Feedback +4, HUD options, ...), so P3
 read race data as its settings (e.g. camera 0 instead of P1's drift camera). The 27 in-race readers (kSettingsReaders)

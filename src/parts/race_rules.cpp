@@ -136,7 +136,8 @@ static void __cdecl CreatePlayers() {
         }
         auto* player = static_cast<uint8_t*>(reinterpret_cast<void*(__cdecl*)(size_t)>(FN_MALLOC)(0x9C0));
         if (!player) continue;
-        int port = idx;                                          // input port 2/3 (PollExtraPort)
+        int port = idx < INPUT_PORTS ? idx : idx & 1;            // input port 2/3 (PollExtraPort); P5/P6 share
+                                                                 // P1's / P2's until they get theirs
         // constructed as player 1/2 so the ctor picks P1's / P2's 2P HUD package (PlayerHudCtor clones it for this
         // player), then re-indexed
         void* twin = g_localPlayers.byIndex[idx & 1];

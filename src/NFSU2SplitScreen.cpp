@@ -86,7 +86,7 @@ static void LoadConfig(HMODULE self) {
     g_quadTest = GetPrivateProfileIntA("DEBUG", "QuadTest", 0, path) != 0;
     g_extraPlayers = GetPrivateProfileIntA("DEBUG", "ExtraPlayers", 0, path);
     if (g_extraPlayers < 0) g_extraPlayers = 0;
-    if (g_extraPlayers > SPLIT_PLAYERS_MAX - 2) g_extraPlayers = SPLIT_PLAYERS_MAX - 2;
+    if (g_extraPlayers > MAX_EXTRA_PLAYERS) g_extraPlayers = MAX_EXTRA_PLAYERS;   // debug: 5/6 even past the Players row
     g_splitPlayers = 2 + g_extraPlayers;                                                      // debug default
     g_cloneViews = GetPrivateProfileIntA("DEBUG", "CloneViews", 0, path);
     if (g_cloneViews < 0) g_cloneViews = 0;

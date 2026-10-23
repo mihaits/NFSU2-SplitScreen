@@ -41,8 +41,10 @@ UI_PauseOptions, UI_PauseOptionsMain or UI_PC_Customize_Options is active (`g_hu
 - The player ctor 0x5F1670 picks 2PHudTop/2PHudBot (+_DRAG/_DRIFT/_OUTRUN) by index when NUM_PLAYERS == 2. The HUD
   ctor 0x4F8BF0(fng, index) (call 0x5F1A0C, `PlayerHudCtor`) builds the same element classes for every package. The
   elements bind to the package's objects by name and read player data by index.
-- **Package copies** (`CloneFePackage`): players 3/4 (and the quad layout's P2/P4, which use a copy of the *Top*
-  variant) get private copies registered under a name of the same length ("2PHudTop" → "2PHudTo3").
+- **Package copies** (`CloneFePackage`): players 3..6 (and in quadrants / the grid P2/P4/P6, which use a copy of the
+  *Top* variant) get private copies registered under a name of the same length ("2PHudTop" → "2PHudTo3").
+- Minimap: `MinimapUpdate` only centres on players with a car entity (P1-P4; centring on P5/P6's missing entity
+  crashed at 0x4AC2B3). P5/P6's markers and minimaps: step 7 of the 6P plan.
 - How a copy is made: the cache entry's chunk is either JDLZ-compressed (0x30210; block at hdr+0xC, uncompressed size at
   +8) or stored (0x30203). The copy is always a **stored** chunk: compressed ones are decompressed with
   0x574670(jdlz, out). The name is patched only in the FNG header: the name at +0x28 (the cache finds packages by it)

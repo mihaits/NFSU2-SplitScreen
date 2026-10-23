@@ -98,9 +98,9 @@ static void CreateGauges(int k, void* hud);
 static void* __fastcall PlayerHudCtor(void* hud, void* edx, const char* fng, int index) {
     using CtorFn = void*(__fastcall*)(void*, void*, const char*, int);
     int who = g_hudCloneFor >= 2 ? g_hudCloneFor : index;
-    // quadrants (3-4 players): every player gets the top-half layout, so P2/P4 build theirs from a copy of P1's
-    // "2PHudTop..." instead of the bottom-half "2PHudBot..." (same variant); P3 from a copy of P1's as before
-    bool quad = g_extraPlayers > 0 && (who == 1 || who == 3);
+    // quadrants / grid (3-6 players): every player gets the top-half layout, so P2/P4/P6 build theirs from a copy of
+    // P1's "2PHudTop..." instead of the bottom-half "2PHudBot..." (same variant); P3/P5 from a copy of P1's as before
+    bool quad = g_extraPlayers > 0 && (who & 1);
     if (((who >= 2 && who == g_hudCloneFor) || quad) && who < MAX_LOCAL_PLAYERS && fng) {
         char src[64];
         strncpy_s(src, fng, _TRUNCATE);

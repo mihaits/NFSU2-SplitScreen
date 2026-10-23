@@ -67,6 +67,7 @@ static void __fastcall MinimapUpdate(uint8_t* mgr, void*) {
     g_mmPlayers = 0;
     if (!n) { update(mgr, nullptr); return; }
     ExtendMinimapManager(mgr);
+    while (n > 2 && !g_mmExtraIcon[n - 3]) --n;      // centring on a player without a car entity crashed (0x4AC2B3)
     for (int i = 0; i < MAX_EXTRA_PLAYERS && i < g_extraPlayers; ++i)
         if (uint8_t* icon = g_mmExtraIcon[i]) {
             auto* data = *reinterpret_cast<uint32_t**>(icon + 0x2C);

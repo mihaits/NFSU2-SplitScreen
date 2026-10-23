@@ -89,7 +89,7 @@ static void ApplySplitLayout() {
         HookDeviceSetViewport();
         int w = at<int>(SCREEN_W), h = at<int>(SCREEN_H);
         bool quad = g_quadTest || g_extraPlayers > 0 || g_cloneViews > 0;
-        g_screenViews = !quad ? 2 : g_extraPlayers == 1 ? 3 : 4;      // 3 players: bottom-right quadrant empty
+        g_screenViews = !quad ? 2 : g_extraPlayers > 0 ? 2 + g_extraPlayers : 4;   // QuadTest: 4
         if (g_cloneViews > 0) g_screenViews = 2 + g_extraPlayers + g_cloneViews;
         if (g_screenViews > MAX_LOCAL_PLAYERS) g_screenViews = MAX_LOCAL_PLAYERS;
         for (int k = 0; k < g_screenViews; ++k) {

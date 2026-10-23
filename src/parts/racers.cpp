@@ -79,7 +79,7 @@ static __declspec(naked) void EmitterRangeHook() {
 #define AT_HUMAN_MANAGER_CAP 0x4856C8    // imm8 of `push 2`: capacity of the per-human-racer component manager
 static const uintptr_t kCreateHumanRacersCalls[] = {0x53F2B5, 0x53F800, 0x53FA03, 0x52694E, 0x53F4E3, 0x53FB8B,
                                                     0x526814, 0x53F656};
-static bool g_extraRacerPass = false;
+static int g_extraRacerShift = 0;        // during the extra racer passes: 2 (players 3/4) or 4 (players 5/6)
 static void* g_extraCamera[MAX_LOCAL_PLAYERS];
 
 static void PrepareExtraNames();
@@ -99,21 +99,24 @@ static void __cdecl CreateHumanRacers(int count, int p2, int p3) {
         if (SplitOpponents()) Log("race: %d AI opponents", SplitOpponents());
     }
     reinterpret_cast<Fn>(FN_CREATE_HUMAN_RACERS)(count, p2, p3);
-    int extra = g_extraPlayers < 2 ? g_extraPlayers : 2;
+    int extra = g_extraPlayers < MAX_EXTRA_PLAYERS ? g_extraPlayers : MAX_EXTRA_PLAYERS;
     if (count != 2 || extra <= 0) return;
-    // second pass over players 0..extra-1 with the spec's player index shifted by 2 (RacerSpecIndexShift):
-    // same profile, car and port as players 1/2
+    // more passes over players 0..1, one per pair, with the spec's player index shifted by 2 (players 3/4) or 4
+    // (players 5/6) (RacerSpecIndexShift): same profile, car and port as players 1/2
     int ownCar[2] = {at<int>(CAR_IDS), at<int>(CAR_IDS + 4)};
-    for (int k = 0; k < extra; ++k)
-        if (g_seatCar[2 + k]) at<int>(CAR_IDS + k * 4) = g_seatCar[2 + k];   // picked on the car select
-    Log("extra racers: cars %08X %08X (players 1/2: %08X %08X)", at<int>(CAR_IDS), at<int>(CAR_IDS + 4), ownCar[0],
-        ownCar[1]);
     Log("race: type %d (0x83AAB4), track %d (0x89E7A0), qr type %d (0x850088), racers %d", at<int>(0x83AAB4),
         at<int>(RACE_PARAMS), at<int>(0x850088), at<int>(RACE_PARAMS + 0x74));
     PrepareExtraNames();
-    g_extraRacerPass = true;
-    reinterpret_cast<Fn>(FN_CREATE_HUMAN_RACERS)(extra, p2, p3);
-    g_extraRacerPass = false;
+    for (int shift = 2; shift < 2 + extra; shift += 2) {
+        int n = 2 + extra - shift < 2 ? 2 + extra - shift : 2;
+        for (int k = 0; k < 2; ++k)                                       // picked on the car select
+            at<int>(CAR_IDS + k * 4) = k < n && g_seatCar[shift + k] ? g_seatCar[shift + k] : ownCar[k];
+        Log("extra racers %d..%d: cars %08X %08X (players 1/2: %08X %08X)", shift + 1, shift + n, at<int>(CAR_IDS),
+            at<int>(CAR_IDS + 4), ownCar[0], ownCar[1]);
+        g_extraRacerShift = shift;
+        reinterpret_cast<Fn>(FN_CREATE_HUMAN_RACERS)(n, p2, p3);
+        g_extraRacerShift = 0;
+    }
     at<int>(CAR_IDS) = ownCar[0];
     at<int>(CAR_IDS + 4) = ownCar[1];
     Log("extra human racers added: %d (racers now %d)", extra, at<int>(RACE_PARAMS + 0x74));
@@ -319,11 +322,12 @@ static void __fastcall AiSetSkin(void* ride, void*, int n) {
 }
 static __declspec(naked) void RacerSpecIndexShift() {
     __asm {
-        cmp g_extraRacerPass, 0
+        cmp g_extraRacerShift, 0
         je ctor
-        add dword ptr [esp + 4], 2       // playerIndex (first stack argument)
+        mov eax, g_extraRacerShift
+        add dword ptr [esp + 4], eax     // playerIndex (first stack argument)
         mov eax, dword ptr [esp + 4]
-        and eax, 1
+        sub eax, 2                       // g_extraNames[playerIndex - 2]
         shl eax, 4
         add eax, offset g_extraNames
         mov dword ptr [esp + 0x10], eax  // name (4th argument)
