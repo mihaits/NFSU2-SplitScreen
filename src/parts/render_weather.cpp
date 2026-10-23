@@ -43,7 +43,7 @@ static __declspec(naked) void RainCarHook() {
 }
 static int __fastcall WeatherSlotOfView(int id) {
     for (int k = 2; k < MAX_LOCAL_PLAYERS; ++k)
-        if (id == kPlayerViewId[k]) return k - 2;
+        if (id == kPlayerViewId[k]) return (k - 2) & 1;      // views 7/8 share slots 0/1 with views 5/6
     return id - 1;
 }
 static __declspec(naked) void RainRegionSlot() {
@@ -127,6 +127,7 @@ static void __cdecl RainDropsForViews(int arg) {
 }
 
 static void HeadlightsForPlayer(int k) {
+    k = ViewPlayer(k);
     View& v9 = GetView(9);
     if (!at<int>(OPT_CAR_HEADLIGHTS) || !v9.active || !v9.camera || !v9.platInfo) return;
     int* slot0 = reinterpret_cast<int*>(HUMAN_RACER_SLOTS);
@@ -135,7 +136,7 @@ static void HeadlightsForPlayer(int k) {
     reinterpret_cast<void(__cdecl*)(View*, int)>(FN_HEADLIGHT_CAMERA)(&v9, 0);
     *slot0 = saved;
     reinterpret_cast<void(__thiscall*)(void*, View*, int, int, int)>(FN_VIEW_UPDATE)(v9.platInfo, &v9, 0, 0, 0);
-    RecullHeadlightView(v9);
+    RecullWorldEntry(v9);
 }
 
 // Road reflections: view 4 renders the scene from player 1's camera (it shares view 1's camera object) into a 320x240
@@ -219,7 +220,7 @@ static void RenderRoadReflection(int k) {
     v4.camera = GetView(kPlayerViewId[k]).camera;
     g_reflectionPlayer = k;
     reinterpret_cast<void(__thiscall*)(void*, View*, int, int, int)>(FN_VIEW_UPDATE)(v4.platInfo, v, 0, 0, 0);
-    RecullHeadlightView(v4);
+    RecullWorldEntry(v4);
     reinterpret_cast<void(__cdecl*)(RenderTarget*, int)>(FN_RT_BEGIN)(v4.rt, 1);
     if (opt > 1) {
         reinterpret_cast<void(__thiscall*)(void*, View*, int)>(FN_WORLD_DRAW)(g_worldViews, v, 8);
@@ -245,7 +246,7 @@ static void RenderRoadReflection(int k) {
 #define AT_REFLECT_CAR_DONE  0x6312B0    // esi = local player, eax = racer id
 void* GetLocalPlayer(int k);
 static void* __fastcall ReflectedCarPlayer(int viewId, int* racer) {
-    int k = viewId == 4 ? g_reflectionPlayer : 1;
+    int k = viewId == 4 ? ViewPlayer(g_reflectionPlayer) : 1;
     *racer = RacerIdOfPlayer(k);
     return GetLocalPlayer(k);
 }
@@ -312,7 +313,7 @@ static void* __fastcall NosFxPlayer(int viewId) {
     int k = viewId == 1 ? 0 : 1;
     for (int i = 0; i < MAX_LOCAL_PLAYERS; ++i)
         if (viewId == kPlayerViewId[i]) k = i;
-    return LocalPlayerInOrder(k);
+    return LocalPlayerInOrder(ViewPlayer(k));
 }
 static __declspec(naked) void NosFxPlayerHook() {
     __asm {

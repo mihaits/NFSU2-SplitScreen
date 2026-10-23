@@ -88,14 +88,16 @@ static void ApplySplitLayout() {
     if (SplitRacing()) {
         HookDeviceSetViewport();
         int w = at<int>(SCREEN_W), h = at<int>(SCREEN_H);
-        bool quad = g_quadTest || g_extraPlayers > 0;
+        bool quad = g_quadTest || g_extraPlayers > 0 || g_cloneViews > 0;
         g_screenViews = !quad ? 2 : g_extraPlayers == 1 ? 3 : 4;      // 3 players: bottom-right quadrant empty
+        if (g_cloneViews > 0) g_screenViews = 2 + g_extraPlayers + g_cloneViews;
+        if (g_screenViews > MAX_LOCAL_PLAYERS) g_screenViews = MAX_LOCAL_PLAYERS;
         for (int k = 0; k < g_screenViews; ++k) {
             View& v = GetView(kPlayerViewId[k]);
             if (k >= 2) {
                 InitPlayerView(kPlayerViewId[k]);
-                if (g_extraPlayers > 0) { if (void* c = ExtraCamera(k)) v.camera = static_cast<decltype(v.camera)>(c); }
-                else v.camera = GetView(kPlayerViewId[k - 2]).camera;   // QuadTest: reuse P1/P2's cameras
+                if (k < 2 + g_extraPlayers) { if (void* c = ExtraCamera(k)) v.camera = static_cast<decltype(v.camera)>(c); }
+                else v.camera = GetView(kPlayerViewId[ViewPlayer(k)]).camera;   // debug views: P1/P2's cameras
             }
             g_rt[k] = *bb;               // refresh every frame: surfaces change after a device reset
             g_rt[k].ownerView = kPlayerViewId[k];
@@ -122,7 +124,7 @@ static void ApplySplitLayout() {
         GetView(9).active = 1;
     } else {
         g_screenViews = 2;
-        g_viewTintInit[0] = g_viewTintInit[1] = false;      // per-race copies (they point into track data)
+        memset(g_viewTintInit, 0, sizeof(g_viewTintInit));   // per-race copies (they point into track data)
         View& v1 = GetView(1);
         if (v1.rt == &g_rt[0]) v1.rt = bb;
         for (int k = 1; k < MAX_LOCAL_PLAYERS; ++k) {
@@ -268,7 +270,7 @@ static void __cdecl LayoutApplyHook() {
 #define FN_WORLD_CULL_ENTRY    0x5E99C0  // void __thiscall (world; entry)
 #define WORLD_SECTION_MODE     0x800DF8
 #define WORLD_SECTION_MASK     0x8832C0
-static void RecullHeadlightView(View& v9) {
+static void RecullWorldEntry(View& v9) {
     uint8_t* world = g_worldViews;
     if (!world || !v9.camera) return;
     int n = *reinterpret_cast<int*>(world + WORLD_VIEW_COUNT);
@@ -308,6 +310,7 @@ static void RecullHeadlightView(View& v9) {
 // Every player's car has a projector (WorldDrawWithBeams, also in the full screen race intro), so no player car gets
 // a pool: their lights flags are off during the call. Traffic keeps its pools, as in single player.
 static uint8_t* PlayerCar(int k) {
+    k = ViewPlayer(k);
     int id = k < 2 ? reinterpret_cast<const int*>(HUMAN_RACER_SLOTS)[k] : k;
     uint8_t* mgr = at<uint8_t*>(0x890080);
     if (!mgr) return nullptr;

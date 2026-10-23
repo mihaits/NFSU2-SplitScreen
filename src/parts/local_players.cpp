@@ -110,15 +110,15 @@ static __declspec(naked) void TintIndexHook() {
 #define TINT_TABLE_NIGHT   0x88F210
 #define TINT_ENTRY_SIZE    0x30
 static void* g_origTintUpdate;
-static uint8_t g_viewTint[2][2][TINT_ENTRY_SIZE];  // [view 5/6][sunrise, night]
+static uint8_t g_viewTint[4][2][TINT_ENTRY_SIZE];  // [view 5..8][sunrise, night]
 static void __cdecl TintUpdateWrapper(int index, uint8_t* ctx) {
     auto call = reinterpret_cast<void(__cdecl*)(int, uint8_t*)>(g_origTintUpdate);
     uint8_t* view = ctx ? *reinterpret_cast<uint8_t**>(ctx) : nullptr;
     int id = view ? *reinterpret_cast<int*>(view + 4) : 0;
-    if (id != 5 && id != 6) { call(index, ctx); return; }
-    int v = id - 5;
-    uint8_t* entry[2] = {reinterpret_cast<uint8_t*>(TINT_TABLE_SUNRISE) + v * TINT_ENTRY_SIZE,
-                         reinterpret_cast<uint8_t*>(TINT_TABLE_NIGHT) + v * TINT_ENTRY_SIZE};
+    if (id < 5 || id > 8) { call(index, ctx); return; }
+    int v = id - 5, slot = (id - 1) & 1;          // the game's entry the view reads (TintIndexHook)
+    uint8_t* entry[2] = {reinterpret_cast<uint8_t*>(TINT_TABLE_SUNRISE) + slot * TINT_ENTRY_SIZE,
+                         reinterpret_cast<uint8_t*>(TINT_TABLE_NIGHT) + slot * TINT_ENTRY_SIZE};
     uint8_t saved[2][TINT_ENTRY_SIZE];
     for (int t = 0; t < 2; ++t) {
         memcpy(saved[t], entry[t], TINT_ENTRY_SIZE);

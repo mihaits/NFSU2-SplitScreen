@@ -17,7 +17,7 @@ static int __cdecl EmitterNearCamera(const uint8_t* system, const float* pos, fl
     for (int i = 0; i < 3; ++i)
         if (inRange(reinterpret_cast<const float*>(system + 0x10 + i * 0x10))) return 1;
     if (SplitRacing())
-        for (int k = 2; k < 2 + g_extraPlayers && k < MAX_LOCAL_PLAYERS; ++k) {
+        for (int k = 2; k < g_screenViews; ++k) {
             const View& v = GetView(kPlayerViewId[k]);
             if (v.active && v.camera && inRange(reinterpret_cast<const float*>(v.camera + 0x40))) return 1;
         }

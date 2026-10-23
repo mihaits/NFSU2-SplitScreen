@@ -81,7 +81,7 @@ static void RenderEnvCube(int k) {
         void* saved = v.rt->surface;
         v.rt->surface = g_envFace[k][f];
         reinterpret_cast<void(__thiscall*)(void*, View*, int, int, int)>(FN_VIEW_UPDATE)(v.platInfo, &v, 0, 0, 0);
-        RecullHeadlightView(v);
+        RecullWorldEntry(v);
         reinterpret_cast<void(__cdecl*)(RenderTarget*, int)>(FN_RT_BEGIN)(v.rt, 1);
         SetRenderState(7, 0);            // D3DRS_ZENABLE: sky without depth
         SetRenderState(14, 0);           // D3DRS_ZWRITEENABLE
@@ -211,7 +211,7 @@ static void __fastcall WorldDrawWithBeams(void* world, void*, View* v, int flags
     bool any = false;
     int players = 2 + (g_extraPlayers > 0 ? g_extraPlayers : 0);   // the intro has 1 view for all of them
     for (int j = 0; j < players && j < MAX_LOCAL_PLAYERS; ++j) {
-        const uint8_t* car = j == k ? nullptr : PlayerCar(j);
+        const uint8_t* car = j == ViewPlayer(k) ? nullptr : PlayerCar(j);
         if (!car || !car[0x550]) continue;
         const float* pos = reinterpret_cast<const float*>(car + 0x50);
         float dx = pos[0] - eye[0], dy = pos[1] - eye[1], dz = pos[2] - eye[2];
@@ -243,8 +243,52 @@ static void __fastcall WorldDrawWithBeams(void* world, void*, View* v, int flags
     HeadlightsForPlayer(k);              // the projector back on the view's own car for the rest of the view
 }
 
+// The extra player views share one world view table entry (RegisterExtraWorldViews): before each of them after the
+// first it points at that view and is re-culled into the free item buffer space (RecullWorldEntry finds an entry by its
+// view), and the buffer cursor (+0x6C8) is moved past it so the headlight re-cull doesn't overwrite it. The cursor goes
+// back at the next player view. A player view culls 1.5-3.3 KB of the 50.4 KB buffer (4P used 7.7-9.9 KB).
+#define WORLD_CULL_CURSOR  0x6C8
+static uint32_t g_cullBase;
+static void WorldTableProbe(int viewId) {
+    uint8_t* world = g_worldViews;
+    if (!world || !g_debug || viewId != 1 || g_mmFrame % 600) return;
+    int n = *reinterpret_cast<int*>(world + WORLD_VIEW_COUNT);
+    uint32_t cur = *reinterpret_cast<uint32_t*>(world + WORLD_CULL_CURSOR);
+    char line[512];
+    int len = wsprintfA(line, "world views: %d entries, cull buffer %u / %u bytes:", n, cur - 0x876DE0u, 0x8832C0u - 0x876DE0u);
+    for (int i = 0; i < n && i < 12; ++i) {
+        uint8_t* e = world + i * 0x90;
+        View* v = *reinterpret_cast<View**>(e + 0x40);
+        len += wsprintfA(line + len, " v%d=%u", v ? v->id : -1,
+                         *reinterpret_cast<uint32_t*>(e + 0x4C) - *reinterpret_cast<uint32_t*>(e + 0x48));
+    }
+    Log("%s", line);
+}
+static void SharedWorldEntryFor(int k) {
+    uint8_t* world = g_worldViews;
+    if (!world) return;
+    uint32_t& cursor = *reinterpret_cast<uint32_t*>(world + WORLD_CULL_CURSOR);
+    if (k == 0) g_cullBase = cursor;
+    else if (g_cullBase) cursor = g_cullBase;
+    if (k < 2) return;
+    View& v = GetView(kPlayerViewId[k]);
+    int n = *reinterpret_cast<int*>(world + WORLD_VIEW_COUNT);
+    for (int i = 0; i < n && i < 12; ++i) {
+        uint8_t* e = world + i * 0x90;
+        View*& owner = *reinterpret_cast<View**>(e + 0x40);
+        if (!owner || owner->id < 5 || owner->id > 8) continue;
+        if (owner == &v) return;                 // view 5: culled by the game this frame
+        owner = &v;
+        RecullWorldEntry(v);
+        cursor = *reinterpret_cast<uint32_t*>(e + 0x4C);
+        return;
+    }
+}
+
 static void __cdecl RefreshViewTarget(int viewId) {
     if (!SplitRacing()) return;
+    WorldTableProbe(viewId);
+    for (int k = 0; k < g_screenViews; ++k) if (kPlayerViewId[k] == viewId) SharedWorldEntryFor(k);
     if (g_screenViews > 2) memset(reinterpret_cast<void*>(GLARE_SLOT_COUNTS), 0, 8);
     auto* bb = reinterpret_cast<RenderTarget*>(RT_BACKBUFFER);
     for (int k = 0; k < g_screenViews; ++k)

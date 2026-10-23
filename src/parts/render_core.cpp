@@ -189,12 +189,13 @@ static void HookDeviceSetViewport() {
 }
 
 // The world renderer collects the views to draw every frame (0x5B9C20: views 1..3, env map 0x10..0x15, 4, 9; 12
-// entries). Add the extra player views after 1..3 (the mirror view 3 is off in split screen, so they fit).
+// entries, on the main render's stack). The extra player views get one entry after 1..3 (the mirror view 3 is off in
+// split screen): view 5's, shared by views 6.. (SharedWorldEntryFor re-points and re-culls it per view).
 static uint8_t* g_worldViews;            // this frame's world view table (on the frame render's stack)
 static void __cdecl RegisterExtraWorldViews(uint8_t* world) {
     g_worldViews = world;
     int& count = *reinterpret_cast<int*>(world + WORLD_VIEW_COUNT);
-    for (int k = 2; k < g_screenViews; ++k) {
+    for (int k = 2; k < g_screenViews && k < 3; ++k) {
         View& v = GetView(kPlayerViewId[k]);
         if (!v.active || !v.rt || !v.rt->surface || count >= 12 - 8) continue;   // keep room for 0x10..0x15, 4, 9
         uint8_t* entry = world + count * 0x90;

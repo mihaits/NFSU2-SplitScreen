@@ -36,8 +36,18 @@
   view's region, and re-applies the overbright scissor.
 
 **World view registration.** 0x5B9C20 registers the per-frame world views (entries 0x90 bytes, max 12; count +0x6C0):
-views 1..3, env 0x10..0x15, 4 and 9, via 0x4888A0(view, entry, flags). `WorldViewsHook` (0x5B9CAA) adds 5/6 (the mirror
-is off in split, so they fit) and captures the world view table pointer (`g_worldViews`).
+views 1..3, env 0x10..0x15, 4 and 9, via 0x4888A0(view, entry, flags). The table lives on the main render's stack
+(0x5CAAD0: `sub esp, 0x734`, table at esp+0x6C; cull cursor/limit +0x6C8/+0x6CC right after entry 11; 0x5E9A30 culls
+every entry into the shared item buffer 0x876DE0..0x8832C0, 50.4 KB). `WorldViewsHook` (0x5B9CAA) adds one entry for
+the extra player views, view 5's (the mirror is off in split, so it fits), and captures the table (`g_worldViews`).
+- Views 6..8 share it (`SharedWorldEntryFor`, from `RefreshViewTarget`): before each of them the entry is pointed at
+  that view, re-culled with `RecullWorldEntry` into the free buffer space, and the cursor is moved past it so the
+  headlight re-cull doesn't overwrite it. The cursor goes back at the next player view. 11 entries at 4P-6P; the
+  buffer holds 6.5-8.4 KB (a player view culls 1.5-2.2 KB). With Debug = 1 the table is logged every 600 frames
+  ("world views: ...").
+- Debug views: `[DEBUG] CloneViews = 1/2` adds 1-2 views after the players' (5/6 view layouts) that show P1's /
+  P2's camera (`ViewPlayer(k)` maps them to P1/P2 for the per-view player lookups: headlights, rain car, nitrous
+  effect, road reflection car, env map car). 4P + 2 clone views: 75 fps (display cap), 753 MB virtual.
 
 **Sky.** 0x60F880 (called at 0x5CB227) only draws for ids 1..3 and the env faces. `DrawSky` passes views 5/6 off as 1.
 
@@ -59,7 +69,7 @@ redirect their view or player choice to the view currently being drawn (`g_curre
 - World headlights are one projector (view 9, camera 0x870A20). It's aimed once per frame by 0x5C2AE0(view 9,
   human 0) and read by the world shaders through 0x5BDAA0(…, GetView(9)).
 - `HeadlightsForPlayer(k)` (called from `RefreshViewTarget`) re-aims it at player k's car for each view.
-- `RecullHeadlightView` redoes view 9's entry of the world view table per player: frustum 0x5C26E0, cull 0x5E9A30 /
+- `RecullWorldEntry` redoes view 9's entry of the world view table per player: frustum 0x5C26E0, cull 0x5E9A30 /
   0x5E99C0 into the space after the cursor (world +0x6C8, limit +0x6CC) without advancing it. This is needed because
   the projector's geometry was culled from P1's position.
 - **Projectors for every player** (`WorldDrawWithBeams`, call 0x5D6AD0 at 0x5CB23B). The headlight pass
@@ -101,7 +111,7 @@ screen size by 0.7 (0x7A6700) and forced its LOD range to 1..1, the low model, i
 0x5D686F). `GlareView` counts views 5/6 as view 1, reading the rendering view from the model renderer's context
 ([ebp+0xC]+0x40). The slot counters (0x82DAE8[2], capacity 0x7F3D44) are reset at each player view. The screen tint
 update 0x5D77F0 indexes 2-entry tables (0x88EA08 / 0x88F210) by view id - 1, so `TintIndexHook` (0x5D7831) and
-`TintUpdateWrapper` give views 5/6 private entries.
+`TintUpdateWrapper` give views 5..8 private entries (views 7/8 read slots 0/1 like 5/6).
 
 **Per-view world update.** 0x5DBE80 (from 0x5CBADC / 0x5D2C21) looped over views 1..2, covering visibility, emitter
 lists and the per-view nitrous effect flag. `PatchViewUpdateLoop` (installed after the player relocation) makes it
@@ -142,7 +152,7 @@ also needed the nearest-racer fix ([players](players.md)).
 - Lens droplets 0x5C7AB0 (call 0x5CB9A6) → `RainDropsForViews`; its four 0x48B1E0(1) calls → `RainDropsView`; the
   drop getter 0x6142C0 (call 0x5C7C52) → `RainDropGet` remaps x/y into the region.
 - The weather caches (0x8A3180 / 0x8A1E90 / 0x8A31F0 / 0x8A3250) are [2] arrays indexed by view id - 1, so views 5/6
-  use slots 0/1 (`RainRegionSlot` 0x6136C3, `SplashRegionSlot` 0x61437E). Without that, the race start crashed.
+  (and 7/8) use slots 0/1 (`RainRegionSlot` 0x6136C3, `SplashRegionSlot` 0x61437E). Without that, the race start crashed.
 - The rain emitter frame (0x61E700) picked human slot 0 for view 1, else slot 1. `RainCarHook` (0x61E724) maps the view
   to its player's racer.
 

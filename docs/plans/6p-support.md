@@ -133,7 +133,7 @@ bars) and `AdjustProjection` read the rect. Uniform HUD scale = min(cellW / 640�
 layout. Add the 5P/6P layouts to the table but keep them unreachable.
 Test: 2/3/4P races look identical to before (screenshots before/after), `[DEBUG] QuadTest`.
 
-### 3. Views 7/8 (debug clone players 5/6)
+### 3. Views 7/8 (done: shared world entry, `[DEBUG] CloneViews`; 6 views 75 fps, 753 MB virtual)
 - World view table: the shared extra-view entry from the spike diff (always on, no ini switch), generalised:
   `RecullHeadlightView` → `RecullWorldEntry(View&)`; keep the probe as a `Debug = 1` log line.
 - 2-entry tables by view id: tint (`g_viewTint[2]` / `g_viewTintInit[2]` → 4 for views 5..8), rain/splash slots
@@ -142,7 +142,8 @@ Test: 2/3/4P races look identical to before (screenshots before/after), `[DEBUG]
 - `g_screenViews` 5/6 and the 5P/6P regions; `ExtraCamera(k)` for k = 4, 5.
 - Reflections, env cubes, blur, overbright, streak regions already loop over `g_screenViews`; check each for 4-based
   `& 1` / `>> 1` placement.
-Test with `[DEBUG] ExtraPlayers = 3/4` (P5/P6 clone P1/P2): all 6 views draw the world, sky, rain, headlights,
+Tested with `[DEBUG] ExtraPlayers = 2` + `CloneViews = 1/2` (views 7/8 on P1/P2's cameras). HUD note for step 7:
+in the 5-view layout a white line crossed P3's minimap (narrower cell). Was: test with `[DEBUG] ExtraPlayers = 3/4`: all 6 views draw the world, sky, rain, headlights,
 reflections, glares. Measure FPS and memory here.
 
 ### 4. Racers and players 5/6

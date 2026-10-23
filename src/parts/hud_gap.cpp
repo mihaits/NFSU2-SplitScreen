@@ -9,7 +9,10 @@
 #define AT_DRIFT_GAP_DONE  0x4DA49A      // edx = gap
 #define HUMAN_RACER_SLOTS_EARLY 0x89E808
 #define FN_DRIFT_SCORE     0x56DD50      // entry* __cdecl (racer); +0x10 float score
-static int RacerIdOfPlayer(int k) { return k < 2 ? reinterpret_cast<const int*>(HUMAN_RACER_SLOTS_EARLY)[k] : k; }
+static int RacerIdOfPlayer(int k) {
+    k = ViewPlayer(k);
+    return k < 2 ? reinterpret_cast<const int*>(HUMAN_RACER_SLOTS_EARLY)[k] : k;
+}
 static int __cdecl DriftGap(const uint8_t* player) {
     int me = *reinterpret_cast<const int*>(player + 0x10), n = 2 + g_extraPlayers;
     if (n > MAX_LOCAL_PLAYERS) n = MAX_LOCAL_PLAYERS;

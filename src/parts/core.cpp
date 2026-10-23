@@ -150,9 +150,12 @@ static FeRect LayoutFeRect(int n, int k) {
     auto fy = [&](int py) { return (2.0f * py / h - 1.0f) * 240.0f; };
     return {fx(c.x), fy(c.y), fx(c.x + c.w), fy(c.y + c.h)};
 }
-static bool g_viewTintInit[2];           // views 5/6 have their own screen tint entries (see TintUpdateWrapper)
+static bool g_viewTintInit[4];           // views 5..8 have their own screen tint entries (see TintUpdateWrapper)
 static bool g_quadTest = false;          // debug: 2P race drawn in quadrants, views 5/6 reuse P1/P2's cameras
 static int  g_extraPlayers = 0;          // debug: players 3.. added to 2P races (cloning P1/P2's car and profile)
+static int  g_cloneViews = 0;            // debug: views after the players' (5P/6P layouts) showing P1's / P2's camera
+// The player whose car and camera player view k shows: its own, or P1/P2 for a debug view (QuadTest, CloneViews).
+static int ViewPlayer(int k) { return k >= 2 + g_extraPlayers ? (k & 1) : k; }
 static int g_vpLogFrames = 0;            // debug: log SetViewport calls for N frames (mailbox command 6)
 static int  g_currentView = 0;           // view being drawn by the player-view loop (read by asm)
 static void* g_origSetViewport = nullptr;
