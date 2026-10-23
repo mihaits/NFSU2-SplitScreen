@@ -23,6 +23,7 @@
 //   f = *(float*)(0x7FBF60 + 4*(gear + 9**(int*)(drv+0xF0))) * *(float*)(drv+0xE4), shift = up - *(float*)0x7FBF5C * f
 //   (the tach's shift light, 0x4C6ACF..0x4C6B45); nitrous burns while burn = *(u32*)(car+0x460) is not 0 / 0x7FFFFFFF.
 // Countdown (stage 3): red for the 3 and the 2, amber for the 1, each flashing (on 0.6 s, off 0.4 s), then green for 1 s from GO; then the rpm again.
+// Finished: position 1 gold, 2 silver, 3 bronze, off outside the podium, until the game state leaves 6.
 // While the pause menu is open every driving pad shows its player's colour at 25% (the click toggle waits).
 // In split racing the touchpad click toggles the player's solid colour (below). Outside racing the bar keeps a fixed dim blue until the later steps (pause, countdown, finish, player colours).
 static bool g_lightbar = true;            // [LIGHTS] Lightbar
@@ -66,6 +67,17 @@ static bool ReadCarLight(void* player, float* t, bool* shiftLight, bool* nitrous
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         return false;
     }
+}
+
+// Finished (racer = *(car+0x1C), finished when *(float*)(racer+0x14) >= 1, position = *(u8*)(racer+0xA), 1-based).
+static int FinishedPosition(void* player) {
+    __try {
+        auto* car = *reinterpret_cast<uint8_t**>(static_cast<uint8_t*>(player) + 4);
+        auto* racer = car ? *reinterpret_cast<uint8_t**>(car + 0x1C) : nullptr;
+        if (racer && *reinterpret_cast<float*>(racer + 0x14) >= 1.0f) return racer[0xA] ? racer[0xA] : 99;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+    }
+    return 0;
 }
 
 // Lightbar colour of local player k's car; false if there is none to show.
@@ -127,7 +139,7 @@ static void UpdatePadLights() {
         prevStage = stage;
     }
     bool countdown = stage == 3;
-    bool racing = stage == 4;
+    bool racing = stage >= 4;       // racing, and whatever follows the finish while the state is still 6
     bool paused = racing && PauseMenuOpen();
     bool flashOn = (GetTickCount() % 1000) < 500;
     for (int pad = 0; pad < XPadMax(); ++pad) {
@@ -164,6 +176,11 @@ static void UpdatePadLights() {
             if (k < 0) {
             } else if (cue) {
                 for (int c = 0; c < 3; ++c) rgb[c] = static_cast<uint8_t>(full[c] * g_lightbarBrightness / 100);
+            } else if (!paused && racing && FinishedPosition(GetLocalPlayer(k))) {   // finish colour until state 6 ends
+                static const uint8_t kPlace[3][3] = {{255, 180, 0}, {200, 200, 220}, {205, 100, 30}};
+                int place = FinishedPosition(GetLocalPlayer(k));
+                for (int c = 0; c < 3; ++c)
+                    rgb[c] = static_cast<uint8_t>((place <= 3 ? kPlace[place - 1][c] : 0) * g_lightbarBrightness / 100);
             } else if (paused) {            // the player's colour at 25%
                 for (int c = 0; c < 3; ++c) rgb[c] = static_cast<uint8_t>(kPlayerColour[k][c] * g_lightbarBrightness / 400);
             } else if (SplitMode() && g_lightColourMode[k]) {

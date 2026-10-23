@@ -51,7 +51,9 @@ controllers are hidden (ini). Pads 0..3 are the real XInput pads, 4..7 debug pad
   red flashing at 4 Hz from there, solid blue while nitrous burns. The addresses (tach rpm, shift rpm, nitrous) are in
   the comment block of `parts/pad_lights.cpp`; `tools/telemetry.py` prints the same numbers. Countdown (race stage 3, 3.0 s): red, red,
   amber with the 3-2-1, each flashing (0.6 s on, 0.4 s off), then green for 1 s from GO (stage 4), timed from the frame stage 3 starts, so a restart from the
-  pause menu works the same. While the pause menu is open (`PauseMenuOpen`)
+  pause menu works the same. Once a player has finished (`racer+0x14 >= 1`),
+  their pad shows the finish place until the game state leaves 6: 1st gold (255, 180, 0), 2nd silver (200, 200, 220), 3rd
+  bronze (205, 100, 30), off outside the podium. While the pause menu is open (`PauseMenuOpen`)
   every driving pad shows its player's colour at 25% (1P: P1's). In split racing a click on the
   touchpad (`XPadTouchClickPressed`) toggles that player's solid minimap colour (fully saturated, as the bar washes pale
   colours out: P1 (0, 255, 0), P2 (255, 0, 0), P3 (0, 64, 255), P4 (255, 150, 0)), kept per seat until the game closes. In other
