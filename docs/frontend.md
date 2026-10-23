@@ -15,23 +15,24 @@ Swedish; others keep theirs). Its vtable is `{0x4AEB70 dtor, SplitMenuReact}` an
 zeros: no car in the main menu, and Customize crashed. The backup is now taken when mode 4 is entered (`BackupGarage`).
 Leaving split resets FE player 0x85AD28 and the FE ports; a stale FE player 1 crashes the next 1P car select.
 
-**Players row (2-4).** It's added to the split race options screen. Option rows are 0x54-byte widgets: base ctor
+**Players row (2-6).** It's added to the split race options screen. Option rows are 0x54-byte widgets: base ctor
 0x51E230, vtable slot 1 `Act(fng, msg)` (left 0x9120409E / right 0xB5971BF1), slot 3 `Draw`. Rows are added with
 `0x54F170(screen; row, 1)`, and each race type has its own row builder (switch at 0x4E2C9A).
 `0x539650(0)` is called at 10 sites (0x4E2CAC..0x4E2D5F), and `QrFinishRows` appends our row there. The row's vtable is
 copied from the laps row (0x7910B8). The value is `g_splitPlayers`; the ini `ExtraPlayers` gives its default.
-Outrun (race type 0x83AAB4 == 8) is a 2-player mode: the row isn't added and `SplitPlayers()` returns 2.
+Outrun (race type 0x83AAB4 == 8) is a 2-player mode: the row isn't added and `SplitPlayers()` returns 2. Drag has 4
+lanes: `SplitPlayers()` and the row stop at `MaxRacers()` (4 in drag, else 6); the choice is kept for other modes.
 
 **Joining (Press START).** The 2P_PressStart popup handler 0x498070 only reacted to the console START message
 0xB5AF2461. `PressStartHook`/`PressStartFilter` instead waits for XInput Start on an unassigned pad or keyboard Enter
 (any seat, one keyboard player per round: `g_keyboardSeat`), records `g_assignedPad[seat]`, and injects START with mask 1 << player. The popup text object 0x2EBB974D is
-set to "Player Three/Four Press START" for seats 2/3. A pad that has joined can't join again.
+set to "Player Three/Four/Five/Six Press START" for seats 2..5 (English only). A pad that has joined can't join again.
 
-**Seats (3-4 players).** The car select serves FE players 0/1 (0x4FA2A0(fe)). The player 1 pick switches to FE 1
+**Seats (3-6 players).** The car select serves FE players 0/1 (0x4FA2A0(fe)). The player 1 pick switches to FE 1
 (calls at 0x4FC3A8 / 0x4FC9B6, `CarselToP2`), and the player 2 pick starts the race (0x4FC3BE / 0x4FC9C2 → 0x53FC20,
-`CarselStartHook`). With 3-4 players, the P2 pick goes to seat 2 on FE 0, and the P3 pick goes to seat 3 on FE 1 (or
-starts the race). Cars (0x83AAB8) and ports (0x83A9D8) are saved per seat, and P1/P2's are restored before the race.
-Back returns to the previous seat: P2 Back at 0x4FC723 (`CarselBackToP1`), P3 through `CarselFilter`. The car select
+`CarselStartHook`). With 3-6 players the seats go in order on FE seat & 1: P2's pick goes to seat 2 on FE 0, P3's to
+seat 3 on FE 1, P4's to seat 4, ... and the last seat's pick starts the race. Cars (0x83AAB8) and ports (0x83A9D8) are saved per seat, and P1/P2's are restored before the race.
+Back returns to the previous seat: FE 1 seats (P2/P4/P6) at 0x4FC723 (`CarselBackToP1`), P3/P5 through `CarselFilter`. The car select
 message handler 0x4FC1F0 (`CarSelectHook`) retags FE messages with the current seat's port: PC tags every message with
 mask 1, and the handler drops messages whose port doesn't match `FE_PORTS[feplayer]`. While the FE player has no port it
 retags to 0 (= any), which fixed a softlock on Back. The name box ("Player_Name") is set each frame to the seat's name.

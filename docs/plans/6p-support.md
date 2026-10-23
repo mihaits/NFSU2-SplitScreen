@@ -156,7 +156,7 @@ reflections, glares. Measure FPS and memory here.
 - Teardown (`inOrder − 4` patch at 0x60AA76) and the results/standings counts with 4 extra racers.
 Test with the debug clone path: 5P and 6P circuit, sprint, drift, URL, Street X; 5P with 1 AI; restart and quit.
 
-### 5. Frontend: Players row 2..6, joining and car select
+### 5. Frontend: Players row 2..6, joining and car select (done; 5P join tested with keyboard as P5)
 - `g_splitPlayers` 2..6 (drag 2..4, outrun 2); `SplitPlayers()`.
 - Press START for seats 4/5 ("Player Five/Six Press START"; English only, like seats 2/3), `g_keyboardSeat` any seat.
 - Car select seat order: P1 (FE 0) → P2 (FE 1) → P3 (FE 0) → P4 (FE 1) → P5 (FE 0) → P6 (FE 1) → race; Back walks

@@ -114,7 +114,6 @@ static bool g_menuSplit = false;         // set by the main menu "Split Screen" 
 static int  g_prevMode = 0;
 #define MAX_LOCAL_PLAYERS 6
 #define MAX_EXTRA_PLAYERS (MAX_LOCAL_PLAYERS - 2)   // players 3.. on top of the game's 2
-#define SPLIT_PLAYERS_MAX 4              // Players row cap until players 5/6 can join ([DEBUG] ExtraPlayers goes to 6)
 // Input ports: 4 until players 5/6 get theirs. Giving ports 4/5 an id and action 1 (InputInit -> handler 0x571A20)
 // broke the frontend input (splash ignored every pad): the handler writes per-port bytes [port + 0x864788] and calls
 // 0x5726A0(port) / 0x50C5D0(port, ..), arrays sized for fewer ports.

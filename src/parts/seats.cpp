@@ -84,14 +84,18 @@ static void SaveSeatStore(int i) {
 static int g_assignedPad[MAX_LOCAL_PLAYERS] = {PAD_NONE, PAD_NONE, PAD_NONE, PAD_NONE, PAD_NONE, PAD_NONE};
 static int g_keyboardSeat = -1;          // the player who joined with the keyboard this round (-1: nobody)
 
-static int g_seat = 0;                   // car select: whose turn (0..3); the frontend serves FE player seat & 1
-static int g_splitPlayers = 2;           // players chosen on the split-screen options screen (2..4)
+static int g_seat = 0;                   // car select: whose turn (0..5); the frontend serves FE player seat & 1
+static int g_splitPlayers = 2;           // players chosen on the split-screen options screen (2..6)
 static int g_splitOpponents = 0;         // AI opponents chosen there (see SplitOpponents)
 #define QR_RACE_TYPE       0x83AAB4      // quick race type (8 = outrun)
-// Outrun is a 2-player mode (one car chases the other): no Players row and always 2 players; the choice is kept for
-// the other modes.
+// Outrun is a 2-player mode (one car chases the other): no Players row and always 2 players; drag has 4 lanes. The
+// choice is kept for the other modes.
 static bool OutrunRace() { return at<int>(QR_RACE_TYPE) == 8; }
-static int SplitPlayers() { return OutrunRace() ? 2 : g_splitPlayers; }
+static int MaxRacers();
+static int SplitPlayers() {
+    int n = OutrunRace() ? 2 : g_splitPlayers, max = MaxRacers();
+    return n < max ? n : max;
+}
 
 static void ResetAssignments() {
     for (int& pad : g_assignedPad) pad = PAD_NONE;
@@ -202,7 +206,7 @@ static uint32_t __stdcall PressStartFilter(uint8_t* popup, uint32_t msg, uint32_
         return msg;
     }
     if (msg == MSG_START || msg == MSG_ACCEPT || msg == MSG_PC_ACTIVATE) return 0;   // ignored by the handler
-    if (msg == MSG_BACK && seat == 2 && g_carsel && CarselFilter(g_carsel, msg)) return 0;   // back to player 2
+    if (msg == MSG_BACK && seat >= 2 && !(seat & 1) && g_carsel && CarselFilter(g_carsel, msg)) return 0;   // back to P2 / P4
     return msg;
 }
 
@@ -327,17 +331,20 @@ static void SwitchSeat(uint8_t* carsel, int seat) {
     Log("car select: seat %d (FE player %d)", seat + 1, seat & 1);
 }
 
+// Seats pick in order P1 (FE 0), P2 (FE 1), P3 (FE 0), P4 (FE 1), P5 (FE 0), P6 (FE 1); each pick of a seat >= 2 is
+// saved and the FE slot gets players 1/2's own pick back.
 static void __fastcall CarselToP2(uint8_t* carsel, void*, int) {      // after FE player 1's pick
-    if (SplitPlayers() > 2 && g_seat == 2) {   // player 3 picked
-        SaveSeat(2);
+    if (SplitPlayers() > 2 && g_seat >= 2) {   // player 3 / 5 picked
+        int seat = g_seat;
+        SaveSeat(seat);
         RestoreSeat(0);
-        if (SplitPlayers() == 3) {
+        if (seat + 1 >= SplitPlayers()) {      // the last seat
             g_seat = 0;
-            g_extraPlayers = 1;
+            g_extraPlayers = SplitPlayers() - 2;
             reinterpret_cast<void(__cdecl*)()>(FN_START_RACE)();
             return;
         }
-        SwitchSeat(carsel, 3);
+        SwitchSeat(carsel, seat + 1);
         return;
     }
     SwitchSeat(carsel, 1);
@@ -351,9 +358,14 @@ static void __stdcall CarselStart(uint8_t* carsel) {                   // after 
             SwitchSeat(carsel, 2);
             return;
         }
-        if (g_seat == 3) {
-            SaveSeat(3);
+        if (g_seat >= 3) {
+            int seat = g_seat;
+            SaveSeat(seat);
             RestoreSeat(1);
+            if (seat + 1 < SplitPlayers()) {   // on to player 5
+                SwitchSeat(carsel, seat + 1);
+                return;
+            }
         }
     }
     g_extraPlayers = SplitMode() ? SplitPlayers() - 2 : 0;
@@ -370,9 +382,9 @@ static __declspec(naked) void CarselStartHook() {
 }
 
 static void __fastcall CarselBackToP1(uint8_t* carsel, void*, int) {  // Back on FE player 2's pick
-    if (g_seat == 3) {
+    if (g_seat >= 3) {                         // player 4 / 6: back to player 3 / 5
         RestoreSeat(1);
-        SwitchSeat(carsel, 2);
+        SwitchSeat(carsel, g_seat - 1);
         return;
     }
     SwitchSeat(carsel, 0);
@@ -429,12 +441,12 @@ static bool __stdcall CarselFilter(uint8_t* carsel, uint32_t msg) {
         return false;
     }
     if (msg == MSG_FRAME_TICK && g_returnSeat == 0 && g_autoJoinSeat < 0) g_returnSeat = -1;
-    if (msg != MSG_BACK || g_seat != 2) return false;
+    if (msg != MSG_BACK || g_seat < 2 || (g_seat & 1)) return false;   // Back on player 3 / 5: to player 2 / 4
     using ActiveFn = bool(__cdecl*)(const char*);
     if (reinterpret_cast<ActiveFn>(FN_FE_PACKAGE_ACTIVE)("2P_PressStart.fng"))
         reinterpret_cast<void(__cdecl*)(const char*)>(0x5379A0)("2P_PressStart.fng");
     RestoreSeat(0);
-    SwitchSeat(carsel, 1);
+    SwitchSeat(carsel, g_seat - 1);
     reinterpret_cast<void(__cdecl*)(int)>(0x50D180)(5);
     return true;
 }
@@ -460,6 +472,7 @@ static void __fastcall HelpBarSet(uint8_t* bar, void*, uint32_t flags, uint32_t 
 
 static void PrepareExtraNames();
 static char g_extraNames[MAX_EXTRA_PLAYERS][16];
+static const char* const kSeatWords[MAX_EXTRA_PLAYERS] = {"Three", "Four", "Five", "Six"};
 static void UpdateSeats() {
     using ActiveFn = bool(__cdecl*)(const char*);
     if (g_inCarSelect) {                       // name box: whose pick it is (the game shows the profile for everyone)
@@ -480,7 +493,7 @@ static void UpdateSeats() {
     if (g_seat >= 2 && reinterpret_cast<ActiveFn>(FN_FE_PACKAGE_ACTIVE)("2P_PressStart.fng")) {
         void* obj = reinterpret_cast<void*(__cdecl*)(const char*, uint32_t)>(0x537A10)("2P_PressStart.fng", 0x2EBB974D);
         if (obj) reinterpret_cast<void(__cdecl*)(void*, const char*, ...)>(FN_FE_PRINTF)(
-            obj, "Player %s Press START", g_seat == 2 ? "Three" : "Four");
+            obj, "Player %s Press START", kSeatWords[g_seat - 2]);
     }
     static int s_waited = 0;                       // X that didn't open the shop: forget it after 30 frames
     if (g_customizeSeat >= 0 && !g_customizeLeft && g_inCarSelect && ++s_waited > 30) g_customizeSeat = -1;
@@ -513,12 +526,13 @@ static uint32_t g_playersRowVt[18];
 static void __fastcall PlayersRowDraw(uint8_t* row) {
     auto printf_ = reinterpret_cast<void(__cdecl*)(void*, const char*, ...)>(FN_FE_PRINTF);
     printf_(*reinterpret_cast<void**>(row + 0x2C), "%s", "Players");
-    printf_(*reinterpret_cast<void**>(row + 0x30), "%d", g_splitPlayers);
+    printf_(*reinterpret_cast<void**>(row + 0x30), "%d", SplitPlayers());
 }
 
 static void __fastcall PlayersRowAct(uint8_t* row, void*, const char* fng, uint32_t msg) {
-    if (msg == MSG_LEFT) g_splitPlayers = g_splitPlayers > 2 ? g_splitPlayers - 1 : SPLIT_PLAYERS_MAX;
-    if (msg == MSG_RIGHT) g_splitPlayers = g_splitPlayers < SPLIT_PLAYERS_MAX ? g_splitPlayers + 1 : 2;
+    int n = SplitPlayers(), max = MaxRacers() < MAX_LOCAL_PLAYERS ? MaxRacers() : MAX_LOCAL_PLAYERS;
+    if (msg == MSG_LEFT) g_splitPlayers = n > 2 ? n - 1 : max;
+    if (msg == MSG_RIGHT) g_splitPlayers = n < max ? n + 1 : 2;
     reinterpret_cast<void(__cdecl*)(uint32_t, const char*)>(FN_FE_SEND_MSG)(0x92B703B5, fng);
     auto* vt = *reinterpret_cast<uintptr_t**>(row);
     reinterpret_cast<void(__thiscall*)(void*, uint32_t)>(vt[0x40 / 4])(row, msg);
