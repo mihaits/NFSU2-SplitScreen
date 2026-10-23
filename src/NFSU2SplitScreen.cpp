@@ -96,6 +96,10 @@ static void LoadConfig(HMODULE self) {
     g_nativeDualSense = GetPrivateProfileIntA("INPUT", "NativeDualSense", 1, path) != 0;
     g_dsRumbleMode = GetPrivateProfileIntA("INPUT", "DualSenseRumbleMode", 0, path);
     g_playerLeds = GetPrivateProfileIntA("LIGHTS", "PlayerLeds", 1, path) != 0;
+    g_lightbar = GetPrivateProfileIntA("LIGHTS", "Lightbar", 1, path) != 0;
+    g_lightbarBrightness = GetPrivateProfileIntA("LIGHTS", "LightbarBrightness", 100, path);
+    if (g_lightbarBrightness < 0) g_lightbarBrightness = 0;
+    if (g_lightbarBrightness > 100) g_lightbarBrightness = 100;
     if (g_dsRumbleMode != 1 && g_dsRumbleMode != 2) g_dsRumbleMode = -1;   // 0 = auto
     strcpy_s(g_iniPath, path);
     strcpy_s(g_playersPath, path);

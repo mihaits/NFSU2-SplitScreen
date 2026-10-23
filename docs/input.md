@@ -45,7 +45,12 @@ controllers are hidden (ini). Pads 0..3 are the real XInput pads, 4..7 debug pad
   also after a race).
   While a Press START popup is open (`2P_PressStart.fng`) no pad controls, so every pad that has not joined flashes.
   Otherwise the controlling pad (last pad used; on the car select the pad whose turn it is) shows 1, and every other
-  DualSense flashes all 5 at 1 Hz. The lightbar stays dim blue until its step.
+  DualSense flashes all 5 at 1 Hz. 
+- **Lightbar (`[LIGHTS] Lightbar`, `LightbarBrightness`):** while racing (state 6, race stage `*[0x890118]` = 4, not
+  paused) the pad that drives local player k shows that car's rpm: green at idle, yellow, red at the shift-light rpm,
+  red flashing at 4 Hz from there, solid blue while nitrous burns. The addresses (tach rpm, shift rpm, nitrous) are in
+  the comment block of `parts/pad_lights.cpp`; `tools/telemetry.py` prints the same numbers. In other situations the
+  bar keeps a dim blue until the pause, countdown, finish and player-colour steps.
 - Tested with one DualSense; two native pads are untested.
 
 **Pad resolver (`PadForDevice`).**

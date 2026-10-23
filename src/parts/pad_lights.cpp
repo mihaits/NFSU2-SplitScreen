@@ -1,4 +1,4 @@
-// Part of NFSU2SplitScreen.cpp: DualSense lights (player LEDs; lightbar and triggers follow in later steps).
+// Part of NFSU2SplitScreen.cpp: DualSense lights (player LEDs, RPM lightbar; triggers follow in a later step).
 // Included by NFSU2SplitScreen.cpp in a fixed order (one translation unit); not compiled on its own.
 
 // ---------------------------------------------------------------- player LEDs
@@ -11,7 +11,69 @@
 //   player whose turn it is (as PadForDevice picks it);
 // - while a Press START popup is open nobody controls: pads that haven't joined all flash;
 // - every other DualSense flashes all 5 LEDs (1 Hz), so a pad that doesn't drive the game is recognisable.
-// The lightbar keeps a fixed dim blue until its own step.
+//
+// ---------------------------------------------------------------- lightbar
+// While racing (state 6, race stage 4 = *[0x890118], not paused) the lightbar of the pad that drives local player k
+// (split: its seat's pad; 1P: the last pad used) shows the engine rpm: green at idle through yellow to red at the
+// shift-light rpm, flashing red (4 Hz) from there on, solid blue while nitrous burns. Addresses (live-verified):
+//   car = *(player + 4); rpm = what the tach shows: with spec = *(car+0x14), *(int*)(spec+4) == 1, !*(u8*)(spec+0x900),
+//   r = *(car+0x968) non-null and not drag/drift -> *(float*)(r+0x58), else *(float*)(car+0x440);
+//   idle = *(float*)(eng+0x1F0), eng = *(car+0x20); gear = *(int*)(car+0x434) (0 reverse, 1 neutral, 2 = 1st ...);
+//   shift (player cars, *(int*)(car+0x28) == 1): drv = *(*(car+0x34)+0x4C), up = *(float*)(drv+0x84+4*gear),
+//   f = *(float*)(0x7FBF60 + 4*(gear + 9**(int*)(drv+0xF0))) * *(float*)(drv+0xE4), shift = up - *(float*)0x7FBF5C * f
+//   (the tach's shift light, 0x4C6ACF..0x4C6B45); nitrous burns while burn = *(u32*)(car+0x460) is not 0 / 0x7FFFFFFF.
+// Outside racing the bar keeps a fixed dim blue until the later steps (pause, countdown, finish, player colours).
+static bool g_lightbar = true;            // [LIGHTS] Lightbar
+static int  g_lightbarBrightness = 100;   // [LIGHTS] LightbarBrightness, percent
+
+static bool ReadCarLight(void* player, float* t, bool* shiftLight, bool* nitrous) {
+    __try {
+        auto* car = *reinterpret_cast<uint8_t**>(static_cast<uint8_t*>(player) + 4);
+        if (!car) return false;
+        auto* spec = *reinterpret_cast<uint8_t**>(car + 0x14);
+        auto* eng = *reinterpret_cast<uint8_t**>(car + 0x20);
+        auto* r968 = *reinterpret_cast<uint8_t**>(car + 0x968);
+        if (!spec || !eng) return false;
+        bool use968 = *reinterpret_cast<int*>(spec + 4) == 1 && !spec[0x900] && r968 && !IsDragRace() && !IsDriftRace();
+        float rpm = use968 ? *reinterpret_cast<float*>(r968 + 0x58) : *reinterpret_cast<float*>(car + 0x440);
+        float idle = *reinterpret_cast<float*>(eng + 0x1F0), top = *reinterpret_cast<float*>(eng + 0x1F4);
+        int gear = *reinterpret_cast<int*>(car + 0x434);
+        float shift = 0;
+        if (*reinterpret_cast<int*>(car + 0x28) == 1 && gear >= 0 && gear < 9) {
+            auto* mover = *reinterpret_cast<uint8_t**>(car + 0x34);
+            auto* drv = mover ? *reinterpret_cast<uint8_t**>(mover + 0x4C) : nullptr;
+            if (drv) {
+                float f = at<float>(0x7FBF60 + 4 * (gear + 9 * *reinterpret_cast<int*>(drv + 0xF0))) *
+                          *reinterpret_cast<float*>(drv + 0xE4);
+                shift = *reinterpret_cast<float*>(drv + 0x84 + 4 * gear) - at<float>(0x7FBF5C) * f;
+            }
+        }
+        float range = (shift > idle ? shift : top) - idle;
+        *t = range > 1 ? (rpm - idle) / range : 0;
+        *t = *t < 0 ? 0 : *t > 1 ? 1 : *t;
+        *shiftLight = shift > idle && rpm >= shift;
+        uint32_t burn = *reinterpret_cast<uint32_t*>(car + 0x460);
+        *nitrous = burn != 0 && burn != 0x7FFFFFFF;
+        return true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+}
+
+// Lightbar colour of local player k's car; false if there is none to show.
+static bool CarLightbar(int k, uint8_t rgb[3]) {
+    float t;
+    bool shiftLight, nitrous;
+    void* player = GetLocalPlayer(k);
+    if (!player || !ReadCarLight(player, &t, &shiftLight, &nitrous)) return false;
+    float r, g, b = 0;
+    if (nitrous) { r = 0; g = 0; b = 1; }
+    else if (shiftLight) { r = (GetTickCount() % 250) < 125 ? 1.0f : 0.0f; g = 0; }
+    else { r = t * 2 > 1 ? 1.0f : t * 2; g = (1 - t) * 2 > 1 ? 1.0f : (1 - t) * 2; }
+    float scale = 255.0f * g_lightbarBrightness / 100.0f;
+    rgb[0] = static_cast<uint8_t>(r * scale); rgb[1] = static_cast<uint8_t>(g * scale); rgb[2] = static_cast<uint8_t>(b * scale);
+    return true;
+}
 static bool g_playerLeds = true;          // [LIGHTS] PlayerLeds
 
 static const uint8_t kPlayerLedPattern[MAX_LOCAL_PLAYERS] = {0x04, 0x0A, 0x15, 0x1B};
@@ -30,7 +92,6 @@ static int ControllingPad() {
 }
 
 static void UpdatePadLights() {
-    static const uint8_t kRgb[3] = {0, 0, 64};
     int state = at<int>(GAME_STATE);
     // Game state 3 is the frontend (menus before and after a race), 4/5 loading, 6 racing and results, 7/1 the way back.
     static bool sessionOn = false;
@@ -46,6 +107,8 @@ static void UpdatePadLights() {
         int player = at<int>(FE_PLAYER);
         seatLimit = (g_seat & 1) == player ? g_seat : player;
     }
+    int* mgr = at<int*>(0x890118);
+    bool racing = state == 6 && mgr && *mgr == 4 && !PauseMenuOpen();
     bool flashOn = (GetTickCount() % 1000) < 500;
     for (int pad = 0; pad < XPadMax(); ++pad) {
         if (!XPadIsDualSense(pad)) continue;
@@ -58,6 +121,14 @@ static void UpdatePadLights() {
             else if (pad == ctl) leds = kPlayerLedPattern[0];
             else leds = flashOn ? 0x1F : 0;
         }
-        XPadSetLights(pad, kRgb, leds);
+        uint8_t rgb[3] = {0, 0, 64};
+        if (!g_lightbar) rgb[2] = 0;
+        else if (racing) {
+            int k = -1;                    // local player this pad drives
+            if (SplitMode()) { for (int q = 0; q < MAX_LOCAL_PLAYERS; ++q) if (g_assignedPad[q] == pad) k = q; }
+            else if (pad == XPadLastActive()) k = 0;
+            if (k >= 0) CarLightbar(k, rgb);
+        }
+        XPadSetLights(pad, rgb, leds);
     }
 }

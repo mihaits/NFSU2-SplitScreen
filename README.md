@@ -32,12 +32,13 @@ options of whoever paused.
 - [x] Catch-up between players
 - [x] AI opponents with difficulty (up to 6 racers in all, 4 in drag; none in sprint drift)
 - [x] Free Run: drive the whole city together, no race
+- [x] DualSense without DS4Windows: input, rumble, player LEDs, RPM and nitrous lightbar
 
 ## To do
 - [ ] Session results: standings across back-to-back races
 - [ ] Replays of split-screen races
 - [ ] Rear-view mirror in the bumper and hood cameras, like single player
-- [ ] DualSense: player LEDs, RPM lightbar, race lights and adaptive triggers (native input and rumble work)
+- [ ] DualSense: race lights and adaptive triggers (native input and rumble work)
 - [ ] Maybe: everyone picking a car at once; press START to join at any time
 
 This is an alpha, so expect the odd bug. If you hit one, please
@@ -51,6 +52,7 @@ and attach `scripts\NFSU2SplitScreen.log` (set `Debug = 1` in the ini to write i
 |---|---|---|
 | `Rumble` | 1 | controller rumble |
 | `RumbleStrength` | 100 | rumble strength (%) |
+| `Lightbar` | 1 | DualSense lightbar shows engine rpm / nitrous while racing |
 | `PlayerLeds` | 1 | DualSense player LEDs show the player number |
 | `NativeDualSense` | 1 | DualSense pads without DS4Windows (off while DS4Windows's virtual pad is active) |
 | `DualSenseRumbleMode` | 0 | 0 auto, 1 old firmware mode, 2 new firmware mode |
