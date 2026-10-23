@@ -26,12 +26,16 @@ Outrun (race type 0x83AAB4 == 8) is a 2-player mode: the row isn't added and `Sp
 0xB5AF2461. `PressStartHook`/`PressStartFilter` instead waits for XInput Start on an unassigned pad or keyboard Enter
 (any seat, one keyboard player per round: `g_keyboardSeat`), records `g_assignedPad[seat]`, and injects START with mask 1 << player. The popup text object 0x2EBB974D is
 set to "Player Three/Four Press START" for seats 2/3. A pad that has joined can't join again.
+On a later seat's popup only the previous seat's pad or keyboard drives the frontend (`CarselDriverSeat`, used by
+`PadForDevice` and `KeyboardPort`), so only the player who joined last can press Back to undo their pick.
 
 **Seats (3-4 players).** The car select serves FE players 0/1 (0x4FA2A0(fe)). The player 1 pick switches to FE 1
 (calls at 0x4FC3A8 / 0x4FC9B6, `CarselToP2`), and the player 2 pick starts the race (0x4FC3BE / 0x4FC9C2 → 0x53FC20,
 `CarselStartHook`). With 3-4 players, the P2 pick goes to seat 2 on FE 0, and the P3 pick goes to seat 3 on FE 1 (or
 starts the race). Cars (0x83AAB8) and ports (0x83A9D8) are saved per seat, and P1/P2's are restored before the race.
-Back returns to the previous seat: P2 Back at 0x4FC723 (`CarselBackToP1`), P3 through `CarselFilter`. The car select
+Back on a seat's pick screen undoes only that seat's join: the game's own Back reopens its popup (0x4FC739 on FE 1,
+0x4FC795 on FE 0; the switch 0x4FA2A0 also opens it at 0x4FA423 unless it is still active). Back on a seat's popup
+returns to the previous seat's pick: P2/P4 at 0x4FC723 (`CarselBackToP1`), P3 through `CarselFilter`. The car select
 message handler 0x4FC1F0 (`CarSelectHook`) retags FE messages with the current seat's port: PC tags every message with
 mask 1, and the handler drops messages whose port doesn't match `FE_PORTS[feplayer]`. While the FE player has no port it
 retags to 0 (= any), which fixed a softlock on Back. The name box ("Player_Name") is set each frame to the seat's name.

@@ -119,6 +119,17 @@ static int __cdecl PauseInputMask(int port) {
     return reinterpret_cast<int(__cdecl*)(int)>(FN_PORT_MASK)(g_pauseOwner >= 0 ? port & 1 : port);
 }
 
+// Car select: the seat whose pad / keyboard drives the frontend. On a later seat's Press START popup that is the
+// previous seat: joining is read from XInput directly, so the frontend only needs it for Back, which only the player
+// who joined last may press. The popup's own seat may still hold a stale pad / keyboard from going back.
+static int CarselDriverSeat() {
+    int fe = at<int>(FE_PLAYER);
+    int seat = (g_seat & 1) == fe ? g_seat : fe;
+    if (seat >= 1 && reinterpret_cast<bool(__cdecl*)(const char*)>(FN_FE_PACKAGE_ACTIVE)("2P_PressStart.fng"))
+        return seat - 1;
+    return seat;
+}
+
 static int __cdecl PadForDevice(int device) {
     if (device < 0 || device > 1) return PAD_NONE;
     // outside split the last pad used drives; joystick slot 2 only gets it while its bindings are being edited
@@ -141,8 +152,7 @@ static int __cdecl PadForDevice(int device) {
     // LB/RB category switch -> player 2 couldn't change categories); CarSelectHook tags the messages with their port
     if (g_inCarSelect) {
         if (device != 0) return PAD_NONE;
-        int fe = at<int>(FE_PLAYER);
-        int seat = (g_seat & 1) == fe ? g_seat : fe;
+        int seat = CarselDriverSeat();
         if (seat == g_keyboardSeat) return PAD_NONE;            // the keyboard player's turn: keyboard only
         int pad = g_assignedPad[seat];
         return pad != PAD_NONE ? pad : XPadLastActive();
@@ -429,10 +439,11 @@ static bool __stdcall CarselFilter(uint8_t* carsel, uint32_t msg) {
         return false;
     }
     if (msg == MSG_FRAME_TICK && g_returnSeat == 0 && g_autoJoinSeat < 0) g_returnSeat = -1;
-    if (msg != MSG_BACK || g_seat != 2) return false;
+    if (msg != MSG_BACK || g_seat != 2) return false;   // Back on player 3's popup: to player 2
+    // Back on the pick screen itself undoes only this player's join: the game's own Back (0x4FC795) reopens the popup
     using ActiveFn = bool(__cdecl*)(const char*);
-    if (reinterpret_cast<ActiveFn>(FN_FE_PACKAGE_ACTIVE)("2P_PressStart.fng"))
-        reinterpret_cast<void(__cdecl*)(const char*)>(0x5379A0)("2P_PressStart.fng");
+    if (!reinterpret_cast<ActiveFn>(FN_FE_PACKAGE_ACTIVE)("2P_PressStart.fng")) return false;
+    reinterpret_cast<void(__cdecl*)(const char*)>(0x5379A0)("2P_PressStart.fng");
     RestoreSeat(0);
     SwitchSeat(carsel, 1);
     reinterpret_cast<void(__cdecl*)(int)>(0x50D180)(5);
