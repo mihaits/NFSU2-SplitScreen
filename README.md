@@ -1,17 +1,20 @@
 # NFSU2 Split Screen
 
-Local **split screen for 2-4 players** in *Need for Speed Underground 2* on PC.
+Local **split screen for 2-6 players** in *Need for Speed Underground 2* on PC.
 
 ![4-player split screen](docs/split-screen-4p.gif)
 
-**Status: 0.9.6 alpha.** Every race mode works with 2-4 players.
+**Status: 0.10.0 alpha.** Every race mode works with 2-4 players. 5-6 players are new and still being tested with
+real controllers ([open issues](docs/open-issues.md)).
 
 ## Install
 1. You need `speed2.exe` **v1.2** and the [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader).
    [WidescreenFix](https://github.com/ThirteenAG/WidescreenFixesPack/releases/tag/nfsu2) is recommended.
 2. Download the [latest release](https://github.com/mihaits/NFSU2-SplitScreen/releases) and copy
    `NFSU2SplitScreen.asi` and `NFSU2SplitScreen.ini` into the game's `scripts` folder.
-3. One controller per player. Xbox pads work directly; PlayStation DualSense pads work natively (USB or Bluetooth) or through DS4Windows.
+3. One controller per player. Xbox pads work directly (up to 4: the XInput limit); PlayStation DualSense pads work
+   natively (USB or Bluetooth, up to 8) or through DS4Windows. For 5-6 players use native DualSense pads (DS4Windows
+   off) for the players past the 4th Xbox pad, or the keyboard for one player.
 
 ## Play
 1. Main menu → **Split-Screen** (next to Quick Race).
@@ -24,17 +27,19 @@ Every player has their own controls page (Options → Controls) and their own pl
 options of whoever paused.
 
 ## Features
-- [x] 2, 3 or 4 players, in every race mode (Outrun is 2 players)
+- [x] 2 to 6 players, in every race mode (Outrun is 2 players, drag up to 4): halves, quadrants, 3 + 2, 3 × 2
 - [x] Each player has their own view, HUD, gauges, minimap, camera, sound and rumble
 - [x] Full graphics in every view: reflections, rain, headlights, blur, light streaks, overbright, anti-aliasing
 - [x] Own controls, options and last car per player
 - [x] WidescreenFix support, including its free camera per player
 - [x] Catch-up between players
-- [x] AI opponents with difficulty (up to 6 racers in all, 4 in drag; none in sprint drift)
+- [x] AI opponents with difficulty (up to 6 racers in all, 4 in drag; none in sprint drift; 6 players leave no room)
 - [x] Free Run: drive the whole city together, no race
 - [x] DualSense without DS4Windows: input, rumble, player LEDs, RPM and nitrous lightbar
 
 ## To do
+- [ ] 5-6 players: testing with real controllers ([pending tests](docs/open-issues.md))
+- [ ] More than 4 Xbox pads (Windows.Gaming.Input backend)
 - [ ] Session results: standings across back-to-back races
 - [ ] Replays of split-screen races
 - [ ] Rear-view mirror in the bumper and hood cameras, like single player

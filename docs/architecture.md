@@ -11,10 +11,10 @@ to the part of its subsystem (or a new part, included where its dependencies are
 | core | game addresses, state, patch helpers |
 | frontend, garage | main menu entry, Players row, garage backup, help bar; shared My Cars |
 | log, debug_tools | debug log; hardware write watch and command mailbox |
-| seats | players 3/4 data, controller assignment, car select seats |
+| seats | players 3..6 data, controller assignment, car select seats |
 | input, input_ports | input merge, P3/P4 joypad bindings; 4 input port tables |
 | render_core, render_passes, render_weather, render_envmap | layout and device hooks; streaks, blur, headlights; rain, weather, road reflections, overbright; car reflections, projectors, projection |
-| local_players, racers | 4-player arrays; extra local players, standings, results, post-race scene, names, skins, AI cars |
+| local_players, racers | 6-player arrays; extra local players, standings, results, post-race scene, names, skins, AI cars |
 | hud_split, hud_players, gauges, minimap_players, hud_gap, player_settings | HUD widening, quad HUD, minimaps; P3/P4 HUD packages; single-player gauges; minimap markers; HUD gap; per-player settings and HUD state |
 | sound, threads_memory, streaming | listeners; audio fs and pool locks, streaming pools; streaming for P3/P4 |
 | intro, free_run, race_rules, camera | intro scenes and grid; Free Run; Hurry timer and catch-up; start zoom, free camera |
@@ -61,4 +61,4 @@ to the part of its subsystem (or a new part, included where its dependencies are
 - `0x50CA00` / `0x50CA50` recurse into groups.
 - Patch order matters: hooks inside code that `RelocateLocalPlayers` rewrites (e.g. 0x5D778D) are installed after it.
 - 2-entry tables indexed by `view id - 1` or `player index` are common (weather caches, tint, settings, FF channels):
-  check for out-of-bounds use when views 5/6 or players 3/4 reach new code.
+  check for out-of-bounds use when views 5..8 or players 3..6 reach new code.

@@ -21,8 +21,7 @@ DUMMY_SKIN<index + 1>). The human component manager capacity (type 1) imm at 0x4
 1. racer 0x5ED920(0x89E7A0, k); car = race car list [0x890080] entry with short +0xA == k;
 2. `InitPlayerView(5..8)` and its own camera (malloc 0x320 + 0x44F5A0). This must happen before the player: camera
    movers (0x44AB90) read view->camera.
-3. The player is allocated (0x9C0 bytes) and built with ctor 0x5F1670(port, k & 1). Port = k, but P5/P6 use port
-   0/1 (P1's / P2's input) until input ports 4/5 exist (`INPUT_PORTS`, step 6 of the 6P plan). It's built as P1/P2 so that a
+3. The player is allocated (0x9C0 bytes) and built with ctor 0x5F1670(port k, k & 1). It's built as P1/P2 so that a
    loaded 2P HUD package is used.
 4. byIndex is fixed up; +0x10 = k, +0x18 = view 5..8, +0x1C = 0 (no mirror); `0x5F3E10(player, car)` attaches it.
 

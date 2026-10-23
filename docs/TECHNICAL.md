@@ -9,7 +9,7 @@ everything here was verified in game. The source is split by subsystem into `src
 - Calling conventions: `__thiscall` (ecx = this), `__cdecl`, `__stdcall` as noted. "ret N" = callee pops N bytes.
 
 ## Start here
-- [architecture](architecture.md): install, patch helpers, the per-frame entry, mode predicates, how players 3/4 are
+- [architecture](architecture.md): install, patch helpers, the per-frame entry, mode predicates, how players 3..6 are
   added on top of a 2-player game; thread safety; **gotchas**.
 - [addresses](addresses.md): core globals, race cars and racers, race types.
 
@@ -18,7 +18,7 @@ everything here was verified in game. The source is split by subsystem into `src
 |---|---|
 | [frontend](frontend.md) | main menu entry, Players row, joining, seats and car select, shared garage, FE API |
 | [input](input.md) | DirectInput side, XInput virtual pads, pad resolver, keyboard player, P3/P4 bindings, rumble |
-| [players](players.md) | players 3/4: relocated arrays, racers, settings, seat store, names, catch-up, AI opponents, free camera |
+| [players](players.md) | players 3..6: relocated arrays, racers, settings, seat store, names, catch-up, AI opponents, free camera |
 | [rendering](rendering.md) | views, layout, viewports, projection; per-view passes (headlights, skins, reflections, weather, blur, streaks) |
 | [streaming](streaming.md) | track sections, streaming positions, pools, load priority, post-race |
 | [hud](hud.md) | FE objects, HUD packages and copies, quad HUD, minimaps, gauges, Free Run HUD |

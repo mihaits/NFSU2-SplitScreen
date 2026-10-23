@@ -144,3 +144,11 @@ there rather than tuned by feel:
 - Collisions (0x572E50 → 0x865360) only drive the wheels' constant force, as on PS2 (`ImpactRumbleHook` ignores
   players >= 2). `JoySlotPresent` (0x5BFD70: slot >= 2 → false) guards the driving force feedback 0x406460, which read
   past the 2-slot array.
+
+**More than 4 Xbox pads (not done).** XInput stops at 4. Other games get past that with SDL (merges XInput, Raw Input,
+Windows.Gaming.Input and HIDAPI; matches each Raw Input device to its XInput twin by input activity),
+Windows.Gaming.Input (no documented cap, 8 Xbox pads reported; WinRT but callable from Win32; `Gamepad` reads only
+while the window is in the foreground), GameInput (needs its redistributable, x86 support unclear), Raw Input / HID
+(PlayStation pads have no limit, this mod's native DualSense path; Xbox pads over Bluetooth HID report both triggers on
+one axis and can't rumble) or Steam Input (only for games started through Steam). For this mod: a WGI backend for Xbox
+pads past the XInput 4 (built into Windows 10/11); check that it works from the x86 DLL and with the game focused.
