@@ -40,6 +40,7 @@ options of whoever paused.
 
 ## To do
 - [ ] 5-6 players: testing with real controllers ([pending tests](docs/open-issues.md))
+- [ ] 5-6 players: HUD scale and FOV adjustments
 - [ ] More than 4 Xbox pads (Windows.Gaming.Input backend)
 - [ ] Session results: standings across back-to-back races
 - [ ] Replays of split-screen races
