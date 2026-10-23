@@ -1,6 +1,6 @@
 # Free Run (free roam)
 
-Split-screen Free Run drives the whole city on track 4000 (from the airport) with 2-4 players, without outrun
+Split-screen Free Run drives the whole city on track 4000 (from the airport) with 2-6 players, without outrun
 challenges and without the race HUD. Race type 9 (0x83AAB4), installed by `InstallFreeRun`.
 
 - **Mode list.** The quick race mode list (UIQRModeSelect::Setup, 0x4B2E..) adds Outrun in modes 8/0x200/4 and Free
@@ -10,7 +10,7 @@ challenges and without the race HUD. Race type 9 (0x83AAB4), installed by `Insta
   Players row). `NextScreenAfterMode`: split screen + type 9 → the race options screen, track word (0x83AAC4 + 9 ×
   0x14 + 8) = 4000. No track choice (user).
 - **Players.** Free Run's starter (0x53F580) sets 1 local player and creates 1 human; `CreateHumanRacers` makes it 2 in
-  split screen, then adds players 3/4 as usual ([players](players.md)).
+  split screen, then adds players 3..6 as usual ([players](players.md)).
 - **Free state.** When driving starts, Free Run switches the race to its free state (0x89E7B0 = 7, 0x607190) and sets
   the local player count from the human cars (0x6071D5). With 3-4 that stopped the game's 2-player paths (dark
   screen). `FreeStatePlayersHook` (0x6071D2) caps it at 2.

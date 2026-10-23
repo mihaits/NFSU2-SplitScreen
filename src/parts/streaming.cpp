@@ -1,11 +1,11 @@
-// Part of NFSU2SplitScreen.cpp: track streaming for players 3/4.
+// Part of NFSU2SplitScreen.cpp: track streaming for players 3..6.
 // Included by NFSU2SplitScreen.cpp in a fixed order (one translation unit); not compiled on its own.
 
-// ---------------------------------------------------------------- track streaming for players 3/4
+// ---------------------------------------------------------------- track streaming for players 3..6
 // The streamer (0x88EB00) has room for 2 positions (+0xB0 + k*0x5C), fed from the cameras of views 1/2 (0x44EFE0).
-// Players 3/4 ride along: each frame their camera gives a zone (0x5E4F20 on a shadow position block); a zone change
+// Players 3..6 ride along: each frame their camera gives a zone (0x5E4F20 on a shadow position block); a zone change
 // forces the streamer to rebuild its section sets (0x5E5300 reports "changed"), and the rebuild (0x5E5110) also
-// marks P3's zone sections under position 0 and P4's under position 1, so they get loaded and kept.
+// marks P3's / P5's zone sections under position 0 and P4's / P6's under position 1, so they get loaded and kept.
 #define STREAMER           0x88EB00
 #define FN_STREAM_ZONES    0x5E5300      // bool __thiscall (streamer; short zones[2]) -> changed
 #define FN_STREAM_SECTIONS 0x5E5110      // void __thiscall (streamer): per-position section sets
@@ -15,15 +15,15 @@
 #define ZONE_LISTS_A       0x883E90      // list heads (next pointer at +0)
 #define ZONE_LISTS_B       0x883E80
 struct StreamPos { int car; float x, y, vx, vy; uint8_t pad[0x48]; };
-static StreamPos g_streamPos[2];
-static short g_streamZone[2], g_streamZoneUsed[2];
+static StreamPos g_streamPos[MAX_EXTRA_PLAYERS];
+static short g_streamZone[MAX_EXTRA_PLAYERS], g_streamZoneUsed[MAX_EXTRA_PLAYERS];
 using StreamZonesFn = uint8_t(__fastcall*)(void*, void*, short*);
 using StreamSectionsFn = void(__fastcall*)(void*);
 static StreamZonesFn g_origStreamZones;
 static StreamSectionsFn g_origStreamSections;
 
 static void UpdateExtraStreamZones() {
-    for (int k = 0; k < 2; ++k) {
+    for (int k = 0; k < MAX_EXTRA_PLAYERS; ++k) {
         g_streamZone[k] = 0;
         if (k >= g_extraPlayers || !SplitRacing()) continue;
         View& v = GetView(kPlayerViewId[2 + k]);
@@ -66,7 +66,7 @@ static uint8_t __fastcall StreamZonesHook(void* streamer, void* edx, short* zone
     FollowCameraForSceneCars(static_cast<uint8_t*>(streamer));
     uint8_t changed = g_origStreamZones(streamer, edx, zones);
     UpdateExtraStreamZones();
-    for (int k = 0; k < 2; ++k)
+    for (int k = 0; k < MAX_EXTRA_PLAYERS; ++k)
         if (g_streamZone[k] != g_streamZoneUsed[k]) changed = 1;
     return changed;
 }
@@ -95,23 +95,23 @@ static int ZoneSections(short zone, short* list, int max) {
 
 static void __fastcall StreamSectionsHook(void* streamer) {
     g_origStreamSections(streamer);
-    for (int k = 0; k < 2; ++k) {
+    for (int k = 0; k < MAX_EXTRA_PLAYERS; ++k) {
         g_streamZoneUsed[k] = g_streamZone[k];
         if (g_streamZone[k] <= 0) continue;
         static short list[0x180];
         int n = ZoneSections(g_streamZone[k], list, 0x180);
         if (n > 0)
-            reinterpret_cast<void(__thiscall*)(void*, short*, int, int)>(FN_MARK_SECTIONS)(streamer, list, n, k);
-        Log("streaming: player %d zone %d -> %d sections (position %d)", k + 3, g_streamZone[k], n, k);
+            reinterpret_cast<void(__thiscall*)(void*, short*, int, int)>(FN_MARK_SECTIONS)(streamer, list, n, k & 1);
+        Log("streaming: player %d zone %d -> %d sections (position %d)", k + 3, g_streamZone[k], n, k & 1);
     }
 }
 
 // Load priority (0x5DF580, called at 0x5E7CFC): for each section of the streamer's list (+0x29C, count +0x298) the
 // priority is the smallest 0x5DF3A0(section, position block) (distance-based, 0..0x63; uses the block's x/y +4/+8 and
 // velocity +0xC/+0x10) over the positions whose bit the section has (+0xB), stored as priority * 100000 + section
-// +0x20 at +0x40; it decides what loads first and what is dropped first. P3's / P4's sections ride on bits 0 / 1, so
-// they were ranked by the distance to P1 / P2: the sections around a player far from both loaded last and were evicted
-// first. Now the distance to P3's / P4's own position counts too (bit 0 / 1); unchanged with 2 players.
+// +0x20 at +0x40; it decides what loads first and what is dropped first. P3's / P5's sections ride on bit 0 and P4's /
+// P6's on bit 1, so they were ranked by the distance to P1 / P2: the sections around a player far from both loaded last
+// and were evicted first. Now the distance to each extra player's own position counts too; unchanged with 2 players.
 #define AT_STREAM_PRIORITY_CALL 0x5E7CFC  // call 0x5DF580 (thiscall streamer)
 #define FN_STREAM_PRIORITY      0x5DF580
 #define FN_SECTION_DISTANCE     0x5DF3A0  // int __thiscall (streamer; section, position block)
@@ -133,8 +133,8 @@ static void __fastcall StreamPriorities(uint8_t* streamer) {
                 if (d < best) best = d;
             }
         int own = best;
-        for (int k = 0; k < 2 && k < g_extraPlayers; ++k)      // P3 -> bit 0, P4 -> bit 1
-            if ((bits & (1 << k)) && g_streamZone[k] > 0) {
+        for (int k = 0; k < MAX_EXTRA_PLAYERS && k < g_extraPlayers; ++k)   // P3/P5 -> bit 0, P4/P6 -> bit 1
+            if ((bits & (1 << (k & 1))) && g_streamZone[k] > 0) {
                 int d = distance(streamer, section, &g_streamPos[k]);
                 if (d < best) best = d;
             }
@@ -144,6 +144,6 @@ static void __fastcall StreamPriorities(uint8_t* streamer) {
     static DWORD logged;
     if (g_debug && GetTickCount() - logged > 3000) {
         logged = GetTickCount();
-        Log("streaming: %d sections, %d ranked higher by players 3/4's positions", count, raised);
+        Log("streaming: %d sections, %d ranked higher by players 3..6's positions", count, raised);
     }
 }

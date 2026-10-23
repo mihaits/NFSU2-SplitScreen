@@ -187,7 +187,7 @@ Test: gameplay with real pads (user), rebinding P5/P6 controls, pause/resume fro
 - `ClearHudBindings` (4P quit fix) with 6 HUDs.
 Test: every player's HUD in its own cell, all 6 markers on every minimap, finish/pause hides, quit.
 
-### 8. Streaming and sound for 6
+### 8. Streaming and sound for 6 (done; post-race scene with 6 humans untested)
 - `StreamZonesHook` / `StreamSectionsHook` / `StreamPriorities`: P5 under position 0, P6 under position 1 (as P3/P4).
 - Pool sizes for 6 (`CreateTrackStreamingPool` / `CreateSecondStreamingPool`); measure peak memory, cap the formula if
   the address space gets tight.

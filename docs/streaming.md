@@ -4,9 +4,10 @@
   data has no 'Y' variants, so the world disappeared. The `jnz` at 0x5DACDB → `jmp`: every player streams the full 1P
   sections.
 - **Positions.** The streamer 0x5E5110 supports 2 positions, taken from views 1/2's cameras (0x44EFE0 → 0x5D6040).
-  `StreamZonesHook` (0x5E5300) computes P3/P4's zones from the cameras of views 5/6. `StreamSectionsHook` (0x5E5110)
-  marks P3's zone sections under position 0 and P4's under position 1 (0x5DACB0(streamer; list, n, pos)). The proper
-  fix, 4 positions, is still to do.
+  `StreamZonesHook` (0x5E5300) computes P3..P6's zones from the cameras of views 5..8. `StreamSectionsHook` (0x5E5110)
+  marks P3's / P5's zone sections under position 0 and P4's / P6's under position 1 (0x5DACB0(streamer; list, n,
+  pos)). The proper fix, more positions, is still to do. 6P circuit with P5/P6 400 m away: their zones load and their
+  views draw complete; 6P Free Run track pool 210 MB, peak 874 MB virtual.
 - **Pools.** The race load (0x57A5E3) sizes the "Track Streaming" pool from 0x79DC54 KB {60000 normal, 43000 two
   players, 36000} (0x5E4E70, call 0x57A63A), and a second pool from 0x7FA9D4 KB {11000, 9000, 16000} (0x610750 on
   0x8A3288, call 0x57A62C). The 2-player sizes were made for the reduced split sections. Split races stream full
@@ -20,8 +21,8 @@
 - Load priority (0x5DF580, called at 0x5E7CFC → `StreamPriorities`): per section (list +0x29C, count +0x298) the game
   takes the smallest 0x5DF3A0(section, position block) over the positions whose bit (+0xB) it has (0..0x63; uses the
   block's x/y +4/+8 and velocity +0xC/+0x10; a still position gives 0) and stores priority × 100000 + section+0x20 at
-  +0x40, which orders loading and eviction. P3/P4's sections ride on bits 0/1, so they were ranked by the distance to
-  P1/P2. `StreamPriorities` also takes P3's / P4's own blocks for bit 0 / 1, so every section is ranked by its nearest
+  +0x40, which orders loading and eviction. P3..P6's sections ride on bits 0/1 (k & 1), so they were ranked by the
+  distance to P1/P2. `StreamPriorities` also takes each extra player's own block for its bit, so every section is ranked by its nearest
   player (identical to the game's with 2 players).
 - **Post-race.** Position blocks are at streamer 0x88EB00 + 0xB0 + k × 0x5C; block +0 is the car array index it
   follows (0x5E4F20 copies the car's +0x60 position and +0x70 velocity). The post-race scene drives cars it doesn't

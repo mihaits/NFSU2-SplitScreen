@@ -130,8 +130,11 @@ static void __fastcall ListenerUpdate(void* ecx, void*) {
     if (g_debug && n > 2 && ++s_tick % 600 == 0) {
         const ListenerArray& e = g_listenerArrays[4];          // 0x82BEF0: listener position (x, y, z)
         auto pos = [&](int k) { return reinterpret_cast<const float*>(ListenerSlot(e, k)); };
-        Log("listeners: %.1f,%.1f | %.1f,%.1f | %.1f,%.1f | %.1f,%.1f", pos(0)[0], pos(0)[1], pos(1)[0], pos(1)[1],
-            pos(2)[0], pos(2)[1], pos(3)[0], pos(3)[1]);
+        char line[256];
+        int len = wsprintfA(line, "listeners:");
+        for (int k = 0; k < n; ++k)
+            len += sprintf_s(line + len, sizeof(line) - len, " %s%.1f,%.1f", k ? "| " : "", pos(k)[0], pos(k)[1]);
+        Log("%s", line);
     }
 }
 
