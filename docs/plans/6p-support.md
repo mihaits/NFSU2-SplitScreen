@@ -125,7 +125,7 @@ Raise the constant and fix everything that assumes 4, with the Players row still
 - Grep check after: `grep -nE "\[4\]|< ?4\b|> ?3\b|< ?2 \?|>= ?2 \?" src` reviewed line by line.
 Test: 2, 3, 4P race + Free Run + pause by P3/P4 + Controls P3/P4 pages + quit (regression).
 
-### 2. Layout from a region table
+### 2. Layout from a region table (done: `LayoutCell` / `LayoutFeRect` in core.cpp)
 Today the HUD, minimap and gauge transforms derive the cell from bits (`k & 1`, `k & 2`, `halfW`, "P3 centred in 3P").
 Make `ApplySplitLayout` the only place that knows the layout: per view k a rect `g_regionX/Y/W/H[k]`, and
 `QuadTransform`, `MinimapPlace`, `GaugeTransform` (hud_split.cpp:360, :416), `ClearUnusedAreas` (render_weather.cpp:422

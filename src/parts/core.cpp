@@ -122,6 +122,34 @@ static int  g_prevMode = 0;
 static const int kPlayerViewId[MAX_LOCAL_PLAYERS] = {1, 2, 5, 6, 7, 8};   // views 5..8 are unused by the game
 static RenderTarget g_rt[MAX_LOCAL_PLAYERS]; // private targets for the player views (one per screen region)
 static int g_screenViews = 2;            // player views drawn this frame (2, or 4 for quadrants)
+
+// The split layout: player view k's screen rect in pixels with n views on a w x h screen. The only place that knows the
+// layout (viewports, HUD, minimaps, gauges and the bars around a short bottom row all read it).
+//   2: top / bottom halves   3: quadrants, P3 centred in the bottom half   4: quadrants
+//   5: 3 on top, 2 centred below   6: 3 x 2 grid (5/6 not reachable yet)
+struct Cell { int x, y, w, h; };
+static Cell LayoutCell(int n, int k, int w, int h) {
+    if (n <= 2) return {0, k * (h / 2), w, h / 2};
+    if (n <= 4) {
+        Cell c = {(k & 1) * (w / 2), (k >> 1) * (h / 2), w / 2, h / 2};
+        if (n == 3 && k == 2) c.x = w / 4;
+        return c;
+    }
+    int row = k / 3, col = k % 3;
+    Cell c = {col * w / 3, row * (h / 2), (col + 1) * w / 3 - col * w / 3, h / 2};
+    if (n == 5 && row == 1) c.x += w / 6;
+    return c;
+}
+// The same rect in FE units (x -240*aspect..240*aspect, y -240..240): left, top, right, bottom.
+struct FeRect { float left, top, right, bottom; };
+static FeRect LayoutFeRect(int n, int k) {
+    int w = at<int>(SCREEN_W), h = at<int>(SCREEN_H);
+    float halfW = 240.0f * static_cast<float>(w) / static_cast<float>(h);
+    Cell c = LayoutCell(n, k, w, h);
+    auto fx = [&](int px) { return (2.0f * px / w - 1.0f) * halfW; };
+    auto fy = [&](int py) { return (2.0f * py / h - 1.0f) * 240.0f; };
+    return {fx(c.x), fy(c.y), fx(c.x + c.w), fy(c.y + c.h)};
+}
 static bool g_viewTintInit[2];           // views 5/6 have their own screen tint entries (see TintUpdateWrapper)
 static bool g_quadTest = false;          // debug: 2P race drawn in quadrants, views 5/6 reuse P1/P2's cameras
 static int  g_extraPlayers = 0;          // debug: players 3.. added to 2P races (cloning P1/P2's car and profile)

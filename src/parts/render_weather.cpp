@@ -415,11 +415,12 @@ static void __cdecl OverbrightAccumulate(void* a1, int a2, void* a3, void* a4, i
 // filled black every frame after the views - in the picture and in the streak/overbright buffer (whose full-screen
 // pass would otherwise show leftovers).
 static void ClearUnusedAreas() {
-    if (!SplitRacing() || g_screenViews != 3) return;
+    if (!SplitRacing() || (g_screenViews != 3 && g_screenViews != 5)) return;   // a short, centred bottom row
     void* dev = at<void*>(D3D_DEVICE);
     if (!dev) return;
     int w = at<int>(SCREEN_W), h = at<int>(SCREEN_H);
-    RECT bars[2] = {{0, h / 2, w / 4, h}, {w / 4 + w / 2, h / 2, w, h}};
+    Cell first = LayoutCell(g_screenViews, g_screenViews == 3 ? 2 : 3, w, h), last = LayoutCell(g_screenViews, g_screenViews - 1, w, h);
+    RECT bars[2] = {{0, first.y, first.x, h}, {last.x + last.w, last.y, w, h}};
     auto fill = reinterpret_cast<HRESULT(__stdcall*)(void*, void*, const RECT*, DWORD)>((*reinterpret_cast<void***>(dev))[35]);
     void* targets[2] = {reinterpret_cast<RenderTarget*>(RT_BACKBUFFER)->surface,
                         at<int>(0x870CFC) ? at<void*>(0x86FF70) : nullptr};

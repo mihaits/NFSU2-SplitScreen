@@ -100,11 +100,11 @@ static void ApplySplitLayout() {
             g_rt[k] = *bb;               // refresh every frame: surfaces change after a device reset
             g_rt[k].ownerView = kPlayerViewId[k];
             g_rt[k].enabled = 1;
-            g_rt[k].width = quad ? w / 2 : w;
-            g_rt[k].height = h / 2;
-            g_regionX[k] = quad ? (k & 1) * (w / 2) : 0;
-            if (g_screenViews == 3 && k == 2) g_regionX[k] = w / 4;   // 3 players: P3 centred in the bottom half
-            g_regionY[k] = quad ? (k >> 1) * (h / 2) : k * (h / 2);
+            Cell c = LayoutCell(g_screenViews, k, w, h);
+            g_rt[k].width = c.w;
+            g_rt[k].height = c.h;
+            g_regionX[k] = c.x;
+            g_regionY[k] = c.y;
             v.rt = &g_rt[k];
             v.active = 1;
         }

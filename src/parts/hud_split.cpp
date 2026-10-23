@@ -359,14 +359,10 @@ static void UpdateHudWiden() {
 // top-left with P2's bottom-half layout (P2, P4; its drift score panel takes the lower left). (x, y) relative to the
 // minimap centre.
 static void MinimapPlace(float* copy, int k, float x, float y) {
-    float aspect = static_cast<float>(at<int>(SCREEN_W)) / static_cast<float>(at<int>(SCREEN_H));
-    float halfW = 240.0f * aspect;
     const float ms = 0.55f;
-    float left = (k & 1) ? 0.0f : -halfW, top = (k & 2) ? 0.0f : -240.0f;
-    if (k == 2 && g_screenViews == 3) left = -halfW / 2;  // 3 players: P3 centred
-    bool topLayout = true;               // all players use the top-half layout in quadrants
-    copy[7] = left + 52.0f + x * ms;
-    copy[8] = (topLayout ? top + 240.0f - 48.0f : top + 52.0f) + y * ms;
+    FeRect r = LayoutFeRect(g_screenViews, k);   // all players use the top-half layout: bottom-left corner
+    copy[7] = r.left + 52.0f + x * ms;
+    copy[8] = r.bottom - 48.0f + y * ms;
     copy[0xE] *= ms;
     copy[0xF] *= ms;
     copy[4] *= ms;                       // rotation pivot (north indicator: 72 below it, at the map centre)
@@ -381,20 +377,17 @@ static bool Contains(const void* const* list, int n, const void* p) {
 }
 
 static bool QuadTransform(float* copy, int slot) {
-    float aspect = static_cast<float>(at<int>(SCREEN_W)) / static_cast<float>(at<int>(SCREEN_H));
-    float halfW = 240.0f * aspect;                       // half the visible width in FE units (320 at 4:3)
-    float s = halfW / 640.0f;                            // full-width layout -> quadrant width
+    FeRect r = LayoutFeRect(g_screenViews, slot);
+    float cellW = r.right - r.left, cellH = r.bottom - r.top;
+    float s = cellW / 640.0f < cellH / 240.0f ? cellW / 640.0f : cellH / 240.0f;   // the 640-wide layout into the cell
     if (g_mmTarget >= 0) {                                   // a player's minimap (icons may be off-centre)
         MinimapPlace(copy, g_mmTarget, copy[7] - MINIMAP_X, copy[8] - MINIMAP_Y);
         return true;
     }
-    bool right = slot & 1, bottom = (slot >> 1) & 1;
-    bool srcBottom = false;                              // every player uses a copy of the top-half package
-    // the 2P layout (a full-width half, centre (0, -120) / (0, 120)) scaled uniformly about its centre into the
-    // quadrant: elements made of several objects (the drag tach's segments over its arc) stay together
-    float srcCy = srcBottom ? 120.0f : -120.0f, dstCy = bottom ? 120.0f : -120.0f;
-    float cx = right ? halfW / 2 : -halfW / 2;
-    if (slot == 2 && g_screenViews == 3) cx = 0.0f;      // 3 players: P3 centred in the bottom half
+    // the 2P top-half layout (a full-width half, centre (0, -120); every player uses a copy of it) scaled uniformly
+    // about its centre into the cell: elements made of several objects (the drag tach's segments) stay together
+    const float srcCy = -120.0f;
+    float cx = (r.left + r.right) / 2, dstCy = (r.top + r.bottom) / 2;
     copy[7] = cx + copy[7] * s;
     copy[8] = dstCy + (copy[8] - srcCy) * s;
     if (fabsf(copy[8] - dstCy) > 160.0f) copy[8] += copy[8] > dstCy ? 2000.0f : -2000.0f;   // parked off-screen
@@ -416,15 +409,8 @@ static bool g_gaugeDrag = false;
 static float g_gaugeScale = 0.6f;
 
 static void GaugeTransform(float* copy, int k) {
-    float aspect = static_cast<float>(at<int>(SCREEN_W)) / static_cast<float>(at<int>(SCREEN_H));
-    float halfW = 240.0f * aspect;
-    float left = -halfW, right = halfW, bottom = (k & 1) ? 240.0f : 0.0f;
-    if (g_screenViews >= 3) {
-        left = (k & 1) ? 0.0f : -halfW;
-        right = left + halfW;
-        bottom = (k & 2) ? 240.0f : 0.0f;
-        if (k == 2 && g_screenViews == 3) left = -halfW / 2, right = halfW / 2;
-    }
+    FeRect r = LayoutFeRect(g_screenViews, k);
+    float left = r.left, right = r.right, bottom = r.bottom;
     float s = g_gaugeScale;
     if (g_gaugeDrag) {
         // the 1P drag HUD spans the screen (tach arc along the left edge, speed top right): the whole layout fits

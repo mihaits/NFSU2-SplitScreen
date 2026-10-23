@@ -16,9 +16,12 @@
 **Layout.** 0x5C2120 computes layout 3 for split, but the PC per-frame apply 0x5C21E0 has no case for it.
 `ApplySplitLayout` (each frame while SplitRacing):
 - `g_screenViews` = 2 / 3 / 4.
-- Each player view gets a private copy of the backbuffer RT (`g_rt[k]`, half height; also half width in quad) and a
-  region (`g_regionX/Y`): 2P = top/bottom halves; 4P = quadrants; 3P = P1/P2 on top, P3 centred at the bottom
-  (x = w/4).
+- `LayoutCell(n, k, w, h)` (core.cpp) is the only place that knows the layout: view k's pixel rect with n views.
+  2P = top/bottom halves; 4P = quadrants; 3P = P1/P2 on top, P3 centred at the bottom (x = w/4); 5P = 3 cells
+  (w/3 x h/2) on top, 2 centred below (x + w/6); 6P = 3 x 2 grid (5P/6P not reachable yet). `LayoutFeRect` gives the
+  same rect in FE units for the HUD.
+- Each player view gets a private copy of the backbuffer RT (`g_rt[k]`, the cell's size) and a region
+  (`g_regionX/Y`, the cell's corner).
 - `g_rt` is refreshed every frame and before each player view (`RefreshViewTarget`), because a device reset
   (alt-tab) releases the surfaces.
 
@@ -43,7 +46,8 @@ width/height, then view-proj and the frustum. `ProjectionHook` at 0x5C80B0 (afte
 aspect and FOV for the view's region (`AdjustProjection`; camera FOV ushort at camera+0xC4). View 4 (road reflection)
 uses the reflecting player's shape. WidescreenFix hooks 0x5C7F50 for view 1 and patches constants at 0x5C7FEA..0x5C8021.
 
-**3P side bars.** `ClearUnusedAreas` (after the view loop) ColorFills the two bottom bars in the backbuffer. With
+**3P (5P) side bars.** `ClearUnusedAreas` (after the view loop) ColorFills the two bars left and right of the short
+bottom row (from `LayoutCell`) in the backbuffer. With
 overbright on, it also fills them in the streak buffer.
 
 ## Per-view render passes

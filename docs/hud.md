@@ -53,8 +53,8 @@ UI_PauseOptions, UI_PauseOptionsMain or UI_PC_Customize_Options is active (`g_hu
 - Package lookup is by name with 0x51BB70 (cache; name) → entry, active package at +0x18.
 
 **Quad HUD (3-4 players).** `UpdateQuadHud` maps every object (and its data pointer) of each player's package to that
-player, rebuilt every 30 frames. `QuadTransform` scales the top-half 2P layout uniformly about its centre (0,-120) by
-halfW/640 into the player's quadrant (P3 is centred in 3P). Objects pushed more than 160 from the centre (icon pools
+player, rebuilt every 30 frames. `QuadTransform` scales the top-half 2P layout uniformly about its centre (0,-120) into the
+player's cell (`LayoutFeRect`), centred on it, by min(cell width / 640, cell height / 240) (= halfW/640 in quadrants). Objects pushed more than 160 from the centre (icon pools
 parked off-screen) are moved 2000 further out. Pivots are scaled too.
 
 **Minimaps.**
@@ -70,7 +70,7 @@ parked off-screen) are moved 2000 further out. Pivots are scaled too.
   After each run it snapshots the minimap objects' data, **keyed by data pointer**. Lists are rebuilt as markers come
   and go.
 - `RenderFeObjectWith` draws each minimap object once per player from that player's snapshot (`MinimapPlace`:
-  bottom-left of the view, ×0.55). The car markers are drawn together, with the own marker last. Markers that aren't
+  bottom-left of the view's cell, ×0.55). The car markers are drawn together, with the own marker last. Markers that aren't
   on that player's map are skipped. The ring group's transform is forced to the origin, and its children are placed
   per player.
 - `DestroyMinimapManager` (call 0x4FBFF2) unlinks P3/P4's entities first. They belong to P3's package, which is freed
@@ -112,7 +112,7 @@ the split race HUDs they are null, so `OutrunElementUpdate` (call 0x4EC69A) skip
 - Hidden: everything else in the copies, and the 2P package's gauge objects. They're skipped at render time, as is
   every gauge object during the intro and the pause menus.
 - `GaugeTransform`:
-  - Normal races: the 1P layout's bottom-right corner goes on the view's bottom-right corner, scaled by
+  - Normal races: the 1P layout's bottom-right corner goes on the view's (cell's) bottom-right corner, scaled by
     GaugeScalePercent.
   - Drag: the whole layout is fitted to the view height (×0.5), and side elements stay at the view sides. The top-right
     speed moves below the 2P position box.
