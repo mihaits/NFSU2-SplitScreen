@@ -22,6 +22,7 @@
 //   shift (player cars, *(int*)(car+0x28) == 1): drv = *(*(car+0x34)+0x4C), up = *(float*)(drv+0x84+4*gear),
 //   f = *(float*)(0x7FBF60 + 4*(gear + 9**(int*)(drv+0xF0))) * *(float*)(drv+0xE4), shift = up - *(float*)0x7FBF5C * f
 //   (the tach's shift light, 0x4C6ACF..0x4C6B45); nitrous burns while burn = *(u32*)(car+0x460) is not 0 / 0x7FFFFFFF.
+// Countdown (stage 3): red for the 3 and the 2, amber for the 1, each flashing (on 0.6 s, off 0.4 s), then green for 1 s from GO; then the rpm again.
 // While the pause menu is open every driving pad shows its player's colour at 25% (the click toggle waits).
 // In split racing the touchpad click toggles the player's solid colour (below). Outside racing the bar keeps a fixed dim blue until the later steps (pause, countdown, finish, player colours).
 static bool g_lightbar = true;            // [LIGHTS] Lightbar
@@ -115,7 +116,18 @@ static void UpdatePadLights() {
         seatLimit = (g_seat & 1) == player ? g_seat : player;
     }
     int* mgr = at<int*>(0x890118);
-    bool racing = state == 6 && mgr && *mgr == 4;
+    int stage = state == 6 && mgr ? *mgr : 0;
+    // countdown (stage 3, always 3.0 s): red, red, amber on the 3 / 2 / 1; GO (stage 4) shows green for 1 s
+    static int prevStage = 0;
+    static DWORD stageStart = 0, greenUntil = 0;
+    DWORD tick = GetTickCount();
+    if (stage != prevStage) {
+        if (stage == 3) stageStart = tick;
+        greenUntil = stage == 4 && prevStage == 3 ? tick + 1000 : 0;
+        prevStage = stage;
+    }
+    bool countdown = stage == 3;
+    bool racing = stage == 4;
     bool paused = racing && PauseMenuOpen();
     bool flashOn = (GetTickCount() % 1000) < 500;
     for (int pad = 0; pad < XPadMax(); ++pad) {
@@ -131,16 +143,27 @@ static void UpdatePadLights() {
         }
         uint8_t rgb[3] = {0, 0, 64};
         if (!g_lightbar) rgb[2] = 0;
-        else if (racing) {
+        else if (racing || countdown) {
             int k = -1;                    // local player this pad drives
             if (SplitMode()) { for (int q = 0; q < MAX_LOCAL_PLAYERS; ++q) if (g_assignedPad[q] == pad) k = q; }
             else if (pad == XPadLastActive()) k = 0;
-            bool toggle = k >= 0 && !paused && SplitMode() && XPadTouchClickPressed(pad);
+            bool toggle = k >= 0 && racing && !paused && SplitMode() && XPadTouchClickPressed(pad);
             if (toggle) {
                 g_lightColourMode[k] = !g_lightColourMode[k];
                 Log("lightbar: player %d shows %s", k + 1, g_lightColourMode[k] ? "player colour" : "rpm");
             }
+            uint8_t full[3] = {0, 0, 0};
+            bool cue = countdown;           // countdown / GO colours replace everything else
+            if (countdown) {
+                int second = (tick - stageStart) / 1000;
+                if ((tick - stageStart) % 1000 < 600) { full[0] = 255; full[1] = second >= 2 ? 120 : 0; }   // flash per count
+            } else if (racing && !paused && static_cast<int>(greenUntil - tick) > 0) {
+                full[1] = 255;
+                cue = true;
+            }
             if (k < 0) {
+            } else if (cue) {
+                for (int c = 0; c < 3; ++c) rgb[c] = static_cast<uint8_t>(full[c] * g_lightbarBrightness / 100);
             } else if (paused) {            // the player's colour at 25%
                 for (int c = 0; c < 3; ++c) rgb[c] = static_cast<uint8_t>(kPlayerColour[k][c] * g_lightbarBrightness / 400);
             } else if (SplitMode() && g_lightColourMode[k]) {
