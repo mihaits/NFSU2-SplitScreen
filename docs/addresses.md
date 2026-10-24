@@ -36,6 +36,8 @@ find an address, grep `docs/` (and the source's comment blocks) for it.
 | car +0x28 | mover mode (5 = NISMvr, driven by an intro/outro scene) |
 | car +0x34 | mover; physics body = [mover+0x20]: position +0x20 (z +0x28), velocity +0xA0 |
 | racer +0x14 | progress: laps done + lap fraction (finished only in a 1-lap race at >= 1); +8 laps done; +0xA position |
+| [0x890080]+0x80+0x10i, +0xE0+4i | World slots of racer i (i < +0x14, max 6): position, road position (car +0x8FC); 0x609CE0 |
+| [0x890080]+0x118 | traffic update object (0x42F910 per World update) |
 | car +0x24 | driver controller (0x5EBA30(car, type), object at car +0x2C): 1 human (pad), 2 drag, 3 AI racer, 0/4/5 other |
 | 0x827B98 + track*0x14 | NIS car binding table (+0 track, +4 x, +8 y, +0x10 car array index, -1 none) |
 | 0x83AAC4 + type*0x14 | quick race settings per type: +0 local players, +1 opponents, +8 track |

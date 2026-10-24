@@ -34,6 +34,7 @@ options of whoever paused.
 - [x] Own controls, options and last car per player
 - [x] WidescreenFix support, including its free camera per player
 - [x] Catch-up between players
+- [x] Traffic around every player, not only players 1 and 2
 - [x] AI opponents with difficulty (up to 6 racers in all, 4 in drag; none in sprint drift; 6 players leave no room)
 - [x] Free Run: drive the whole city together, no race
 - [x] DualSense without DS4Windows: input, rumble, player LEDs, RPM and nitrous lightbar, adaptive triggers
@@ -45,7 +46,6 @@ options of whoever paused.
 - [ ] Session results: standings across back-to-back races
 - [ ] Replays of split-screen races
 - [ ] Rear-view mirror in the bumper and hood cameras, like single player
-- [ ] Check traffic generation
 - [ ] Maybe: everyone picking a car at once; press START to join at any time
 
 This is an alpha, so expect the odd bug. If you hit one, please

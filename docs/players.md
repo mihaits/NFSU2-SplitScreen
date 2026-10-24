@@ -100,3 +100,20 @@ frame on a throwaway copy, because it also hides the mouse cursor while racing.
 - 0x5F1160, "distance to the nearest racer", measured racers 0/1 only. Per-car effects (0x60A1AB) skip cars more than
   150 m away, so P3's car had no particles. Now `NearestRacerDistance` (trampoline) uses every racer when extra
   players exist.
+
+**Traffic.** The World update 0x609CE0 copies the first +0x14 race cars (the racers, up to 6) into World slots:
+position +0x80 + 0x10·i, road position +0xE0 + 4·i (car +0x8FC). Traffic runs from there every ~1 s (0x42F910): each
+tick it takes the next traffic car, and if 0x417BB0 says it is out of range it respawns it next to a random local
+player (0x42F800: a cross-traffic emitter 0x42E790, or ahead on that player's road 0x42E9F0 / 0x42E620).
+- "Out of range" and "in view" use the World distance helpers 0x5F0FB0 (xy), 0x5F1160 (xyz) and 0x5F12A0 (road), which
+  read slots 0/1 only outside online races. Keep a car: within 250 of a slot (0x409800). Reject a spawn point: within
+  250 (0x409840 / 0x409890 from 0x418110). Parked cars (0x40BEE0) and TrafficController moves (0x42A5E0) also use
+  them. So traffic around P3..P6 was recycled over and over and respawned in their view: in a 6P sprint with P6
+  driving away from the rest, 168 recycles and 59 cars appearing within 250 of P6 in 60 s. `WorldDistXy` /
+  `WorldDistRoadHook` (trampolines) also measure to players 3..6's cars (0x5F1160 is `NearestRacerDistance`). Same
+  test after: 14 recycles, 5 appearances at 206-245 (the edge of the 250 road distance).
+- 0x42F910 fills a 3-float stack array (ebp-0x18) with each player's traffic spacing (0x418240) by player index, read
+  by 0x42F800 (0x42F88C) for the player it spawns around. P3 shared slot 2 with the car 0x5F0E30(-1), P4 overwrote a
+  saved timer, P5 the cars-per-tick limit. `TrafficSpacingFillHook` / `TrafficSpacingReadHook` keep players 3..6 in
+  `g_trafficSpacing`.
+- Traffic car models still stream for P1's area only (0x412950: the zone at inOrder[0]'s car).

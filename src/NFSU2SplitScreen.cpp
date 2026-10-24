@@ -53,6 +53,7 @@
 #include "parts/garage.cpp"
 #include "parts/free_run.cpp"
 #include "parts/race_rules.cpp"
+#include "parts/traffic.cpp"
 #include "parts/input_ports.cpp"
 #include "parts/camera.cpp"
 #include "parts/pad_lights.cpp"
@@ -175,6 +176,7 @@ static void Install(HMODULE self) {
     Log("local player arrays relocated: %d refs", relocated);
     InstallCatchup();
     InstallHurry();
+    InstallTraffic();
     InstallFreeRun();
     InstallScenePicks();
     PatchViewUpdateLoop();
