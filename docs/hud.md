@@ -135,6 +135,9 @@ the split race HUDs they are null, so `OutrunElementUpdate` (call 0x4EC69A) skip
     stock cars share index 0 but not their tach textures) made resident with 0x494D60(list, 8, cb, ctx, 0). Done
     before the game's load, a player sharing P1's index but not P1's car asked for its textures before P1's pack was
     loaded: its tach had no numbers or dots (user, P3).
+  - The race load only waits for P1's request (its callback 0x571150 starts the next load step); the others' callback
+    just logs "custom HUD textures resident for player N". Measured (3P drift, P3 with its own pack): resident 47 ms
+    after the request, 0.3 s before CreatePlayers. The later load steps wait for more reads queued after them.
   - Unload (call 0x5816D4): every player's list is released first (0x490150(list, 8); a pack can be P1's), then the
     game's unload 0x580FC0, then the plugin's pack files (0x494550(path, 0, 0)).
   - In drag, the load runs with NUM_PLAYERS = 1, which selects the drag texture set.
