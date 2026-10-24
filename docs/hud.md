@@ -77,7 +77,9 @@ parked off-screen) are moved 2000 further out. Pivots are scaled too.
   on that player's map are skipped. The ring group's transform is forced to the origin, and its children are placed
   per player.
 - **2P**: the HUD packages keep their own layout (no quad HUD mapping). `UpdateMinimaps2P` maps only P1's minimap
-  objects (on a new package and every 30 frames) and sets `g_mm2p`. Then `MinimapUpdate` runs per player, the render
+  objects (on a new package and every 30 frames) and sets `g_mm2p`. It goes by the race's players (no extra players),
+  not `g_screenViews`: that is still 2 in a 3+ player race's first frame, and the minimap update then looked for P3's
+  car entity before it existed (crash 0x4AC2B3). Then `MinimapUpdate` runs per player, the render
   hook picks the minimap objects out without a render slot, and `HudObjectFilter` sends only them through
   `QuadTransform` → `MinimapPlace` (bottom-left of each half). The game's own map in the middle of the left edge is gone.
 - `DestroyMinimapManager` (call 0x4FBFF2) unlinks P3/P4's entities first. They belong to P3's package, which is freed
