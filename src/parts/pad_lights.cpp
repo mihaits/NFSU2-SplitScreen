@@ -128,11 +128,11 @@ static int ControllingPad() {
 // Anything else (menus, countdown, pause, finish, the player turned them off) sends Off on both triggers.
 static bool g_adaptiveTriggers = true;    // [LIGHTS] AdaptiveTriggers: the default for players without their own choice
 static int  g_triggerStrength = 100;      // [LIGHTS] TriggerStrength, percent
-static int  g_triggersOn[MAX_LOCAL_PLAYERS] = {-1, -1, -1, -1};   // per player: 1 on, 0 off, -1 the ini default
+static int  g_triggersOn[MAX_LOCAL_PLAYERS] = {-1, -1, -1, -1, -1, -1};   // per player: 1 on, 0 off, -1 the ini default
 
 static bool TriggersOn(int k) { return g_triggersOn[k] < 0 ? g_adaptiveTriggers : g_triggersOn[k] != 0; }
 
-// The players' own choices: [Player1..4] AdaptiveTriggers in NFSU2SplitScreen_Players.ini.
+// The players' own choices: [Player1..6] AdaptiveTriggers in NFSU2SplitScreen_Players.ini.
 static void LoadTriggerChoices() {
     for (int k = 0; k < MAX_LOCAL_PLAYERS; ++k) {
         char section[16];
