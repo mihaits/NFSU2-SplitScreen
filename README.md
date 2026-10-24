@@ -36,7 +36,8 @@ options of whoever paused.
 - [x] Catch-up between players
 - [x] AI opponents with difficulty (up to 6 racers in all, 4 in drag; none in sprint drift; 6 players leave no room)
 - [x] Free Run: drive the whole city together, no race
-- [x] DualSense without DS4Windows: input, rumble, player LEDs, RPM and nitrous lightbar
+- [x] DualSense without DS4Windows: input, rumble, player LEDs, RPM and nitrous lightbar, adaptive triggers
+  (each player turns them on or off in the pause options)
 
 ## To do
 - [ ] 5-6 players: testing with real controllers ([pending tests](docs/open-issues.md))
@@ -46,7 +47,6 @@ options of whoever paused.
 - [ ] Rear-view mirror in the bumper and hood cameras, like single player
 - [ ] Headlight improvements
 - [ ] Check traffic generation
-- [ ] DualSense: adaptive triggers on/off in the pause menu settings
 - [ ] Maybe: everyone picking a car at once; press START to join at any time
 
 This is an alpha, so expect the odd bug. If you hit one, please
@@ -60,7 +60,7 @@ and attach `scripts\NFSU2SplitScreen.log` (set `Debug = 1` in the ini to write i
 |---|---|---|
 | `Rumble` | 1 | controller rumble |
 | `RumbleStrength` | 100 | rumble strength (%) |
-| `AdaptiveTriggers` | 1 | DualSense triggers: resistance, grip-limit / limiter buzz, nitrous kick |
+| `AdaptiveTriggers` | 1 | DualSense triggers: resistance, grip-limit / limiter buzz, nitrous kick (default; per player in the pause options) |
 | `TriggerStrength` | 100 | trigger effect strength (%) |
 | `Lightbar` | 1 | DualSense lightbar shows engine rpm / nitrous while racing |
 | `PlayerLeds` | 1 | DualSense player LEDs show the player number |

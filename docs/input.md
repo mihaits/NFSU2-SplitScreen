@@ -66,6 +66,10 @@ controllers are hidden. Pads 0..3 are the real XInput pads, 4..9 debug pads driv
   pushes harder for the first 300 ms of a nitrous burn. The grip signal (`wheel+0x170`, 1.0 = at the limit, 0 on all four
   wheels = airborne) and the hold times are described in `parts/pad_lights.cpp`. Everything else sends Off. Only the
   official trigger modes are used (0x05 off, 0x21 feedback, 0x26 vibration); 0xFC..0xFE break the trigger.
+  Each player turns them on or off with the "Adaptive Triggers" row of the pause options (`PauseFeedbackAdd`: added
+  after the Feedback row, `call 0x54F170` at 0x4C4985, when the pausing player's pad is a DualSense). The choice is
+  saved as `[PlayerN] AdaptiveTriggers` in `NFSU2SplitScreen_Players.ini`; without one, the ini's `AdaptiveTriggers`
+  applies.
 - Tested with one DualSense; two native pads are untested.
 
 **Pad resolver (`PadForDevice`).**

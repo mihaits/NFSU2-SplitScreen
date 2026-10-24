@@ -112,6 +112,7 @@ static void LoadConfig(HMODULE self) {
     strcpy_s(g_playersPath, path);
     strcpy_s(g_playersPath + (dot - path), MAX_PATH - (dot - path), "_Players.ini");
     LoadSeatStore();
+    LoadTriggerChoices();
     strcpy_s(g_logPath, path);
     strcpy_s(g_logPath + (dot - path), MAX_PATH - (dot - path), ".log");
 }
@@ -151,6 +152,7 @@ static void Install(HMODULE self) {
     WriteJump(FN_RUMBLE, &RumbleHook, 5);
     WriteCall(AT_FF_UPDATE_CALL, &FfUpdate);
     WriteCall(AT_FF_PAD_OUTPUT, &FfPadOutput);
+    WriteCall(AT_PAUSE_FEEDBACK_ADD, &PauseFeedbackAdd);
     {   // Gameplay > Map mode (0x83AA1B, handler 0x49AFE0): the console's split mode offers Off/Static only (max =
         // (mode != 4) + 1); with per-player minimaps Rotate works in split too -> `setne cl` becomes `mov cl, 1`
         static const uint8_t setne[3] = {0x0F, 0x95, 0xC1}, movCl1[3] = {0xB1, 0x01, 0x90};
