@@ -330,8 +330,9 @@ static __declspec(naked) void ViewLoopExitHook() {
     }
 }
 
-// Projection for the half-height split views: keep the full-screen horizontal FOV (hor+ for the screen aspect) and
-// derive the vertical scale from the viewport aspect. Runs right before the game builds view-proj and frustum.
+// Projection for the split views. Views wider than the screen (2P halves) keep the full-screen horizontal FOV (hor+ for
+// the screen aspect) and get a shorter vertical one; narrower views (the 5/6P grid) keep the full-screen vertical FOV
+// and get a narrower horizontal one, as on a narrower monitor. Runs right before the game builds view-proj and frustum.
 static void __cdecl AdjustProjection(View* v, float* plat) {
     bool player = false;
     for (int k = 0; k < g_screenViews; ++k) player |= v->id == kPlayerViewId[k];
@@ -347,8 +348,8 @@ static void __cdecl AdjustProjection(View* v, float* plat) {
     const float kPi = 3.14159265f;
     float half = fov * (kPi / 65536.0f);                          // half of the camera's (4:3) horizontal FOV
     float screenAspect = static_cast<float>(at<int>(SCREEN_W)) / at<int>(SCREEN_H);
-    float p00 = (1.0f / tanf(half)) * (4.0f / 3.0f) / screenAspect;
     float viewAspect = static_cast<float>(shape->width) / shape->height;
+    float p00 = (1.0f / tanf(half)) * (4.0f / 3.0f) / (viewAspect < screenAspect ? viewAspect : screenAspect);
     plat[0x40 / 4] = p00;
     plat[0x54 / 4] = -p00 * viewAspect;
 }
