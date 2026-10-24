@@ -11,3 +11,11 @@
   listeners 1-3 still had the previous track's positions. From the race load until a player's camera moves, that
   player's listener copies listener 0 and is skipped by NearestListener ("parked").
 - Engine sounds use their own path (0x462D51); it's left as is, and every player hears their own engine.
+- **Audio memory.** Sound banks load into the audio pool ([0x82C6D4], created at boot by 0x4859B0: 4 MB with sound
+  on). The race's bank jobs are a 32-entry array at 0x82B098 (0x2C each: +8 file, +0xC folder, +0x14 file buffer,
+  +0x18 bank memory, +0x1C size, +0x20/+0x24 completion callback, +0x28 status/id), built by 0x4869A0 and loaded in
+  order; the track loader's callback (step 3, 0x486EA0 → 0x486C10) rides on the last job. Engine banks come from
+  0x457A60, which refuses a bank bigger than the largest free block − 1 KB; the EA bank load (0x7238D2) then returns
+  −6 and the job never completes, so the race load stays in game state 4 (no error). Every different player car adds
+  an engine bank (~115 KB, `sound\Engine\CAR_nn_ENG_MB_SPU.abk`): with 6 different cars the 5th did not fit.
+  `EnlargeAudioPool` makes the pool 6 MB (imm32 at 0x4859BA).

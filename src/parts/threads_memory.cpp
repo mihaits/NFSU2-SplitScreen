@@ -102,6 +102,19 @@ static void __cdecl PoolFreeLocked(void* ptr) {
     LeaveCriticalSection(&g_poolLock);
 }
 
+// Audio memory: the audio pool ([0x82C6D4]: 0x440330 sub-pool, created at boot by 0x4859B0) is 4 MB with sound on
+// (0x3FC000 + 0x4000; imm32 at 0x4859BA). Sound banks are read into it (engine banks through 0x457A60, which refuses a
+// bank bigger than the largest free block - 1 KB); a refused bank makes the EA bank load (0x7238D2) return -6 and its
+// job (0x82B098 + i * 0x2C, status +0x28) never completes. The race's last bank job carries the track loader's callback
+// (step 3, 0x486EA0 -> 0x486C10), so the race load stayed in game state 4 forever. Each different player car has its
+// own engine bank (~115 KB, sound/Engine/CAR_nn_ENG_MB_SPU.abk); with 6 different cars the 5th engine bank no longer
+// fit (user: 6P race load hang, 2026-10-24). 6 MB fits 6 engine banks with room to spare.
+#define AT_AUDIO_POOL_SIZE 0x4859BA      // imm32 of `and eax, 3FC000h` (pool = that + 0x4000 with sound on)
+static void EnlargeAudioPool() {
+    static const uint32_t size = 0x600000 - 0x4000;
+    if (at<uint32_t>(AT_AUDIO_POOL_SIZE) == 0x3FC000) Write(AT_AUDIO_POOL_SIZE, &size, 4);
+}
+
 // Track streaming memory: race load (0x57A5E3) sizes the "Track Streaming" pool from a table by race kind
 // (0x79DC54 KB: 60000 normal, 43000 with 2 local players, 36000 special) -> 0x5E4E70(streamer; bytes), and a second
 // pool (0x7FA9D4 KB: 11000 / 9000 / 16000) -> 0x610750(0x8A3288; bytes). The 2-player sizes were made for the reduced
