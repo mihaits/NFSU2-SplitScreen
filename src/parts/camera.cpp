@@ -58,8 +58,10 @@ static void UpdateStartZoom() {
 // player's camera went through it: one offset (and one stick) for everyone.
 // Once WidescreenFix has patched the call, the plugin chains in front of it: outside split racing everything goes to
 // WidescreenFix as before; while split racing each player's camera (mover camera == that player's view camera) gets
-// WidescreenFix's behaviour with its own state, that player's right stick, and the mouse for player 1. Settings come
-// from WidescreenFix's ini ([CAMERA], [MISC] RightStickDeadzone).
+// WidescreenFix's behaviour with its own state, that player's right stick, and the mouse for the keyboard player (none
+// when everyone uses a pad). Single player races go the same way (the last active pad and the mouse): WidescreenFix's
+// stick is the last polled slot, which is slot 1 there and has no pad. Settings come from WidescreenFix's ini
+// ([CAMERA], [MISC] RightStickDeadzone).
 #define AT_LOOKAT_CALL     0x453B44
 #define FN_LOOKAT          0x5BA9A0      // void __cdecl eCreateLookAtMatrix(bMatrix4*, bVector3* from, to, up)
 typedef void(__cdecl* LookAtFn)(void*, float*, float*, float*);
@@ -67,7 +69,13 @@ static LookAtFn g_lookAtNext = nullptr;  // WidescreenFix's (or the game's) func
 struct FreeCam { float yaw, pitch, idle, prevX, prevY, speed; bool prevValid; LARGE_INTEGER last; };
 static FreeCam g_freeCam[MAX_LOCAL_PLAYERS];
 static struct { bool loaded, enabled, invert, horizontalOnly; float timeout, returnSpeed, stickSens, mouseSens, deadzone; } g_freeCamCfg;
-static int g_frameMouseDx, g_frameMouseDy;   // mouse movement of this frame (player 1's camera)
+static int g_frameMouseDx, g_frameMouseDy;   // mouse movement of this frame (the keyboard player's camera)
+// Players whose cameras the plugin turns: every split player while split racing, player 1 in a single player race.
+static int FreeCamPlayers() {
+    if (!g_freeCamCfg.enabled) return 0;
+    if (SplitRacing()) return 2 + g_extraPlayers < MAX_LOCAL_PLAYERS ? 2 + g_extraPlayers : MAX_LOCAL_PLAYERS;
+    return !SplitMode() && at<int>(GAME_STATE) == 6 ? 1 : 0;
+}
 
 static void LoadFreeCamConfig() {
     g_freeCamCfg.loaded = true;
@@ -102,9 +110,8 @@ static float LerpAngleDeg(float from, float to, float t) {
 
 static void __cdecl SplitLookAt(const uint8_t* mover, void* out, float* from, float* to, float* up) {
     int k = -1;
-    if (SplitRacing() && g_freeCamCfg.enabled)
-        for (int i = 0; i < 2 + g_extraPlayers && i < MAX_LOCAL_PLAYERS; ++i)
-            if (GetView(kPlayerViewId[i]).camera == *reinterpret_cast<uint8_t* const*>(mover + 0x1C)) k = i;
+    for (int i = 0, n = FreeCamPlayers(); i < n; ++i)
+        if (GetView(kPlayerViewId[i]).camera == *reinterpret_cast<uint8_t* const*>(mover + 0x1C)) k = i;
     if (k < 0) { g_lookAtNext(out, from, to, up); return; }
     if (k == 0) {   // WidescreenFix's own function on a throwaway copy: it also hides the mouse cursor while racing
         float scratchOut[16], f[4] = {from[0], from[1], from[2], 0}, t[4] = {to[0], to[1], to[2], 0}, u[4] = {up[0], up[1], up[2], 0};
@@ -130,13 +137,13 @@ static void __cdecl SplitLookAt(const uint8_t* mover, void* out, float* from, fl
     c.prevX = to[0]; c.prevY = to[1]; c.prevValid = true;
     float stickX = 0.0f, stickY = 0.0f;
     int16_t rx, ry;
-    if (XPadRightStick(g_assignedPad[k], &rx, &ry)) {
+    if (XPadRightStick(SplitMode() ? g_assignedPad[k] : XPadLastActive(), &rx, &ry)) {
         float x = rx / 32768.0f, y = -(ry + 1) / 32768.0f;   // DirectInput Ry points down
         stickX = fabsf(x) <= g_freeCamCfg.deadzone ? 0.0f : -x;
         stickY = fabsf(y) <= g_freeCamCfg.deadzone || g_freeCamCfg.horizontalOnly ? 0.0f : y;
     }
     float mouseX = 0.0f, mouseY = 0.0f;
-    if (k == (g_keyboardSeat >= 0 ? g_keyboardSeat : 0)) {     // the mouse goes with the keyboard
+    if (SplitMode() ? k == g_keyboardSeat : k == 0) {        // the mouse goes with the keyboard
         mouseX = static_cast<float>(g_frameMouseDx); mouseY = static_cast<float>(g_frameMouseDy);
         g_frameMouseDx = g_frameMouseDy = 0;
     }
@@ -189,7 +196,7 @@ static __declspec(naked) void LookAtHook() {
 // and take this frame's mouse movement.
 static void UpdateFreeCamHook() {
     XMouseTakeDelta(&g_frameMouseDx, &g_frameMouseDy);
-    if (!SplitRacing()) for (FreeCam& c : g_freeCam) c = FreeCam{};
+    if (!FreeCamPlayers()) for (FreeCam& c : g_freeCam) c = FreeCam{};
     const uint8_t* site = reinterpret_cast<const uint8_t*>(AT_LOOKAT_CALL);
     if (site[0] != 0xE8) return;
     uintptr_t target = AT_LOOKAT_CALL + 5 + *reinterpret_cast<const int32_t*>(site + 1);

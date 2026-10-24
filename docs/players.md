@@ -89,8 +89,9 @@ behind) and applies one global yaw/pitch offset from the right stick (the last p
 in split screen everyone's camera moved together. Once WidescreenFix has patched the call (checked per frame,
 `UpdateFreeCamHook`), the plugin chains in front of it (`LookAtHook` → `SplitLookAt`). Outside split racing everything
 goes to WidescreenFix. While split racing, the player whose view camera is the mover's camera gets WidescreenFix's
-logic with their own state (offsets, idle timer, car speed): their own right stick (`XPadRightStick`) and, for player
-1, the mouse. The mouse movement is recorded as the game reads the system mouse (`XMouseTakeDelta`, a GetDeviceState
+logic with their own state (offsets, idle timer, car speed): their own right stick (`XPadRightStick`) and, for the
+keyboard player only, the mouse (nobody's when everyone uses a pad). Single player races take the same path with the
+last active pad and the mouse: WidescreenFix's stick is the last polled slot, slot 1, which has no pad there. The mouse movement is recorded as the game reads the system mouse (`XMouseTakeDelta`, a GetDeviceState
 hook in XInputDevices). Settings are read from WidescreenFix's ini. WidescreenFix's own function still runs once per
 frame on a throwaway copy, because it also hides the mouse cursor while racing.
 

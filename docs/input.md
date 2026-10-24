@@ -87,7 +87,7 @@ when its player paused (`g_pausePort`; P3..P6: port & 1); on the car select only
 (`PadForDevice` gives that turn no pad); elsewhere in the split menus port 0. After a change it waits until every key
 is up. Its player's pause menus show Feedback greyed and off: `FfCapable` (jump at 0x5B8240) returns false, and
 `SyncPlayerSettings` clears the game entry's +4 while they are open and puts it back after (the setting is kept). The
-mouse free camera follows the keyboard player.
+mouse free camera follows the keyboard player (with no keyboard player, the mouse turns no camera).
 
 **Players 3..6.**
 - The port tables are relocated to `g_portTables[INPUT_PORTS]` (6) (`RelocatePortTables`: 15 refs, loop bounds 0x57B3AC/0x580AD4,
