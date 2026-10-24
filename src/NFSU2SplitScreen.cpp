@@ -39,6 +39,7 @@
 #include "parts/render_passes.cpp"
 #include "parts/render_weather.cpp"
 #include "parts/render_envmap.cpp"
+#include "parts/render_headlights.cpp"
 #include "parts/local_players.cpp"
 #include "parts/sound.cpp"
 #include "parts/racers.cpp"
@@ -175,8 +176,7 @@ static void Install(HMODULE self) {
     WriteCall(AT_LISTENER_UPDATE_CALL, &ListenerUpdate);
     WriteJump(AT_LISTENER_CHOICE, &ListenerChoiceHook, 5);
     WriteJump(AT_EMITTER_RANGE, &EmitterRangeHook, 6);
-    WriteCall(AT_MAIN_WORLD_DRAW, &WorldDrawWithBeams);
-    WriteCall(AT_BEAM_COLOR_CALL, &BeamColor);
+    InstallHeadlights();
     {   // CubicCameraMover::Update through the plugin (start zoom)
         void* hook = reinterpret_cast<void*>(&ChaseMoverUpdateHook);
         if (*reinterpret_cast<uint32_t*>(CUBIC_MOVER_VTABLE_UPDATE) == FN_CUBIC_MOVER_UPDATE)

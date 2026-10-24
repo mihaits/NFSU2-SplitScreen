@@ -57,19 +57,28 @@ redirect their view or player choice to the view currently being drawn (`g_curre
 - `RecullHeadlightView` redoes view 9's entry of the world view table per player: frustum 0x5C26E0, cull 0x5E9A30 /
   0x5E99C0 into the space after the cursor (world +0x6C8, limit +0x6CC) without advancing it. This is needed because
   the projector's geometry was culled from P1's position.
-- **Projectors for every player** (`WorldDrawWithBeams`, call 0x5D6AD0 at 0x5CB23B). The headlight pass
-  (0x5D6D20(world; view 9, 0x488B90) at 0x5CB218) only flags the meshes in view 9's culled list (+8 → +0x1B |= 0x80).
-  The world draw turns the flag into render flag 0x200 (0x5D6B85), which picks the material's headlight shader
-  variant (0x5C5953: worldheadlight.efx etc.), and clears the flag. The world draw only queues meshes; 0x5CF420 draws
-  the queue and sets the projector params per draw (0x5BDAA0, colour from 0x60F510 at 0x5BDC20). So one projector
-  per draw. After the view's world draw the plugin draws the queue, then for each other player with lights on
-  (within 250 m) aims view 9 at that car and draws its flagged meshes twice: with colour 0 subtracted (blend op
-  REVSUBTRACT), then with the beam added (ADD). The difference is mesh × beam; base lighting and fog cancel. The
-  world draw's include mask (imm at 0x5D6B0F, normally 0x2000 for flags & 0x10) is 0x200 meanwhile, so only flagged
-  meshes are queued. A SetRenderState hook forces no depth writes, LESSEQUAL with a small bias and ONE/ONE blending.
-  A DrawIndexedPrimitive hook skips materials that asked for alpha blending: semi-transparent pixels don't cancel
-  (the subtracted copy clamps at black). The same runs in the full screen race intro (view 1); the device hooks
-  are installed on first use because the first intro comes before any split frame.
+- **Every player's light in one draw** (`parts/render_headlights.cpp`, the method of th0mk/nfsu2-web). The headlight
+  pass (0x5D6D20(world; view 9, 0x488B90) at 0x5CB218) flags the meshes in view 9's culled list (+8 → +0x1B |= 0x80);
+  the world draw (0x5CB23B) turns the flag into render flag 0x200 (0x5D6B85), which picks the material's headlight
+  effect (0x5C5953: worldheadlight, -nodepth, -reflect, depth_worldheadlight, -reflect), and clears it; the flush at
+  0x5CB2A0 draws the queue. 0x5BDAA0 sets per draw `HeadlightWVP = X · VP9 · B` (VP9 = view 9's platInfo +0x80, B a
+  translation by the floats at 0x80052C) and `HeadlightColor` from 0x60F510(car) (call at 0x5BDC20, always player
+  1's car: `OwnLightColor` uses the car view 9 is aimed at).
+- The headlight pixel shaders (ps_1_1; effects are PE resources, see `tools/fxdump`) compute
+  `L = beam(q.xy/q.w) · ramp(0.005·q.w + 0.5) · HeadlightColor`, `rgb = sat(2 · texture · (vertex colour + L))`
+  (q = pos · HeadlightWVP, beam stage projective; the ramp clips behind the projector and fades towards 100 m).
+  The world shaders compute the same without L.
+- `WorldDrawWithLights` (0x5CB23B): for each other player whose lights are on within 250 m it aims view 9 at that car,
+  flags its culled list too (`MarkLitMesh`; flags of meshes outside the view's list are cleared after the draw) and
+  keeps `VP_k · B`; then re-aims at the view's car. `T_k = inv(VP_own · B) · (VP_k · B)` gives `q_k = q · T_k` for
+  any draw. Until the flush (`FlushLitWorld`), SetVertexShader / SetPixelShader hooks (device slots 92 / 107) swap the
+  game's headlight shaders (recognised by a hash of their tokens) for: the game's vs with `src/shaders/hl_vs_extra.asm`
+  appended (q_k into oT4..oT6, T_k in c20..c31), and a ps_2_0 per variant (`src/shaders/hl_ps_*.asm`) that sums the
+  lights: `L = min(L_own + gain · ΣL_k, cap)` (c1..c3 colours × gain, c4 cap; `[DEBUG] HeadlightGain` 80 /
+  `HeadlightCap` 100, percent). The rest is the game's formula, so fog, reflection and alpha are unchanged.
+- Replaced (2026-10-24): extra subtract/add passes per other light. They forced depth bias over the coplanar kerb
+  decals (glitches at beam edges), clamped where a redrawn mesh wasn't the pixel's surface (whole objects brightening
+  as a car came near) and added every beam at full strength (blown-out overlaps).
 - Light pools on the road (0x615490(view), "2PLAYERHEADLIGHT1" decal) are for traffic only: player cars have their
   lights flag (+0x550) cleared during the call (`PoolsForTraffic`). The split path calls it after 0x566400
   (`SplitPassWithHeadlightPools`, 0x5CB2E3); the 1P path (intro) at 0x5CAC07.

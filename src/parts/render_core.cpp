@@ -175,17 +175,11 @@ static void HookDeviceDebug() {
     HookDeviceMethod(dev, 17, reinterpret_cast<void*>(&PresentHook), &g_origPresent);
 }
 
-static void* g_origSetRenderState;
-static void* g_origDrawIndexed;
-static HRESULT __stdcall SetRenderStateHook(void* dev, DWORD state, DWORD value);
-static HRESULT __stdcall DrawIndexedHook(void* dev, int type, int base, UINT minIdx, UINT n, UINT start, UINT count);
 static void HookDeviceSetViewport() {
     void* dev = at<void*>(D3D_DEVICE);
     if (!dev) return;
     HookDeviceMethod(dev, 0xBC / 4, reinterpret_cast<void*>(&SetViewportHook), &g_origSetViewport);
     HookDeviceMethod(dev, 0x94 / 4, reinterpret_cast<void*>(&SetRenderTargetHook), &g_origSetRenderTarget);
-    HookDeviceMethod(dev, 57, reinterpret_cast<void*>(&SetRenderStateHook), &g_origSetRenderState);
-    HookDeviceMethod(dev, 82, reinterpret_cast<void*>(&DrawIndexedHook), &g_origDrawIndexed);
 }
 
 // The world renderer collects the views to draw every frame (0x5B9C20: views 1..3, env map 0x10..0x15, 4, 9; 12

@@ -306,7 +306,7 @@ static void RecullHeadlightView(View& v9) {
 #define FN_HEADLIGHT_POOLS   0x615490    // void __cdecl (View*)
 // As in single player, the view's own car gets no pool (its projector lights the road; the pool is a flat quad that
 // tilts with the car and clipped into the road under braking): its lights flag (+0x550) is off during the call.
-// Every player's car has a projector (WorldDrawWithBeams, also in the full screen race intro), so no player car gets
+// Every player's car has a projector (WorldDrawWithLights, also in the full screen race intro), so no player car gets
 // a pool: their lights flags are off during the call. Traffic keeps its pools, as in single player.
 static uint8_t* PlayerCar(int k) {
     int id = k < 2 ? reinterpret_cast<const int*>(HUMAN_RACER_SLOTS)[k] : k;
