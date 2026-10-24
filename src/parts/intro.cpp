@@ -52,10 +52,16 @@ static void __fastcall IntroContext(int* ctx, void*, int track) {
     reinterpret_cast<void(__thiscall*)(int*, int)>(FN_INTRO_CONTEXT)(ctx, track);
     Log("intro context: racers %d humans %d slots %X ai %X track byte %d (sound fs: %d free handles)", ctx[0], ctx[1],
         ctx[2], ctx[3], ctx[5], SoundFsFreeHandles());
-    // 3 or 5-6 cars (AI opponents): the 4-car scenes (they animate their own 4 grid slots; cars in slots 5/6 stay on
-    // the grid; a human in slot 5/6 fails the scenes' slot mask -> no intro, as before)
+    // 3 or 5-6 cars: the 4-car scenes (they animate their own 4 grid slots; the cars in slots 5/6 are hidden during
+    // the scene). The scenes' slot masks cover slots 1-4, so players 5/6 (humans in slots 5/6) failed every scene: 5-6
+    // humans got no intro and no grid girls (user). Only slots 1-4 of the masks are offered.
     if (SplitMode() && (ctx[0] == 3 || ctx[0] > 4)) {
-        if (ctx[0] > 4) Log("intro: %d cars, offered the 4-car scenes", ctx[0]), g_introHideExtra = true;
+        if (ctx[0] > 4) {
+            Log("intro: %d cars, offered the 4-car scenes (slots 1-4)", ctx[0]);
+            g_introHideExtra = true;
+            ctx[2] &= 0xF;
+            ctx[3] &= 0xF;
+        }
         ctx[0] = 4;
     }
 }

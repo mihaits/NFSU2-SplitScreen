@@ -3,7 +3,8 @@
 - **Intro (NIS).** The selector 0x436840 builds a context (0x431F10: racers, humans, slot masks, track byte) and
   filters scenes (0x42FE00). With exactly 2 local players only the 2P list passes (0x42FDA0: IntroNis12/13).
   - Scenes exist for 2 and 4 cars. `IntroContext` (call 0x4368F4) reports 4 racers for a race of 3 or 5-6 cars, so
-    the 4-car scenes are used.
+    the 4-car scenes are used. With 5-6 cars it also keeps only slots 1-4 of the context's slot masks (+8 humans,
+    +0xC AI): the scenes' masks cover slots 1-4, so players 5/6 failed every scene (no intro, no grid girls).
   - `IntroEmptyHook` (0x4369FE) handles an empty 2P list: the scene loop reruns with `Intro2PFilter` (0x43695F) letting
     everything through, i.e. the single-player scenes.
 - **Grid order.** 0x5264A0(order) numbers the racer specs' grid slots (spec +3): order 1 = humans (spec +4 == 1) then
