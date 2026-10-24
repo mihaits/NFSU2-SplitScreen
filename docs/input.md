@@ -102,6 +102,13 @@ frontend input only has masks 1/2. `PauseInputMask` maps it to slot (port & 1), 
 the owner's pad until the pause menus close. That pad stays idle until all its buttons are released; otherwise the
 still-held Start closed the menu at once.
 
+**Frontend actions in slot 1.** Action tables 1..3 of a pad record are the frontend's (Controls and the profile only
+use table 0). The widescreen fix (`ImproveGamepadSupport`) assigns the frontend buttons, START among them, in the
+slot-0 pad record only, every frame, so START did nothing in a menu read through slot 1: a pause by P2/P4/P6 only closed
+with Back (the game's own P2 pause too). `MirrorFrontendTables` copies slot 0's tables 1..3 into the slot-1 record
+before each poll (no-op without the widescreen fix: both records then have the game's defaults). Players 3..6 already
+use a copy of the slot-0 record.
+
 **Device records and bindings.** A record turns its device's state into action bits (+8, 8 bytes, active low) and
 analog values (+0x10..+0x13) every frame: 0x5CF220 → 0x5C1840. For joysticks it reads the slot's DIJOYSTATE2 at
 0x86FFC0 + slot*0x110 (buttons) and at [0x870760] + slot*0x110 (axes, POV). Bindings: 4 action tables of 32 inputs at
