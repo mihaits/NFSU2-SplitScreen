@@ -51,10 +51,5 @@ Same class as the custom gauge texture fix (35c1974): plugin work done before / 
   0x4F7009 / 0x4F8023 redirected (`0x5ED980` has no slot for index 2: crash 0x4F701A). With both, a 3P drift race
   showed the same backing flags as without: the 2P layout has no drift angle backings and BestDriftBacking stays
   shown for everyone.
-- **Minimap manager rebuilt without the hook** (likely). 0x4F92A0 destroys the manager through an unhooked call at
-  0x4F92B1, empties the marker pool and builds a new one, but `g_mmExtendedMgr` isn't reset, so a new manager at the
-  freed address is never extended: P3+ markers (and their minimaps' centre entities) would vanish. In a race it runs
-  on race-state message 4 (0x606B32 -> 0x5EA980) when 0x89E7B0 != 0; which event sends it is unknown. Fix: hook the
-  call at 0x4F92B1 with `DestroyMinimapManager` as well.
 - (speculative) The extra players' custom gauge texture requests use a no-op callback; the race load only waits for
   P1's. If the request queue isn't in order, their tach textures could appear late.

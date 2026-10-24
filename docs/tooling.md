@@ -25,6 +25,8 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
     registers and the code addresses on the stack. Found the post-race fall-through reset (body position writer).
     Stop it with Ctrl+C, never kill it: armed breakpoints without the debugger crash the game. Unlike the mailbox
     write watch (cmd 5) it needs no plugin and also catches other threads (sound).
+  - `threadstacks.py [bytes]` prints every game thread's EIP and the return addresses on its stack (module+offset),
+    each thread suspended while read: for a hung game (sample twice to see what doesn't move).
   - `minidump.py <dmp>` shows the exception, registers and code addresses on the stack (dumps land in
     `%LOCALAPPDATA%\CrashDumps`).
 - **Device loss / flicker log** (ini `Debug = 1`, `HookDeviceDebug`, installed from the first frame): logs Present

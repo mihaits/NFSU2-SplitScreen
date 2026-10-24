@@ -39,6 +39,9 @@ static void ExtendMinimapManager(uint8_t* mgr) {
 // destructor parks every entity's marker (0x51D4D0), but players 3/4's markers belong to player 3's HUD package,
 // gone by then. Their entities are taken out first (entity and descriptor back to their allocators, 0x43F920).
 #define AT_MINIMAP_DESTROY_CALL 0x4FBFF2
+// The pause menu's choice 4 in a race state != 0 (0x606B32 -> 0x5EA980 -> 0x4F92A0) rebuilds the manager: destroyed here
+// (P3/P4's entities taken out, the new manager extended again even at the old address), pool refilled from P1's HUD
+#define AT_MINIMAP_REBUILD_DESTROY_CALL 0x4F92B1
 #define FN_MINIMAP_DESTROY 0x4ECB80
 #define ENTITY_ALLOCATOR   0x8364B8
 #define FN_POOL_FREE       0x43F920      // void __cdecl (allocator, item)

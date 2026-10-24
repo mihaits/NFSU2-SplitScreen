@@ -83,7 +83,10 @@ parked off-screen) are moved 2000 further out. Pivots are scaled too.
   hook picks the minimap objects out without a render slot, and `HudObjectFilter` sends only them through
   `QuadTransform` → `MinimapPlace` (bottom-left of each half). The game's own map in the middle of the left edge is gone.
 - `DestroyMinimapManager` (call 0x4FBFF2) unlinks P3/P4's entities first. They belong to P3's package, which is freed
-  earlier, and without this quitting crashed.
+  earlier, and without this quitting crashed. The pause menu's choice 4 with race state 0x89E7B0 != 0 (0x606B32 ->
+  0x5EA980 -> 0x4F92A0, e.g. in Free Run) rebuilds the manager; its destroy call 0x4F92B1 goes through
+  `DestroyMinimapManager` too, so `g_mmExtendedMgr` is reset and the new manager is extended even at the freed
+  address (the game's allocator usually returns a new one: tested by calling 0x4F92A0 in a 3P Free Run).
 - **When P1 finishes** (or pauses) the game hides P1's HUD, and with it the minimap objects every player's map is drawn
   from. `UpdateMinimapOwner` (per frame, after the quad HUD / 2P minimap mapping) keeps the objects that were visible just before
   visible for the players still racing; a finished player's own map is skipped (`g_mmFinished[k]`, player
