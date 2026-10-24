@@ -45,7 +45,6 @@ options of whoever paused.
 - [ ] Session results: standings across back-to-back races
 - [ ] Replays of split-screen races
 - [ ] Rear-view mirror in the bumper and hood cameras, like single player
-- [ ] Headlight improvements
 - [ ] Check traffic generation
 - [ ] Maybe: everyone picking a car at once; press START to join at any time
 

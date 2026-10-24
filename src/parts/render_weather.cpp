@@ -126,10 +126,12 @@ static void __cdecl RainDropsForViews(int arg) {
     g_rainSlot = -1;
 }
 
+static uint8_t* g_ownLightCar;           // the car view 9 is aimed at: its colour is HeadlightColor (OwnLightColor)
 static void HeadlightsForPlayer(int k) {
     k = ViewPlayer(k);
     View& v9 = GetView(9);
     if (!at<int>(OPT_CAR_HEADLIGHTS) || !v9.active || !v9.camera || !v9.platInfo) return;
+    g_ownLightCar = PlayerCar(k);
     int* slot0 = reinterpret_cast<int*>(HUMAN_RACER_SLOTS);
     int saved = *slot0;
     *slot0 = k < 2 ? slot0[k] : k;       // extra players' racers follow the two 2P humans (ids 2, 3)

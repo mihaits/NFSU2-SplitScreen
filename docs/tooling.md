@@ -8,6 +8,10 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
   - `refs.py lo hi` finds immediate references to an address range (strings).
   - `callers.py addr` lists call/jmp sites.
   - `opscan.py substr [lo hi]` finds instructions by operand text.
+  - `fxdump/`: the game's shaders. `extract.py` writes the compiled effects (PE resources `IDI_*_FX`) to
+    `fxdump/build/fx`; `fxdump.exe` (32-bit, `build.bat`, uses SysWOW64 `d3dx9_33.dll`) `dis` disassembles them,
+    `hash` lists each shader's token hash (the plugin recognises shaders by it), `asm` / `frag` assemble.
+    `gen_shaders.sh` regenerates `src/parts/headlight_shaders.h` from `src/shaders/*.asm`.
 - **Live process**:
   - `trainer.py` reads/writes memory and takes window screenshots.
   - `plugin.py` (for tools): the loaded plugin's base, map symbols and `LocalPlayers` (its local player array; the
