@@ -73,7 +73,7 @@ parked off-screen) are moved 2000 further out. Pivots are scaled too.
   After each run it snapshots the minimap objects' data, **keyed by data pointer**. Lists are rebuilt as markers come
   and go.
 - `RenderFeObjectWith` draws each minimap object once per player from that player's snapshot (`MinimapPlace`:
-  bottom-left of the view's cell, ×0.55). The car markers are drawn together, with the own marker last. Markers that aren't
+  bottom-left of the view's cell, ×0.55 × `HudCellScale`). The car markers are drawn together, with the own marker last. Markers that aren't
   on that player's map are skipped. The ring group's transform is forced to the origin, and its children are placed
   per player.
 - `DestroyMinimapManager` (call 0x4FBFF2) unlinks P3/P4's entities first. They belong to P3's package, which is freed
@@ -119,6 +119,8 @@ the split race HUDs they are null, so `OutrunElementUpdate` (call 0x4EC69A) skip
     GaugeScalePercent.
   - Drag: the whole layout is fitted to the view height (×0.5), and side elements stay at the view sides. The top-right
     speed moves below the 2P position box.
+  - Both are also scaled by `HudCellScale(k)` (as are the minimap and its corner offsets): the cell's 640x240 layout
+    fit relative to quadrants, capped at 1. 1 up to 4 players, about 0.67 in the narrower 5/6P cells.
 - Messages to a player's 2P HUD package are forwarded to their copy (drag shift messages).
 - Custom gauge textures (`HudTexLoadHook`):
   - The race load step 0x577F60 (call 0x57F3D8) loads `GLOBAL\HUD_CustomTextures_<HUDINDEX>.bin` for P1's car only and

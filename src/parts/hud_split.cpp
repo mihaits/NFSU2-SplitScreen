@@ -350,14 +350,27 @@ static void UpdateHudWiden() {
     else if (g_pauseSeen) g_pauseOwner = g_pausePort = -1, g_pauseSeen = false;   // pause menus closed: slots back
 }
 
+// The scale of the 640x240 HUD layout fitted into player view k's cell.
+static float CellFit(int n, int k) {
+    FeRect r = LayoutFeRect(n, k);
+    float sw = (r.right - r.left) / 640.0f, sh = (r.bottom - r.top) / 240.0f;
+    return sw < sh ? sw : sh;
+}
+// Size of player k's fixed-size elements (gauges, minimap) relative to quadrants: 1 up to 4 players, smaller in
+// the narrower 5/6P cells.
+static float HudCellScale(int k) {
+    float f = CellFit(g_screenViews, k) / CellFit(4, 0);
+    return f < 1.0f ? f : 1.0f;
+}
+
 // Player k's minimap sits in the free left corner of the quadrant: bottom-left with P1's top-half layout (P1, P3),
 // top-left with P2's bottom-half layout (P2, P4; its drift score panel takes the lower left). (x, y) relative to the
 // minimap centre.
 static void MinimapPlace(float* copy, int k, float x, float y) {
-    const float ms = 0.55f;
+    float f = HudCellScale(k), ms = 0.55f * f;
     FeRect r = LayoutFeRect(g_screenViews, k);   // all players use the top-half layout: bottom-left corner
-    copy[7] = r.left + 52.0f + x * ms;
-    copy[8] = r.bottom - 48.0f + y * ms;
+    copy[7] = r.left + 52.0f * f + x * ms;
+    copy[8] = r.bottom - 48.0f * f + y * ms;
     copy[0xE] *= ms;
     copy[0xF] *= ms;
     copy[4] *= ms;                       // rotation pivot (north indicator: 72 below it, at the map centre)
@@ -406,16 +419,17 @@ static float g_gaugeScale = 0.6f;
 static void GaugeTransform(float* copy, int k) {
     FeRect r = LayoutFeRect(g_screenViews, k);
     float left = r.left, right = r.right, bottom = r.bottom;
-    float s = g_gaugeScale;
+    float f = HudCellScale(k), s = g_gaugeScale * f;
     if (g_gaugeDrag) {
         // the 1P drag HUD spans the screen (tach arc along the left edge, speed top right): the whole layout fits
         // the view's height, side elements kept at the view's sides (as on a wide screen)
-        s = 0.5f;
+        s = 0.5f * f;
         float x = copy[7];
         copy[7] = x < -HUD_SIDE_MIN_X ? left + (x + 320.0f) * s : x > HUD_SIDE_MIN_X ? right + (x - 320.0f) * s
                                                                               : (left + right) / 2 + x * s;
-        copy[8] = bottom - 120.0f + copy[8] * s;
-        if (x > HUD_SIDE_MIN_X && copy[8] < bottom - 180.0f) copy[7] -= 10.0f, copy[8] += 40.0f;   // the speed, below the 2P HUD's position box
+        copy[8] = bottom - 240.0f * s + copy[8] * s;
+        if (x > HUD_SIDE_MIN_X && copy[8] < bottom - 180.0f * f)
+            copy[7] -= 10.0f * f, copy[8] += 40.0f * f;   // the speed, below the 2P HUD's position box
     } else {
         copy[7] = right + (copy[7] - 320.0f) * s;
         copy[8] = bottom + (copy[8] - 240.0f) * s;
