@@ -36,7 +36,6 @@ Everything below was built and smoke-tested on virtual pads only (race start, dr
 
 **Known bugs and limitations:**
 - **More than 4 Xbox pads** don't work (XInput limit); see [input](input.md).
-- **P5's LED pattern** (all 5 LEDs on) looks like the flashing "this pad doesn't drive the game" pattern.
 - A **stray white line** across P3's minimap was seen once in a 5-view debug layout (`CloneViews`); not seen in real
   5P/6P races.
 - Virtual pads: a 0.15 s START press for P3..P6 sometimes didn't register; 0.3 s always did. Check with real pads that
