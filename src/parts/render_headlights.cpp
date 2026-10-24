@@ -13,7 +13,8 @@
 // view, view 9 is aimed at each other player in reach and its culled list flagged too (MarkLitMesh), and their
 // projector coordinates are q_k = q * T_k with T_k = inv(VP_own B) (VP_k B), one matrix per light and view. While
 // that view's world queue is drawn, the game's headlight shaders are swapped for:
-//   - vs: the game's own, with src/shaders/hl_vs_extra.asm appended (q_k into oT4..oT6, T_k in c20..c31)
+//   - vs: the game's own, with src/shaders/hl_vs_extra.asm appended (q_k into oT2, oT4..oT7, T_k in c20..c39; oT2
+//     was the own light's ramp coordinate, which the pixel shader computes from oT1.w)
 //   - ps_2_0 per variant (src/shaders/hl_ps_*.asm): L = min(L_own + sum of gain * L_k, cap), the rest as the game's
 // Gain and cap keep overlapping beams from blowing out the road (the game is tuned for one light: one beam's L already
 // takes the texture to full brightness).
@@ -25,13 +26,13 @@
 #define FN_CAR_LIGHT_COLOR  0x60F510     // uint32_t __cdecl (car): 0x00BBGGRR
 #define HEADLIGHT_BIAS      0x80052C     // B: x, y added after view 9's projection (0x5BDAA0)
 #define FN_FLAG_LIT_MESHES  0x5D6D20     // void __thiscall (world views; View*, void(__cdecl*)(item*))
-#define MAX_OTHER_LIGHTS    3
+#define MAX_OTHER_LIGHTS    (MAX_LOCAL_PLAYERS - 1)
 #define LIGHT_REACH         250.0f       // m from the view's camera (a beam reaches 100 m ahead of its car)
 
 struct LightSet {
     bool active;                         // from the view's world draw until its queue is drawn
-    float vsT[MAX_OTHER_LIGHTS * 4][4];  // c20..c31: T_k columns
-    float ps[MAX_OTHER_LIGHTS + 1][4];   // c1..c3 colours, c4 the cap
+    float vsT[MAX_OTHER_LIGHTS * 4][4];  // c20..c39: T_k columns
+    float ps[MAX_OTHER_LIGHTS + 1][4];   // c1..c5 colours, c6 the cap
 };
 static LightSet g_lights;
 static float g_lightGain = 0.8f, g_lightCap = 1.0f;

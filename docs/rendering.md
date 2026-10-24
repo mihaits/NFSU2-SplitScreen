@@ -93,8 +93,9 @@ redirect their view or player choice to the view currently being drawn (`g_curre
   keeps `VP_k · B`; then re-aims at the view's car. `T_k = inv(VP_own · B) · (VP_k · B)` gives `q_k = q · T_k` for
   any draw. Until the flush (`FlushLitWorld`), SetVertexShader / SetPixelShader hooks (device slots 92 / 107) swap the
   game's headlight shaders (recognised by a hash of their tokens) for: the game's vs with `src/shaders/hl_vs_extra.asm`
-  appended (q_k into oT4..oT6, T_k in c20..c31), and a ps_2_0 per variant (`src/shaders/hl_ps_*.asm`) that sums the
-  lights: `L = min(L_own + gain · ΣL_k, cap)` (c1..c3 colours × gain, c4 cap; `[DEBUG] HeadlightGain` 80 /
+  appended (q_k into oT2 and oT4..oT7, T_k in c20..c39; oT2 was the own ramp coordinate, the pixel shader computes it
+  from oT1.w), and a ps_2_0 per variant (`src/shaders/hl_ps_*.asm`) that sums up to 5 other lights:
+  `L = min(L_own + gain · ΣL_k, cap)` (c1..c5 colours × gain, c6 cap; `[DEBUG] HeadlightGain` 80 /
   `HeadlightCap` 100, percent). The rest is the game's formula, so fog, reflection and alpha are unchanged.
 - Replaced (2026-10-24): extra subtract/add passes per other light. They forced depth bias over the coplanar kerb
   decals (glitches at beam edges), clamped where a redrawn mesh wasn't the pixel's surface (whole objects brightening
