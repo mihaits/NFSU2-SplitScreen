@@ -46,7 +46,6 @@ options of whoever paused.
 - [ ] Rear-view mirror in the bumper and hood cameras, like single player
 - [ ] Headlight improvements
 - [ ] Check traffic generation
-- [ ] Separate minimaps in 2P, for the same HUD with any number of players
 - [ ] DualSense: adaptive triggers on/off in the pause menu settings
 - [ ] Maybe: everyone picking a car at once; press START to join at any time
 

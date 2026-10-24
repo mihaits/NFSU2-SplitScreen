@@ -400,7 +400,7 @@ static void __stdcall RenderFeObjectWith(void* obj, int arg, void* ctx) {
     }
     SetRenderSlot(obj);
     int mm = -1;
-    if (g_renderSlot >= 0 && g_mmPlayers > 0)
+    if ((g_renderSlot >= 0 || g_mm2p) && g_mmPlayers > 0)   // 2P: P1's minimap objects aren't slot-mapped
         for (int i = 0; i < g_mmObjCount; ++i)
             if (g_mmObj[i] == obj) mm = i;
     // minimap markers that are not on a minimap right now (spare ones, the game parks them away from the map) are not
