@@ -11,8 +11,6 @@
   0x6F57E3 -> 0x75F617), log ends at `sound fs: N free handles (opened bf:/speech/UG2_Speech...)`. Suspect: the
   plugin's `SoundFsOpen`/`SoundFsClose` critical section (threads_memory.cpp) around the game's open/close, which take
   the game's own mutex inside: lock-order inversion with a thread that holds that mutex and closes.
-- **Pause opened by P2/P4 doesn't close with START**, only with Back / Continue (frontend slot 1; the game's own P2
-  pause behaves the same).
 
 ## Found by static analysis (2026-10-23, not fixed yet)
 Same class as the custom gauge texture fix (35c1974): plugin work done before / around the game's step it depends on.

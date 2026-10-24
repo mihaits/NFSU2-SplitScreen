@@ -218,10 +218,24 @@ static void* PollExtraPort(int port, int* type, void** prev) {
     return cur;
 }
 
+// Action tables 1..3 are the frontend's (the Controls screen and the profile only use table 0). The widescreen fix
+// (ImproveGamepadSupport) assigns the frontend buttons, START among them, in the slot-0 pad record only, every frame, so
+// START did nothing in a menu read through slot 1: a pause by player 2/4 only closed with Back (user report; the game's
+// own player 2 pause too). All our pads are the same device, so slot 1 gets slot 0's tables.
+#define REC_FE_TABLES      (REC_BIND_TABLES + 0x80)
+#define REC_FE_TABLES_SIZE (REC_BIND_TABLES_SIZE - 0x80)
+static void MirrorFrontendTables() {
+    uint8_t *pad0 = PadRecord(0), *pad1 = PadRecord(1);
+    if (!pad0 || !pad1 || !memcmp(pad1 + REC_FE_TABLES, pad0 + REC_FE_TABLES, REC_FE_TABLES_SIZE)) return;
+    memcpy(pad1 + REC_FE_TABLES, pad0 + REC_FE_TABLES, REC_FE_TABLES_SIZE);
+    Log("joypad record: slot 1 frontend actions copied from slot 0");
+}
+
 static void* __cdecl PollPortHook(int port, int* type, void** prev) {
     // The original polls every device (and drives force feedback) on port 0 and leaves each device's state in its
     // record; port 1 just gets the same merged buffer back. In split mode, port N only sees devices in slot N.
     if (port >= 2 && port < MAX_LOCAL_PLAYERS) return PollExtraPort(port, type, prev);
+    if (port == 0) MirrorFrontendTables();
     void* merged = g_origPollPort(port, type, prev);
     if (port == 0) g_port0Type = *type;
     if (!SplitMode() || port < 0 || port > 1) return merged;
