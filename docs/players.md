@@ -116,4 +116,12 @@ player (0x42F800: a cross-traffic emitter 0x42E790, or ahead on that player's ro
   by 0x42F800 (0x42F88C) for the player it spawns around. P3 shared slot 2 with the car 0x5F0E30(-1), P4 overwrote a
   saved timer, P5 the cars-per-tick limit. `TrafficSpacingFillHook` / `TrafficSpacingReadHook` keep players 3..6 in
   `g_trafficSpacing`.
+- The same tick moves at most ebp-8 traffic cars (16 every 0.3 s in drag, else 1 every 1 s), shared by every player, so
+  with players apart the cars one had passed came back slowly. The limit is now at least one per local player (in the
+  fill hook). Same 6P test: traffic near P6 2.8 -> 4.3 on average, near the parked group 0.5 -> 1.8, 6 appearances
+  near P6 (196-231). Traffic level 3, starts staggered 8 s apart (P6 first), 90 s: 2.7-3.3 cars near every player,
+  10 appearances, all at 196-250.
+- The count of traffic cars is the track's table entry for the traffic level (0x4FE9F0: track info +0xEC + direction +
+  level * 2, at most 16), the same as single player, shared by all players. Not raised: the race car array holds 25
+  cars (World +0x1C..+0x7F, the racer slots follow), and every car costs car pool memory and per-car resources.
 - Traffic car models still stream for P1's area only (0x412950: the zone at inOrder[0]'s car).

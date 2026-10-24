@@ -58,13 +58,16 @@ static float __fastcall WorldDistRoadHook(void* world, void*, float roadPos) {
 // 0x5F0E30(-1). 0x42F800 reads the entry of the random player it spawns around (0x42F88C). P3 shared index 2, P4
 // overwrote the saved timer (ebp-0xC), P5 the cars-per-tick limit (ebp-8, a float as int: every car each tick). Now
 // players 3..6 go to g_trafficSpacing.
+// The same tick moves at most ebp-8 traffic cars (0x42F9F4: 16 in drag, else 1 a second), the respawns shared by every
+// player: with players apart, the cars one has passed came back slowly. The limit is now at least one per local player.
 #define AT_TRAFFIC_SPACING_FILL     0x42FA19   // mov eax,[count] (5 bytes): the fill loop up to 0x42FA4B
 #define AT_TRAFFIC_SPACING_FILL_END 0x42FA4B
 #define AT_TRAFFIC_SPACING_READ     0x42F88C   // mov eax,[edx+10h]; fld [ecx+eax*4]; fstp [esp+18h] (10 bytes)
 #define AT_TRAFFIC_SPACING_READ_END 0x42F8A3
 #define FN_TRAFFIC_SPACING          0x418240
 static float g_trafficSpacing[MAX_LOCAL_PLAYERS];
-static void __cdecl FillTrafficSpacing(void* traffic, float* stackArr) {
+static void __cdecl FillTrafficSpacing(void* traffic, float* stackArr, int* carsPerTick) {
+    if (*carsPerTick < LocalPlayerCount()) *carsPerTick = LocalPlayerCount();
     auto spacing = reinterpret_cast<float(__thiscall*)(void*, void*)>(FN_TRAFFIC_SPACING);
     for (int k = 0, n = LocalPlayerCount(); k < n; ++k) {
         auto* player = static_cast<uint8_t*>(g_localPlayers.inOrder[k]);
@@ -78,11 +81,13 @@ static void __cdecl FillTrafficSpacing(void* traffic, float* stackArr) {
 static __declspec(naked) void TrafficSpacingFillHook() {
     __asm {
         pushad
+        lea eax, [ebp - 8]
+        push eax
         lea eax, [ebp - 0x18]
         push eax
         push esi
         call FillTrafficSpacing
-        add esp, 8
+        add esp, 12
         popad
         push AT_TRAFFIC_SPACING_FILL_END
         ret
