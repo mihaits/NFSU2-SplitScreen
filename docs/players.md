@@ -32,6 +32,13 @@ in-race camera change 0x5F2FA0 → 0x502540 writes the mirror. P3/P4's entries a
 without one copies P1's / P2's). HUD state 0x600090 (call 0x600595, `HudStateOf`) has 2-player rules on the index, so P3/P4 run it as P1/P2 with
 their own options put into that mirror entry for the call.
 
+**Gearbox.** The car select's gearbox dialog writes the FE player's entry +0x15 (0x4FC267 on 0x1A2826E1 → 0,
+0x4FC5B3 on 0x5F5E3886 → 1). P3/P4 pick on FE player 0/1, so their choice overwrote P1's / P2's. `SaveSeat` keeps
+each seat's choice and `RestoreSeat` puts P1/P2's back. The player ctor copies entry +0x15 / +0x16 (0x5F17E9 /
+0x5F17F2) to player +0x20 / +0x21, which the attach 0x5F3E10 applies to the car (+0x20 through the car's vtable +0x34,
+forced to 1 in drag; +0x21 to car +0x464). P3/P4 were built as P1/P2, so `CreatePlayers` writes their own
+(`g_settings[idx]`, which takes the seat's pick) before the attach.
+
 **Pause menu settings.** The pause menu's player options edit the entry of 0x4A7AE0, the pausing player's index among
 P1/P2 (0 for anyone else). While P3/P4 owns the pause (`g_pauseOwner`), `SyncPlayerSettings` swaps their entry into the
 game's table at entry owner & 1, and `PausingPlayer` (jump at 0x4A7AE0) returns that entry. The menus then show and

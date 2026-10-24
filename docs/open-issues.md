@@ -44,16 +44,13 @@ Everything below was built and smoke-tested on virtual pads only (race start, dr
 
 ## Found by static analysis (2026-10-23, not fixed yet)
 Same class as the custom gauge texture fix (35c1974): plugin work done before / around the game's step it depends on.
-- **P3/P4's HUD is built before the player is registered** (confirmed in the disassembly). `CreatePlayers`
-  (race_rules.cpp) builds P3/P4 with the ctor as player `idx & 1` and sets `byIndex[idx]` only after it returns; the
-  ctor writes `byIndex[0/1]` (0x5F1725) and builds the HUD (0x5F1A0C), whose elements read `byIndex[2/3]` (null): the
-  element at 0x4F6C00 skips the per-car Turbo/NoTurbo script and the Drift_Angle_Backing1/3 binding (check 0x4F6FF6),
-  0x4F7AD0 skips hiding BestDriftBacking (0x4F8014), and the initial state 0x4F9260 runs on a null player. Expected:
-  wrong turbo backing and a stray best-drift backing on P3/P4's drift HUD. Fix: set `byIndex[idx]` before the ctor.
-- **P3/P4's car gets P1's / P2's settings +0x15/+0x16** (confirmed). The ctor copies them (0x5F17E9 / 0x5F17F2,
-  redirected reader -> `g_settings[idx & 1]`) into player +0x20/+0x21, which the attach 0x5F3E10 applies to the car
-  (+0x20 is forced to 1 in drag: probably the transmission). Expected: P3 picks Manual, but races with P1's choice.
-  Fix: swap `g_settings[idx]` in around the ctor, or write +0x20/+0x21 from `g_settings[idx]` before the attach.
+- **P3/P4's HUD is built before the player is registered** (confirmed; no visible effect, left as is). `CreatePlayers`
+  (race_rules.cpp) sets `byIndex[idx]` only after the player ctor, which builds the HUD; its elements test
+  `byIndex[2/3]` (0x4F6FF6 Turbo/NoTurbo + Drift_Angle_Backing1/3, 0x4F8014 BestDriftBacking, 0x4F9260 initial
+  state) and skip those steps for P3/P4. Tried 2026-10-24: registering before the ctor also needs the racer lookups at
+  0x4F7009 / 0x4F8023 redirected (`0x5ED980` has no slot for index 2: crash 0x4F701A). With both, a 3P drift race
+  showed the same backing flags as without: the 2P layout has no drift angle backings and BestDriftBacking stays
+  shown for everyone.
 - **Minimap manager rebuilt without the hook** (likely). 0x4F92A0 destroys the manager through an unhooked call at
   0x4F92B1, empties the marker pool and builds a new one, but `g_mmExtendedMgr` isn't reset, so a new manager at the
   freed address is never extended: P3+ markers (and their minimaps' centre entities) would vanish. In a race it runs

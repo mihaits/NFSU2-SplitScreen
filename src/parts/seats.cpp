@@ -303,6 +303,10 @@ static const uintptr_t kCarselToP2Calls[] = {0x4FC3A8, 0x4FC9B6};
 static const uintptr_t kCarselStartCalls[] = {0x4FC3BE, 0x4FC9C2};
 #define AT_CARSEL_BACK_TO_P1 0x4FC723
 static int g_seatCar[MAX_LOCAL_PLAYERS], g_seatPort[MAX_LOCAL_PLAYERS];
+// The gearbox dialog after a pick writes the FE player's settings +0x15 (0x4FC267 / 0x4FC5B3): kept per seat as well
+#define SETTING_GEARBOX    0x15
+#define GEARBOX_SETTINGS   (0x83AA64 + SETTING_GEARBOX)   // FE player k's at + k * PLAYER_SETTING_SIZE
+static int g_seatGearbox[MAX_LOCAL_PLAYERS];   // + 1 (0: no pick yet)
 
 // Players 1/2's last cars are kept by the game (CAR_IDS in their profile blocks); players 3/4's in their seat store.
 // A car id is only used while it is still in the (shared) garage: P1's quick race garage car list, entries with the
@@ -319,6 +323,7 @@ static bool GarageHasCar(int id) {
 static void SaveSeat(int seat) {
     g_seatCar[seat] = at<int>(CAR_IDS + (seat & 1) * 4);
     g_seatPort[seat] = at<int>(PLAYER_PORTS + (seat & 1) * 4);
+    g_seatGearbox[seat] = at<uint8_t>(GEARBOX_SETTINGS + (seat & 1) * PLAYER_SETTING_SIZE) + 1;
     if (seat >= 2 && g_seatStore[seat - 2].car != g_seatCar[seat]) {
         g_seatStore[seat - 2].car = g_seatCar[seat];
         SaveSeatStore(seat - 2);
@@ -329,6 +334,8 @@ static void SaveSeat(int seat) {
 static void RestoreSeat(int seat) {            // players 1/2's picks back into the game's slots
     at<int>(CAR_IDS + seat * 4) = g_seatCar[seat];
     at<int>(PLAYER_PORTS + seat * 4) = g_seatPort[seat];
+    if (g_seatGearbox[seat])
+        at<uint8_t>(GEARBOX_SETTINGS + seat * PLAYER_SETTING_SIZE) = static_cast<uint8_t>(g_seatGearbox[seat] - 1);
 }
 
 static void SwitchSeat(uint8_t* carsel, int seat) {
