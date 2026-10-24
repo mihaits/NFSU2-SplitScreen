@@ -25,6 +25,8 @@ enum : WORD {   // XInput button bits
 constexpr WORD kVid = 0x054C, kPidDualSense = 0x0CE6, kPidEdge = 0x0DF2;
 constexpr DWORD kKeepAliveBtMs = 500;     // BT: re-send when nothing else was sent
 constexpr DWORD kKeepAliveRumbleMs = 4000;
+constexpr DWORD kMinGapBtMs = 25;         // BT: at most 40 reports/s per pad (the lightbar changes every frame)
+constexpr DWORD kRetryMs = 250;           // after a failed output report
 
 struct Slot {
     volatile LONG alive;                  // I/O thread running
@@ -218,7 +220,7 @@ DWORD WINAPI IoThread(LPVOID param) {
     if (!wrote) Log("DualSense %d: light-out report failed (error %lu)", idx, GetLastError());
 
     DsOutput sent = {};
-    bool haveSent = false, writeFailLogged = false;
+    bool haveSent = false, failing = false;
     DWORD lastSend = 0;
     bool pending = false;
     for (;;) {
@@ -229,17 +231,27 @@ DWORD WINAPI IoThread(LPVOID param) {
         LeaveCriticalSection(&s->cs);
         DWORD now = GetTickCount();
         bool rumbling = want.smallMotor || want.largeMotor;
-        bool due = !haveSent || memcmp(&want, &sent, sizeof(want)) != 0 ||
+        bool changed = !haveSent || memcmp(&want, &sent, sizeof(want)) != 0;
+        // BT changes wait for the minimum gap, except rumble starting / stopping and new trigger effects
+        bool urgent = !haveSent || rumbling != (sent.smallMotor || sent.largeMotor) ||
+                      memcmp(want.trigR, sent.trigR, 11) || memcmp(want.trigL, sent.trigL, 11);
+        // after a failed write, wait kRetryMs before the next try (each try can block for 100 ms and stall the reads)
+        DWORD gap = failing ? kRetryMs : kMinGapBtMs;
+        bool gapOk = failing ? now - lastSend >= kRetryMs : s->usb || urgent || now - lastSend >= kMinGapBtMs;
+        bool due = (changed && gapOk) ||
                    now - lastSend >= (rumbling ? kKeepAliveRumbleMs : 0xFFFFFFFFu) ||
                    (!s->usb && now - lastSend >= kKeepAliveBtMs);
+        DWORD waitMs = changed && !due ? gap - (now - lastSend) : 100;   // wake when the held change is due
         if (due) {
             if (WriteReport(s, writeEv, out, BuildReport(s, want, false, out, seq++))) {
-                sent = want; haveSent = true; lastSend = now; writeFailLogged = false;
-            } else if (!writeFailLogged) {
-                Log("DualSense %d: output report failed (error %lu)", idx, GetLastError());
-                writeFailLogged = true;
-                lastSend = now;           // don't retry every loop
+                if (failing) Log("DualSense %d: output reports work again", idx);
+                sent = want; haveSent = true; failing = false;
+            } else if (!failing) {
+                Log("DualSense %d: output report failed (error %lu), retrying every %lu ms", idx, GetLastError(),
+                    kRetryMs);
+                failing = true;
             }
+            lastSend = now;
         }
         if (!pending) {
             ResetEvent(readEv);
@@ -249,7 +261,7 @@ DWORD WINAPI IoThread(LPVOID param) {
             pending = true;
         }
         HANDLE hs[2] = {readEv, s->wake};
-        if (WaitForMultipleObjects(2, hs, FALSE, 100) == WAIT_OBJECT_0) {
+        if (WaitForMultipleObjects(2, hs, FALSE, waitMs) == WAIT_OBJECT_0) {
             DWORD n = 0;
             pending = false;
             if (!GetOverlappedResult(s->dev, &ro, &n, FALSE)) break;

@@ -36,7 +36,10 @@ controllers are hidden. Pads 0..3 are the real XInput pads, 4..9 debug pads driv
   Cross/Circle/Square/Triangle = A/B/X/Y, L1/R1 = LB/RB, Create = Back, Options = Start, L3/R3, hat = D-pad, analog
   L2/R2 = triggers, sticks `(v - 128) * 258` with Y negated. PS, Mute and touchpad click go to `DsExtra` only.
 - **Output:** USB report 0x02 (48 bytes) or BT 0x31 (78 bytes, CRC32 seed 0xA2 at 74..77). Sent on change, every 4 s
-  while rumbling and every 500 ms on BT. Rumble v2 (flag2 0x04) when `update_version >= 0x0215` or on an Edge, else v1
+  while rumbling and every 500 ms on BT. On BT a change waits until 25 ms after the last report (at most 40 reports/s
+  per pad: the rpm lightbar changes every frame, and several pads share one adapter); rumble starting or stopping and
+  new trigger effects go out at once. After a failed write (100 ms timeout) the next try waits 250 ms, so a pad on a
+  weak link keeps reading input; the failure and the recovery are logged once each. Rumble v2 (flag2 0x04) when `update_version >= 0x0215` or on an Edge, else v1
   (flag0 0x01); `DualSenseRumbleMode` overrides. The small motor is halved (as SDL does) to match an Xbox pad.
   Large motor = the game's left/low value, small = right/high.
 - **Player LEDs (`parts/pad_lights.cpp`, `UpdatePadLights` from `LayoutApplyHook`, `[LIGHTS] PlayerLeds`):** from the
