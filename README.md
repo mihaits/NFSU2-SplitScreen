@@ -2,7 +2,7 @@
 
 Local **split screen for 2-6 players** in *Need for Speed Underground 2* on PC.
 
-![4-player split screen](docs/split-screen-4p.gif)
+![6-player split screen](docs/split-screen-6p.gif)
 
 **Status: 0.10.0 alpha.** Every race mode works with 2-4 players. 5-6 players are new and still being tested with
 real controllers ([open issues](docs/open-issues.md)).
