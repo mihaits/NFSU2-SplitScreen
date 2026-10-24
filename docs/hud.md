@@ -70,13 +70,17 @@ parked off-screen) are moved 2000 further out. Pivots are scaled too.
   After each run it snapshots the minimap objects' data, **keyed by data pointer**. Lists are rebuilt as markers come
   and go.
 - `RenderFeObjectWith` draws each minimap object once per player from that player's snapshot (`MinimapPlace`:
-  bottom-left of the view, ×0.55). The car markers are drawn together, with the own marker last. Markers that aren't
+  bottom-left of the view, ×0.55; 2P ×0.8). The car markers are drawn together, with the own marker last. Markers that aren't
   on that player's map are skipped. The ring group's transform is forced to the origin, and its children are placed
   per player.
+- **2P**: the HUD packages keep their own layout (no quad HUD mapping). `UpdateMinimaps2P` maps only P1's minimap
+  objects (on a new package and every 30 frames) and sets `g_mm2p`. Then `MinimapUpdate` runs per player, the render
+  hook picks the minimap objects out without a render slot, and `HudObjectFilter` sends only them through
+  `QuadTransform` → `MinimapPlace` (bottom-left of each half). The game's own map in the middle of the left edge is gone.
 - `DestroyMinimapManager` (call 0x4FBFF2) unlinks P3/P4's entities first. They belong to P3's package, which is freed
   earlier, and without this quitting crashed.
 - **When P1 finishes** (or pauses) the game hides P1's HUD, and with it the minimap objects every player's map is drawn
-  from. `UpdateMinimapOwner` (per frame, after the quad HUD mapping) keeps the objects that were visible just before
+  from. `UpdateMinimapOwner` (per frame, after the quad HUD / 2P minimap mapping) keeps the objects that were visible just before
   visible for the players still racing; a finished player's own map is skipped (`g_mmFinished[k]`, player
   +0x50; racer progress +0x14 counts laps). Only a hide with P1 finished and no menu over the HUD counts; during a pause the kept objects are hidden
   too. The object list is rebuilt from P1's **live** package every frame: a restart rebuilds the HUD's objects,

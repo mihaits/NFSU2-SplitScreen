@@ -71,6 +71,7 @@ static void ApplyMinimapSnapshot(int k) {
     for (int i = 0; i < g_mmSnapCount; ++i) memcpy(g_mmSnapData[i], g_mmSnap[k][i], MM_DATA_SIZE);
 }
 static int g_mmPlayers = 0;              // per frame: players with a minimap snapshot
+static bool g_mm2p = false;              // per frame: 2P race with P1's minimap objects mapped (one minimap per half)
 static int g_mmTarget = -1;              // while rendering a minimap object: whose copy
 
 static bool NearMinimap(const float* data) {
@@ -264,7 +265,7 @@ static void UpdateMinimapOwner() {          // per frame
     auto* pkg = at<int>(0x8654A4) == 6 ? static_cast<const uint8_t*>(HudPackageOf(0)) : nullptr;
     uint8_t* map = pkg && g_mmFixedHash[0] ? FindFeObject(pkg, g_mmFixedHash[0]) : nullptr;
     bool same = map && map == g_mmOwnerMap;  // the kept objects still belong to the live HUD
-    if (!racing || g_extraPlayers <= 0 || !map) {
+    if (!racing || (g_extraPlayers <= 0 && !g_mm2p) || !map) {
         // hidden again: the post-race view draws P1's HUD as it is (user: a big minimap stayed on screen)
         if (g_mmOwnerHidden && same && !SplitRacing())
             for (int i = 0; i < g_mmVisibleCount; ++i) *reinterpret_cast<uint32_t*>(g_mmVisible[i] + 0x1C) |= 1u;
@@ -293,6 +294,22 @@ static void UpdateMinimapOwner() {          // per frame
     for (int i = 0; i < g_mmVisibleCount; ++i) *reinterpret_cast<uint32_t*>(g_mmVisible[i] + 0x1C) &= ~1u;
 }
 
+// 2P: the HUD packages keep their own layout; only P1's minimap objects are mapped, and drawn once per player, in the
+// bottom-left corner of each half (MinimapUpdate, RenderFeObjectWith, MinimapPlace).
+static void UpdateMinimaps2P() {
+    static const void* s_pkg = nullptr;
+    static int s_frames = 0;
+    const void* pkg = SplitRacing() && g_screenViews == 2 ? HudPackageOf(0) : nullptr;
+    if (pkg != s_pkg || ++s_frames >= 30) {   // HUD elements add markers at runtime; a restart rebuilds the HUD
+        s_frames = 0;
+        if (pkg != s_pkg) g_mmOwnerHidden = false, g_mmVisibleCount = 0;
+        if (pkg || g_mm2p) MapMinimapObjects(static_cast<const uint8_t*>(pkg), nullptr, nullptr, nullptr);
+        s_pkg = pkg;
+    }
+    g_mm2p = pkg && g_mmObjCount > 0;
+    if (!g_mm2p) g_mmPlayers = 0;
+}
+
 static void UpdateQuadHud() {
     g_quadHud = false;
     if (g_mmExtraIcon[0] && !HudPackageOf(2)) {   // P3's HUD gone (back in the menus): the frontend reuses the memory
@@ -300,6 +317,7 @@ static void UpdateQuadHud() {
         memset(g_mmMarker, 0, sizeof(g_mmMarker));
     }
     if (!SplitRacing() || g_screenViews < 3) {
+        UpdateMinimaps2P();
         UpdateMinimapOwner();
         // the next race's HUD can be rebuilt at the same addresses: map it afresh (stale minimap objects -> crash on
         // restart in UpdateMinimapOwner)
@@ -355,12 +373,13 @@ static void UpdateHudWiden() {
 static void MinimapPlace(float* copy, int k, float x, float y) {
     float aspect = static_cast<float>(at<int>(SCREEN_W)) / static_cast<float>(at<int>(SCREEN_H));
     float halfW = 240.0f * aspect;
-    const float ms = 0.55f;
+    float ms = g_screenViews == 2 ? 0.8f : 0.55f, f = ms / 0.55f;   // 2P: the halves' HUD is full size
     float left = (k & 1) ? 0.0f : -halfW, top = (k & 2) ? 0.0f : -240.0f;
     if (k == 2 && g_screenViews == 3) left = -halfW / 2;  // 3 players: P3 centred
+    if (g_screenViews == 2) left = -halfW, top = k ? 0.0f : -240.0f;   // 2 players: halves
     bool topLayout = true;               // all players use the top-half layout in quadrants
-    copy[7] = left + 52.0f + x * ms;
-    copy[8] = (topLayout ? top + 240.0f - 48.0f : top + 52.0f) + y * ms;
+    copy[7] = left + 52.0f * f + x * ms;
+    copy[8] = (topLayout ? top + 240.0f - 48.0f * f : top + 52.0f) + y * ms;
     copy[0xE] *= ms;
     copy[0xF] *= ms;
     copy[4] *= ms;                       // rotation pivot (north indicator: 72 below it, at the map centre)
@@ -467,7 +486,7 @@ static float* __stdcall HudObjectFilter(float* data, int level) {
             return copy;
         }
     }
-    if (data && level == 0 && g_quadHud) {
+    if (data && level == 0 && (g_quadHud || (g_mm2p && g_mmTarget >= 0))) {   // 2P: only the minimap objects
         int slot = g_renderSlot;
         if (slot < 0) {                                    // groups: the transform carries the group's data
             auto it = g_hudObjSlot.find(data);
