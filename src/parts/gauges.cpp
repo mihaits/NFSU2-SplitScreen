@@ -267,7 +267,7 @@ static void __fastcall HudDtorHook(void* hud) {
 static uint32_t g_hudTexList[MAX_LOCAL_PLAYERS][8];
 static int g_hudTexIndex[MAX_LOCAL_PLAYERS] = {-1, -1, -1, -1, -1, -1};
 static bool g_hudTexFile[MAX_LOCAL_PLAYERS];   // this player's entry loaded the pack file (unloads it)
-static void __cdecl HudTexLoaded(void*) {}
+static void __cdecl HudTexLoaded(void* k) { Log("custom HUD textures resident for player %d", reinterpret_cast<int>(k) + 1); }
 
 static int CustomHudIndex(int k, uint8_t** spec, uint8_t** car) {
     auto* racer = reinterpret_cast<uint8_t*(__thiscall*)(void*, int)>(FN_RACER_OF_PLAYER)(reinterpret_cast<void*>(0x89E7A0), k);
@@ -318,7 +318,7 @@ static void __fastcall HudTexLoadHook(void* self, void*, void* cb, void* ctx) {
             reinterpret_cast<void(__cdecl*)(int, void*, int, uint32_t*, int)>(0x5ED9B0)(   // (spec, car parts, units, out, index)
                 *reinterpret_cast<int*>(spec), car, at<uint8_t>(0x83AA1A), g_hudTexList[k], idx);
             reinterpret_cast<void(__cdecl*)(uint32_t*, int, void(__cdecl*)(void*), void*, int)>(0x494D60)(
-                g_hudTexList[k], 8, &HudTexLoaded, nullptr, 0);
+                g_hudTexList[k], 8, &HudTexLoaded, reinterpret_cast<void*>(k), 0);
             g_hudTexIndex[k] = idx;
             loaded[n++] = idx;
             Log("custom HUD textures %02d %s for player %d", idx, fileLoaded ? "(pack already loaded)" : "loaded", k + 1);

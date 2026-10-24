@@ -42,7 +42,8 @@ Everything below was built and smoke-tested on virtual pads only (race start, dr
 - Virtual pads: a 0.15 s START press for P3..P6 sometimes didn't register; 0.3 s always did. Check with real pads that
   a quick tap pauses.
 
-## Found by static analysis (2026-10-23, not fixed yet)
+## Found by static analysis (2026-10-23)
+The others are fixed (gearbox, minimap rebuild) or measured harmless (extra players' gauge textures, hud.md).
 Same class as the custom gauge texture fix (35c1974): plugin work done before / around the game's step it depends on.
 - **P3/P4's HUD is built before the player is registered** (confirmed; no visible effect, left as is). `CreatePlayers`
   (race_rules.cpp) sets `byIndex[idx]` only after the player ctor, which builds the HUD; its elements test
@@ -51,5 +52,3 @@ Same class as the custom gauge texture fix (35c1974): plugin work done before / 
   0x4F7009 / 0x4F8023 redirected (`0x5ED980` has no slot for index 2: crash 0x4F701A). With both, a 3P drift race
   showed the same backing flags as without: the 2P layout has no drift angle backings and BestDriftBacking stays
   shown for everyone.
-- (speculative) The extra players' custom gauge texture requests use a no-op callback; the race load only waits for
-  P1's. If the request queue isn't in order, their tach textures could appear late.
