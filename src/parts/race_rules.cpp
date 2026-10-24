@@ -152,8 +152,15 @@ static void __cdecl CreatePlayers() {
             GetView(kPlayerViewId[idx]).camera = static_cast<uint8_t*>(cam);
         *reinterpret_cast<int*>(player + 0x18) = kPlayerViewId[idx];   // its view (the ctor picks 1/2 or 1)
         *reinterpret_cast<int*>(player + 0x1C) = 0;                      // no mirror view
+        // the ctor copied P1's / P2's settings +0x15 (gearbox) / +0x16 to +0x20 / +0x21, which the attach applies to
+        // the car: its own (the gearbox picked on its car select seat)
+        if (g_seatGearbox[idx]) g_settings[idx][SETTING_GEARBOX] = static_cast<uint8_t>(g_seatGearbox[idx] - 1);
+        player[0x20] = g_settings[idx][SETTING_GEARBOX];
+        player[0x21] = g_settings[idx][0x16];
         reinterpret_cast<void(__thiscall*)(void*, void*)>(FN_PLAYER_ATTACH)(player, car);
-        Log("player %d created (car %p, view %d)", idx + 1, car, kPlayerViewId[idx]);
+        Log("player %d created (car %p, view %d, gearbox %d; players 1/2: %d %d)", idx + 1, car, kPlayerViewId[idx],
+            player[0x20], static_cast<uint8_t*>(g_localPlayers.byIndex[0])[0x20],
+            static_cast<uint8_t*>(g_localPlayers.byIndex[1])[0x20]);
     }
 }
 

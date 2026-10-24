@@ -21,10 +21,6 @@ Same class as the custom gauge texture fix (35c1974): plugin work done before / 
   0x4F7009 / 0x4F8023 redirected (`0x5ED980` has no slot for index 2: crash 0x4F701A). With both, a 3P drift race
   showed the same backing flags as without: the 2P layout has no drift angle backings and BestDriftBacking stays
   shown for everyone.
-- **P3/P4's car gets P1's / P2's settings +0x15/+0x16** (confirmed). The ctor copies them (0x5F17E9 / 0x5F17F2,
-  redirected reader -> `g_settings[idx & 1]`) into player +0x20/+0x21, which the attach 0x5F3E10 applies to the car
-  (+0x20 is forced to 1 in drag: probably the transmission). Expected: P3 picks Manual, but races with P1's choice.
-  Fix: swap `g_settings[idx]` in around the ctor, or write +0x20/+0x21 from `g_settings[idx]` before the attach.
 - **Minimap manager rebuilt without the hook** (likely). 0x4F92A0 destroys the manager through an unhooked call at
   0x4F92B1, empties the marker pool and builds a new one, but `g_mmExtendedMgr` isn't reset, so a new manager at the
   freed address is never extended: P3+ markers (and their minimaps' centre entities) would vanish. In a race it runs
