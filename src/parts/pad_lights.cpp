@@ -124,9 +124,65 @@ static int ControllingPad() {
 //     first 300 ms of a nitrous burn
 // "At the limit" = grip >= 0.98 for 50 ms, released after 100 ms below, so a one-frame kerb spike doesn't buzz.
 // Driven wheels: the axle with the larger longitudinal force, all four if both axles are within 10%.
-// Anything else (menus, countdown, pause, finish, [LIGHTS] AdaptiveTriggers = 0) sends Off on both triggers.
-static bool g_adaptiveTriggers = true;    // [LIGHTS] AdaptiveTriggers
+// Anything else (menus, countdown, pause, finish, the player turned them off) sends Off on both triggers.
+static bool g_adaptiveTriggers = true;    // [LIGHTS] AdaptiveTriggers: the default for players without their own choice
 static int  g_triggerStrength = 100;      // [LIGHTS] TriggerStrength, percent
+static int  g_triggersOn[MAX_LOCAL_PLAYERS] = {-1, -1, -1, -1};   // per player: 1 on, 0 off, -1 the ini default
+
+static bool TriggersOn(int k) { return g_triggersOn[k] < 0 ? g_adaptiveTriggers : g_triggersOn[k] != 0; }
+
+// The players' own choices: [Player1..4] AdaptiveTriggers in NFSU2SplitScreen_Players.ini.
+static void LoadTriggerChoices() {
+    for (int k = 0; k < MAX_LOCAL_PLAYERS; ++k) {
+        char section[16];
+        sprintf_s(section, "Player%d", k + 1);
+        g_triggersOn[k] = GetPrivateProfileIntA(section, "AdaptiveTriggers", -1, g_playersPath);
+    }
+}
+
+// "Adaptive Triggers" On/Off row in the pause menu's player options (UI_PauseOptions, builder around 0x4C4800: the
+// Feedback row, vtable 0x791DB0, is added by `call 0x54F170` at 0x4C4985 and the result kept in screen+0x154). The row
+// follows Feedback when the pausing player's pad is a DualSense; it is built like the Players row (seats.cpp).
+#define AT_PAUSE_FEEDBACK_ADD 0x4C4985
+static uint32_t g_triggersRowVt[18];
+static int PausingLocalPlayer() { return SplitRacing() ? g_pausePort : 0; }
+static int PadOfPlayer(int k) {
+    if (!SplitMode()) return XPadLastActive();
+    return k >= 0 && k < MAX_LOCAL_PLAYERS ? g_assignedPad[k] : PAD_NONE;
+}
+static void __fastcall TriggersRowDraw(uint8_t* row) {
+    auto printf_ = reinterpret_cast<void(__cdecl*)(void*, const char*, ...)>(FN_FE_PRINTF);
+    int k = PausingLocalPlayer();
+    printf_(*reinterpret_cast<void**>(row + 0x2C), "%s", "Adaptive Triggers");
+    printf_(*reinterpret_cast<void**>(row + 0x30), "%s", k >= 0 && TriggersOn(k) ? "On" : "Off");
+}
+static void __fastcall TriggersRowAct(uint8_t* row, void*, const char* fng, uint32_t msg) {
+    int k = PausingLocalPlayer();
+    if (k >= 0 && (msg == MSG_LEFT || msg == MSG_RIGHT)) {
+        g_triggersOn[k] = TriggersOn(k) ? 0 : 1;
+        char section[16];
+        sprintf_s(section, "Player%d", k + 1);
+        WritePrivateProfileStringA(section, "AdaptiveTriggers", g_triggersOn[k] ? "1" : "0", g_playersPath);
+        Log("adaptive triggers: player %d %s", k + 1, g_triggersOn[k] ? "on" : "off");
+    }
+    reinterpret_cast<void(__cdecl*)(uint32_t, const char*)>(FN_FE_SEND_MSG)(0x92B703B5, fng);
+    auto* vt = *reinterpret_cast<uintptr_t**>(row);
+    reinterpret_cast<void(__thiscall*)(void*, uint32_t)>(vt[0x40 / 4])(row, msg);
+    reinterpret_cast<void(__thiscall*)(void*)>(vt[3])(row);
+}
+static int __fastcall PauseFeedbackAdd(uint8_t* screen, void*, void* row, int flag) {
+    int r = reinterpret_cast<int(__thiscall*)(void*, void*, int)>(FN_SCREEN_ADD_ROW)(screen, row, flag);
+    int pad = PadOfPlayer(PausingLocalPlayer());
+    if (pad != PAD_NONE && XPadIsDualSense(pad)) {
+        if (!g_triggersRowVt[0]) {
+            memcpy(g_triggersRowVt, reinterpret_cast<void*>(ROW_VTABLE_LAPS), sizeof(g_triggersRowVt));
+            g_triggersRowVt[1] = reinterpret_cast<uint32_t>(&TriggersRowAct);
+            g_triggersRowVt[3] = reinterpret_cast<uint32_t>(&TriggersRowDraw);
+        }
+        AddRow(screen, g_triggersRowVt);
+    }
+    return r;                            // the Feedback row's result (kept in screen+0x154)
+}
 
 static bool ReadWheels(void* player, float grip[4], float force[4], float speed[4]) {
     __try {
@@ -194,7 +250,7 @@ static void UpdatePadTriggers(int pad, int k) {
     uint8_t left[11], right[11];
     TrigOff(left);
     TrigOff(right);
-    void* player = k >= 0 && g_adaptiveTriggers ? GetLocalPlayer(k) : nullptr;
+    void* player = k >= 0 && TriggersOn(k) ? GetLocalPlayer(k) : nullptr;
     static Hold brakeHold[MAX_LOCAL_PLAYERS], spinHold[MAX_LOCAL_PLAYERS];
     static DWORD nosStart[MAX_LOCAL_PLAYERS];
     static bool nosWas[MAX_LOCAL_PLAYERS];
