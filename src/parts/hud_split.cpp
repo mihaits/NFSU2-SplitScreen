@@ -299,7 +299,9 @@ static void UpdateMinimapOwner() {          // per frame
 static void UpdateMinimaps2P() {
     static const void* s_pkg = nullptr;
     static int s_frames = 0;
-    const void* pkg = SplitRacing() && g_screenViews == 2 ? HudPackageOf(0) : nullptr;
+    // by the race's players, not g_screenViews: that is still 2 from the loading screens in a 3+ player race's first
+    // frame, whose minimap update then drew 3+ players before P3's car entity existed (crash 0x4AC2B3)
+    const void* pkg = SplitRacing() && !g_quadTest && g_extraPlayers <= 0 ? HudPackageOf(0) : nullptr;
     if (pkg != s_pkg || ++s_frames >= 30) {   // HUD elements add markers at runtime; a restart rebuilds the HUD
         s_frames = 0;
         if (pkg != s_pkg) g_mmOwnerHidden = false, g_mmVisibleCount = 0;
