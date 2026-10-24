@@ -22,17 +22,18 @@ Everything below was built and smoke-tested on virtual pads only (race start, dr
   5/6 and the return to the right seat.
 - 5-6P racing in every race type (drag is capped at 4 players); 5P with 1 AI opponent; finish and the post-race
   scene with 6 humans (`FollowCameraForSceneCars`, untested), restart, quit. Done 2026-10-24: 6P drift results
-  screen after the Hurry timer (4 real pads, 2 idle virtual pads), correct.
-- 6P with real pads after the frame scratch fix ([rendering](rendering.md)): P5/P6's views drew no cars and P6's
-  almost no world (the 400 KB per-frame scratch overflowed), and P4-P6 drew scenery only close to the camera
-  (re-cull direction written one float off). Both fixed; check a full race with real pads.
+  screen after the Hurry timer (4 real pads, 2 idle virtual pads), correct. Done 2026-10-24 (autopilot): 6P circuit
+  CC-IND #1 with the players spread over a quarter lap, every view drew its cars and scenery to the results (frame
+  scratch peak ~340 KB of 1 MB, no overflow).
 - Pause by P5/P6; Controls pages P5/P6 (rebind, saved to `[Player5]`/`[Player6]` of `NFSU2SplitScreen_Players.ini`);
   rumble for P5/P6.
 - Two or more native DualSense pads at once (`kDsMax` raised to 8; only one was ever tested); P5/P6 player LEDs and
   lightbar colours (purple, cyan).
 - Free Run with 6 players spread across the city (streaming: no missing sections); memory on the largest tracks
   (peak 874 MB virtual of 2 GB measured).
-- Frame rate on a display faster than 75 Hz (6 views measured 75 fps = the 75 Hz cap).
+- Frame rate on a display faster than 75 Hz (6 views measured 75 fps = the 75 Hz cap). 2026-10-24, 6P drift SH Drift
+  Hard #1 at 3840x2160 / 60 Hz, WSF `FPSLimit = 0`: 60 fps throughout (display cap), 46-55 for ~6 s around the
+  countdown and start. Frame counter: 0x870818 (0x8665B8 is the 60 Hz sim tick).
 
 **Known bugs and limitations:**
 - **More than 4 Xbox pads** don't work (XInput limit); see [input](input.md).
