@@ -16,13 +16,13 @@
 Tested with real controllers on 2026-10-24: 4 native DualSense pads over Bluetooth at once plus 1-2 Xbox pads. 6P, 5P
 and 3P circuit, 5P sprint, 4P drag; joining P1..P6, finish, results, the post-race scene with 5 humans, restarts,
 pause by P4, the touchpad lightbar toggle. Earlier: 6P drift results after the Hurry timer, 6P circuit on autopilot
-(frame scratch peak ~340 KB of 1 MB), 6P at 3840x2160 / 60 Hz holding 60 fps (46-55 around the countdown).
+(frame scratch peak ~340 KB of 1 MB), 6P at 3840x2160 / 60 Hz holding 60 fps (46-55 around the countdown). 2026-10-26:
+P5/P6 player LEDs and lightbar colours, pause menus by P5/P6, the post-race scene with 5 humans.
 
 **Not covered yet:**
 - 5-6P in drift, URL, Street X and Free Run (6 players spread across the city: streaming, memory; peak 874 MB virtual
   of 2 GB measured); the post-race scene with 6 humans (`FollowCameraForSceneCars`); 5P with 1 AI opponent.
-- Pause by P5/P6; Controls pages P5/P6 (rebind, saved to `[Player5]`/`[Player6]`); Customize from seats 5/6.
-- P5/P6 player LEDs and lightbar colours (purple, cyan).
+- Controls pages P5/P6 (rebind, saved to `[Player5]`/`[Player6]`); Customize from seats 5/6.
 - Frame rate on a display faster than 75 Hz.
 
 **Podium lightbar** (user, 2026-10-24/25). The 3P logs of 2026-10-25 ruled out the colour going at the results screen
