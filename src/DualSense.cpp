@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <cwctype>
 
 #include "DualSense.h"
 
@@ -35,6 +36,8 @@ struct Slot {
     HANDLE dev;
     HANDLE wake;                          // auto-reset: new wanted output
     char path[MAX_PATH];
+    char mac[13];                         // the pad's Bluetooth address (hex); kept after it drops: its slot is kept for it
+    DWORD lostAt;
     bool usb, edge;
     int rumbleV2;
     USHORT inLen, outLen;
@@ -281,6 +284,7 @@ DWORD WINAPI IoThread(LPVOID param) {
     CloseHandle(s->dev);
     CloseHandle(readEv);
     CloseHandle(writeEv);
+    s->lostAt = GetTickCount();
     InterlockedExchange(&s->alive, 0);
     return 0;
 }
@@ -335,11 +339,41 @@ void ReapSlots(bool all) {
     }
 }
 
+// The pad's Bluetooth address as 12 hex digits, the same over USB and Bluetooth: feature report 0x09 (pairing info,
+// address at 1..6, last byte first, as hid-playstation and SDL read it), else the HID serial string (Bluetooth).
+bool ReadMac(HANDLE h, char out[13]) {
+    uint8_t f[64] = {};
+    f[0] = 0x09;
+    if (HidD_GetFeature(h, f, sizeof(f)) && (f[1] | f[2] | f[3] | f[4] | f[5] | f[6])) {
+        sprintf_s(out, 13, "%02x%02x%02x%02x%02x%02x", f[6], f[5], f[4], f[3], f[2], f[1]);
+        return true;
+    }
+    wchar_t w[64] = {};
+    if (!HidD_GetSerialNumberString(h, w, sizeof(w))) return false;
+    int n = 0;
+    for (const wchar_t* p = w; *p && n < 12; ++p)
+        if (iswxdigit(*p)) out[n++] = static_cast<char>(towlower(*p));
+    out[n] = 0;
+    return n == 12;
+}
+
+// Players are bound to the slot (pad 10 + slot), so a pad gets back the slot it had: a free slot with its address,
+// else a never used one, else the free slot whose pad dropped longest ago.
+Slot* SlotFor(const char* mac) {
+    Slot* best = nullptr;
+    for (auto& c : g_slot) {
+        if (c.thread || c.alive) continue;
+        if (mac[0] && !strcmp(c.mac, mac)) return &c;
+        bool older = static_cast<LONG>(c.lostAt - (best ? best->lostAt : 0)) < 0;
+        if (!best || (best->mac[0] && (!c.mac[0] || older))) best = &c;
+    }
+    return best;
+}
+
 void OpenPad(const char* path, bool edge) {
-    Slot* s = nullptr;
-    for (auto& c : g_slot)
-        if (!c.thread && !c.alive) { s = &c; break; }
-    if (!s) return;
+    bool anyFree = false;
+    for (auto& c : g_slot) anyFree |= !c.thread && !c.alive;
+    if (!anyFree) return;
     HANDLE h = CreateFileA(path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
                            OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr);
     static char busy[kDsMax * 2][MAX_PATH];     // paths whose failure was logged
@@ -360,6 +394,22 @@ void OpenPad(const char* path, bool edge) {
         CloseHandle(h);
         return;
     }
+    char mac[13] = {};
+    if (!ReadMac(h, mac)) mac[0] = 0;
+    // the same pad on its other transport (a cable plugged into a Bluetooth pad) while the old link is still open:
+    // wait for that one to drop, then this one takes its slot on a later rescan
+    for (auto& c : g_slot)
+        if (mac[0] && c.thread && !strcmp(c.mac, mac)) {
+            static char waiting[MAX_PATH];
+            if (strcmp(waiting, path)) {
+                strcpy_s(waiting, path);
+                Log("DualSense %d: also seen on another connection, kept on the open one", static_cast<int>(&c - g_slot));
+            }
+            CloseHandle(h);
+            return;
+        }
+    Slot* s = SlotFor(mac);
+    bool same = mac[0] && !strcmp(s->mac, mac);
     HidD_SetNumInputBuffers(h, 3);
     s->dev = h;
     s->usb = caps.InputReportByteLength == 64;
@@ -373,6 +423,10 @@ void OpenPad(const char* path, bool edge) {
         return;
     }
     strcpy_s(s->path, path);
+    // the log shows only the address's last 4 digits (logs get attached to bug reports)
+    Log("DualSense %d: pad ..%s, %s", static_cast<int>(s - g_slot), mac[0] ? mac + 8 : "(no address)",
+        same ? "back in its slot" : s->mac[0] ? "takes a slot another pad had" : "new slot");
+    strcpy_s(s->mac, mac);
     s->stop = 0;
     EnterCriticalSection(&s->cs);
     s->want.smallMotor = s->want.largeMotor = 0;   // no stale rumble from before an unplug

@@ -227,7 +227,7 @@ static void* PollExtraPort(int port, int* type, void** prev) {
     auto* copyState = at<uint8_t*>(DI_STATE_COPY_PTR);
     if (!SplitRacing() || port - 2 >= g_extraPlayers || !at<int>(INPUT_FOCUS)) return cur;
     MergeKeyboard(cur, port);
-    if (!pad0 || !copyState || !XPadDiState(g_assignedPad[port], state, sizeof(state))) return cur;
+    if (!pad0 || !copyState || !XPadDiState(RacePad(port), state, sizeof(state))) return cur;
     EnsureSeatBindings(port, pad0);
     const SeatStore& st = g_seatStore[port - 2];
     memcpy(record, pad0, sizeof(record));

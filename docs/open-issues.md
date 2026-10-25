@@ -28,7 +28,8 @@ pause by P4, the touchpad lightbar toggle. Earlier: 6P drift results after the H
 **Podium lightbar** (user, 2026-10-24/25). The 3P logs of 2026-10-25 ruled out the colour going at the results screen
 (it stays until state 7) and a missing finish for P3. Found: in drift the place was the order on track (P1 crossed 5th,
 1st by score); now `DriftPlace` from the standings. Left: 4th-6th place turn the bar off by design; when someone
-finishes, racer +0xA reads 1 for one frame (Street X: every finisher logged "place 1", then the right place).
+finishes, racer +0xA reads 1 for one frame (Street X: every finisher logged "place 1", then the right place); minor,
+left as is.
 
 **Known bugs and limitations:**
 - **More than 4 Xbox pads** don't work (XInput limit); see [input](input.md).
@@ -39,10 +40,9 @@ finishes, racer +0xA reads 1 for one frame (Street X: every finisher logged "pla
 
 ## Multiple DualSense pads, static analysis (2026-10-24)
 Fixed in a93b159: Bluetooth output flood (now at most 40 reports/s per pad) and the retry stall after a failed write.
-- **Slots by first free index, not by pad:** players are bound to pad index 10 + slot. Two pads that drop and
-  reconnect in the other order swap players; a different pad connecting first takes the dropped player's slot; a
-  Bluetooth pad plugged into USB gets a new path and slot. Fix: key slots by the MAC (BT: `HidD_GetSerialNumberString`,
-  USB: feature 0x09). Xbox pads have the same issue through the XInput user index, with no id to key on.
+- **Slots by first free index** (fixed: slots are kept per pad by its Bluetooth address, see [input](input.md)). Xbox
+  pads still have it through the XInput user index, with no id to key on: two that drop and reconnect in the other
+  order swap players.
 - No rumble after a reconnect while the game holds the same value: `g_dsOut` (and `g_rumbleSent` for Xbox pads) keeps
   the old motors and only changes are sent.
 - P5's player LEDs (0x1F, all five) look like the unjoined pads' flash (0x1F / 0).

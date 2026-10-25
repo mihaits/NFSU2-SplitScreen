@@ -135,6 +135,35 @@ static int CarselDriverSeat() {
     return seat;
 }
 
+// Pad takeover: a player's pad that turns off (battery, range) keeps its seat until it comes back. In a split race,
+// START on a connected pad no player has gives it the seat of the first player whose pad is off. It reads idle until
+// its buttons are released, so the same START press doesn't pause.
+static int g_takeoverPad = PAD_NONE;
+static int RacePad(int k) {
+    int pad = g_assignedPad[k];
+    return pad != PAD_NONE && pad == g_takeoverPad ? PAD_NONE : pad;
+}
+static void UpdatePadTakeover() {      // per frame, after XPadUpdate
+    uint16_t buttons; uint8_t lt, rt; int16_t lx;
+    if (g_takeoverPad != PAD_NONE && (!XPadRawState(g_takeoverPad, &buttons, &lt, &rt, &lx) || !buttons))
+        g_takeoverPad = PAD_NONE;
+    if (!SplitRacing()) return;
+    int players = 2 + g_extraPlayers < MAX_LOCAL_PLAYERS ? 2 + g_extraPlayers : MAX_LOCAL_PLAYERS;
+    int lost = -1;
+    for (int k = 0; k < players && lost < 0; ++k)
+        if (g_assignedPad[k] != PAD_NONE && !XPadRawState(g_assignedPad[k], &buttons, &lt, &rt, &lx)) lost = k;
+    if (lost < 0) return;
+    for (int pad = 0; pad < XPadMax(); ++pad) {
+        bool taken = false;
+        for (int k = 0; k < players; ++k) taken |= g_assignedPad[k] == pad;
+        if (taken || !XPadStartPressed(pad)) continue;
+        Log("player %d's pad %d is off: pad %d takes over", lost + 1, g_assignedPad[lost] + 1, pad + 1);
+        g_assignedPad[lost] = pad;
+        g_takeoverPad = pad;
+        return;
+    }
+}
+
 static int __cdecl PadForDevice(int device) {
     if (device < 0 || device > 1) return PAD_NONE;
     // outside split the last pad used drives; joystick slot 2 only gets it while its bindings are being edited
@@ -142,8 +171,8 @@ static int __cdecl PadForDevice(int device) {
     if (!SplitMode()) return device == 0 || g_editingSlot2 ? XPadLastActive() : PAD_NONE;
     // in the split-screen menus only the player whose turn it is controls the frontend
     if (SplitRacing()) {
-        if (g_pauseOwner < 0 || device != (g_pauseOwner & 1)) return g_assignedPad[device];
-        int pad = g_assignedPad[g_pauseOwner];
+        if (g_pauseOwner < 0 || device != (g_pauseOwner & 1)) return RacePad(device);
+        int pad = RacePad(g_pauseOwner);
         if (!g_pauseOwnerReleased) {
             uint16_t buttons = 0; uint8_t lt, rt; int16_t lx;
             if (XPadRawState(pad, &buttons, &lt, &rt, &lx) && buttons) return PAD_NONE;
@@ -550,6 +579,7 @@ static char g_extraNames[MAX_EXTRA_PLAYERS][16];
 static const char* const kSeatWords[MAX_EXTRA_PLAYERS] = {"Three", "Four", "Five", "Six"};
 static void UpdateSeats() {
     using ActiveFn = bool(__cdecl*)(const char*);
+    UpdatePadTakeover();
     if (g_inCarSelect) {                       // name box: whose pick it is (the game shows the profile for everyone)
         int fe = at<int>(FE_PLAYER);
         int seat = (g_seat & 1) == fe ? g_seat : fe;

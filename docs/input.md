@@ -20,7 +20,12 @@ controllers are hidden. Pads 0..3 are the real XInput pads, 4..9 debug pads driv
   a native pad shows dim blue and player LED 1 meanwhile).
 - A hotplug thread rescans every 2 s (gamepad interface only, usage page 1 / usage 5); one I/O thread per pad does
   overlapped reads into the slot's latest state and overlapped writes (100 ms timeout). A read error frees the slot
-  (the pad then reads idle) and the next rescan reopens it. `[INPUT] NativeDualSense = 0` turns the backend off.
+  (the pad then reads idle) and the next rescan reopens it. A pad gets back the slot it had, so it keeps its player: each slot keeps the
+  pad's Bluetooth address (feature 0x09 bytes 1..6, last byte first; else the HID serial string) after it drops, and
+  a pad takes the free slot with its address, else a never used one, else the one whose pad dropped longest ago. The
+  same pad on its other connection (a cable plugged into a Bluetooth pad) isn't opened while the first one is still
+  open. Logged as "DualSense N: pad ..xxxx, back in its slot / new slot / takes a slot another pad had" (last 4
+  digits only). `[INPUT] NativeDualSense = 0` turns the backend off.
 - **DS4Windows:** native pads are closed, and none opened, only while `DS4Windows.exe` runs *and* exposes a virtual
   pad: a present device whose parent has hardware id `Nefarius\ViGEmBus\Gen1` (SetupAPI `DIGCF_PRESENT`,
   `CM_Get_Parent`; checked live: started = `USB\VID_045E&PID_028E` under the bus, stopped = no child). Open but
@@ -80,7 +85,10 @@ controllers are hidden. Pads 0..3 are the real XInput pads, 4..9 debug pads driv
 **Pad resolver (`PadForDevice`).**
 - Outside split: device 0 = the last active XInput pad.
 - Split menus: only the current FE player's pad (its joined pad on the car select, else the last active pad).
-- Racing: each player's assigned pad.
+- Racing: each player's assigned pad. A pad that turns off keeps its player until it comes back (DualSense: same
+  slot, see above). **Takeover** (`UpdatePadTakeover`): START on a connected pad no player has gives it the first
+  player whose pad is off ("player N's pad P is off: pad Q takes over"); `RacePad` reads it idle until its buttons are
+  released, so that START doesn't pause.
 - A missing pad is reported idle, never as DIERR_INPUTLOST (the game would drop the slot).
 - While the Controls screen shows the P2 page, slot 2 is fed by the last active pad (`UpdateEditingSlot2`).
 
