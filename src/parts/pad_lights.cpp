@@ -71,12 +71,31 @@ static bool ReadCarLight(void* player, float* t, bool* shiftLight, bool* nitrous
 }
 
 // Finished (player +0x50 != 0; racer progress +0x14 counts laps), position = *(u8*)(racer+0xA), 1-based, racer =
-// *(car+0x1C).
+// *(car+0x1C). racer+0xA is the order on track; drift ranks by score instead: the race standings (0x864630, sorted by
+// the drift scoring 0x56DDD0) are a ring of nodes {next, prev, racer id (= player +0x10 for the humans), ?, float
+// score}, best first, and the place is the player's node in that order (checked live against the results screen).
+// The game has no rank-of-racer function to call: the scoring finds a racer's node with the same inline walk
+// (0x56DE22..0x56DE3C, by id), the drift HUD copies the first 4 nodes in list order (0x4C6EC0), and the generic list
+// index helper 0x43BE80 would still need the node. The list is re-sorted on every scoring update, so a finished
+// player's place follows the players still drifting.
+#define DRIFT_STANDINGS 0x864630
+static int DriftPlace(const uint8_t* player) {
+    int id = *reinterpret_cast<const int*>(player + 0x10);
+    auto* head = reinterpret_cast<uint8_t*>(DRIFT_STANDINGS);
+    auto* n = *reinterpret_cast<uint8_t**>(head);
+    for (int place = 1; n && n != head && place <= 16; ++place, n = *reinterpret_cast<uint8_t**>(n))
+        if (*reinterpret_cast<int*>(n + 8) == id) return place;
+    return 0;
+}
 static int FinishedPosition(void* player) {
     __try {
         auto* car = *reinterpret_cast<uint8_t**>(static_cast<uint8_t*>(player) + 4);
         auto* racer = car ? *reinterpret_cast<uint8_t**>(car + 0x1C) : nullptr;
-        if (racer && *reinterpret_cast<int*>(static_cast<uint8_t*>(player) + 0x50)) return racer[0xA] ? racer[0xA] : 99;
+        if (racer && *reinterpret_cast<int*>(static_cast<uint8_t*>(player) + 0x50)) {
+            int place = at<int>(QR_RACE_TYPE) == 3 ? DriftPlace(static_cast<uint8_t*>(player)) : 0;
+            if (!place) place = racer[0xA];
+            return place ? place : 99;
+        }
     } __except (EXCEPTION_EXECUTE_HANDLER) {
     }
     return 0;

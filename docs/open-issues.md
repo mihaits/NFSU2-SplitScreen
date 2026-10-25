@@ -25,11 +25,10 @@ pause by P4, the touchpad lightbar toggle. Earlier: 6P drift results after the H
 - P5/P6 player LEDs and lightbar colours (purple, cyan).
 - Frame rate on a display faster than 75 Hz.
 
-**Podium lightbar at 5-6P** (user, 2026-10-24: maybe not shown at the race end; not remembered which pads). Not in
-the log then; `finish:` and `lightbar: pad N` lines now log it. Candidates ([input](input.md), `parts/pad_lights.cpp`):
-4th-6th place turn the bar off by design (2-3 players in a 5-6P race); the colour needs race stage >= 4, so it goes
-if the stage drops at the results screen; P3-P6's finish flag (player +0x50) or place (racer +0xA) may not be set
-(only checked with P1/P2).
+**Podium lightbar** (user, 2026-10-24/25). The 3P logs of 2026-10-25 ruled out the colour going at the results screen
+(it stays until state 7) and a missing finish for P3. Found: in drift the place was the order on track (P1 crossed 5th,
+1st by score); now `DriftPlace` from the standings. Left: 4th-6th place turn the bar off by design; when someone
+finishes, racer +0xA reads 1 for one frame (Street X: every finisher logged "place 1", then the right place).
 
 **Known bugs and limitations:**
 - **More than 4 Xbox pads** don't work (XInput limit); see [input](input.md).

@@ -54,7 +54,8 @@ controllers are hidden. Pads 0..3 are the real XInput pads, 4..9 debug pads driv
   red flashing at 4 Hz from there, solid blue while nitrous burns. The addresses (tach rpm, shift rpm, nitrous) are in
   the comment block of `parts/pad_lights.cpp`; `tools/telemetry.py` prints the same numbers. Countdown (race stage 3, 3.0 s): red, red,
   amber with the 3-2-1, each flashing (0.6 s on, 0.4 s off), then green for 1 s from GO (stage 4), timed from the frame stage 3 starts, so a restart from the
-  pause menu works the same. Once a player has finished (player +0x50 != 0; place = racer +0xA, 1-based),
+  pause menu works the same. Once a player has finished (player +0x50 != 0; place = racer +0xA, 1-based, the order on track; in drift the rank by
+  score: the player's node in the standings ring 0x864630, `DriftPlace`),
   their pad shows the finish place until the game state leaves 6: 1st gold (255, 180, 0), 2nd silver (200, 200, 220), 3rd
   bronze (205, 100, 30), off outside the podium. The log shows each player's finish as seen here ("finish: player N
   place P") and each pad's finish colour turning on and off ("lightbar: pad N ..." with the state and race stage). While the pause menu is open (`PauseMenuOpen`)
