@@ -23,12 +23,13 @@
 - **Post-race scene (outro).** The picker is the intro's (0x436840, branch 1 = outros EndingNis01-04; random 0x43C1C0
   at 0x436BC5; with `Debug = 1` picks are logged and `[DEBUG] ForceOutro` forces one, see [tooling](tooling.md)). It binds its car tracks to race cars by car array index (table 0x827B9C, +0xC car index; binder
   0x4309D0 sets mover mode 5 = NISMvr) and drives the cars it doesn't feature to the world origin (body target via
-  0x5A44A0 from NISMvr::Update 0x5AB3C0). With 3-4 players these can be human cars:
+  0x5A44A0 from NISMvr::Update 0x5AB3C0). With 3-6 players these can be human cars, and with AI opponents also AI cars:
   - The fall-through check 0x5ECBA0 (below ground → car +0x96C = 1) reset the car onto the road every ~0.5 s (0x6009A0
     via 0x601324), each reset switching its mover 5 → 0 → 5: a flash and an audio duck. `FallResetHook` skips the
     reset while the mover is 5.
-  - The held car fell forever, and its wind sound played to its player's listener. `HoldSceneParkedCars` (from
-    `EndResultsCount`) holds it under the map: body = [[car+0x34] + 0x20], z +0x28 (and +0x108) = -50, vz +0xA8 = 0.
+  - The held car fell forever, and its wind sound played to its player's listener; an AI car fell too (a featured
+    car's engine cut out, 3P drift with 3 AI). `HoldSceneParkedCars` (from `EndResultsCount`) holds every such car
+    under the map: body = [[car+0x34] + 0x20], z +0x28 (and +0x108) = -50, vz +0xA8 = 0.
   - The streamer followed such a car across the map, see [streaming](streaming.md).
 - **Views 4/9 without an intro.** Layouts 1/2 enable view 4 (road reflection; its RT 0x86E784 enabled, 320x240) and
   view 9 (0x5C233D). Layout 3 has no case, so split races used to inherit them from the intro. With road reflections

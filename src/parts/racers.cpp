@@ -199,9 +199,11 @@ static void __fastcall RaceResults(void* results, void*, void* race) {
     g_resultsCountB = at<int>(RACE_COUNT_B);
     reinterpret_cast<void(__thiscall*)(void*, void*)>(FN_RACE_RESULTS)(results, race);
 }
-// A human car the post-race scene doesn't feature is driven to the world origin and falls there forever (no ground):
-// its own sounds play to its player's listener wherever it is, so the fall's wind rush was heard (user, P1 last). It is
-// held still under the map: physics body = [[car+0x34] (mover) + 0x20], position z +0x28 (and +0x108), velocity z +0xA8.
+// A car the post-race scene doesn't feature is driven to the world origin and falls there forever (no ground): a
+// human car's own sounds play to its player's listener wherever it is, so the fall's wind rush was heard (user, P1
+// last). AI cars fell too (3P drift with 3 AI: a featured car's engine cut out a few seconds in, user). Every such car
+// is held still under the map: physics body = [[car+0x34] (mover) + 0x20], position z +0x28 (and +0x108), velocity z
+// +0xA8.
 #define MOVER_NIS          5        // car mover mode (car+0x28): driven by a scene (NISMvr)
 static void HoldSceneParkedCars() {         // per frame
     if (!g_postRace || !SplitMode() || at<int>(NUM_PLAYERS) != 2 || SplitRacing()) return;
@@ -211,8 +213,7 @@ static void HoldSceneParkedCars() {         // per frame
     int n = *reinterpret_cast<int*>(list + 0x24);
     for (int i = 0; i < n; ++i) {
         auto* car = reinterpret_cast<uint8_t**>(cars + 0x1C)[i];
-        auto* spec = car ? *reinterpret_cast<uint8_t**>(car + 0x14) : nullptr;
-        if (!spec || *reinterpret_cast<int*>(spec + 4) != 1 || *reinterpret_cast<int*>(car + 0x28) != MOVER_NIS) continue;
+        if (!car || *reinterpret_cast<int*>(car + 0x28) != MOVER_NIS) continue;
         const float* p = reinterpret_cast<const float*>(car + 0x60);
         auto* mover = *reinterpret_cast<uint8_t**>(car + 0x34);
         auto* body = mover ? *reinterpret_cast<uint8_t**>(mover + 0x20) : nullptr;

@@ -10,7 +10,9 @@
 - **Intro after a track change.** Sounds created during the load/intro bind to the nearest listener and keep it, and
   listeners 1-3 still had the previous track's positions. From the race load until a player's camera moves, that
   player's listener copies listener 0 and is skipped by NearestListener ("parked").
-- Engine sounds use their own path (0x462D51); it's left as is, and every player hears their own engine.
+- Engine sounds use their own path (0x462D51): listener 0 if the nearest player car (0x459AC0, `NearestPlayer`) is
+  P1's, else 1. It's left as is, and every player hears their own engine. In single-view screens (post-race scene,
+  results) only listeners 0/1 are updated and chosen; listener 1 takes P2's camera (player +0x238 → +0x1C).
 - **Audio memory.** Sound banks load into the audio pool ([0x82C6D4], created at boot by 0x4859B0: 4 MB with sound
   on). The race's bank jobs are a 32-entry array at 0x82B098 (0x2C each: +8 file, +0xC folder, +0x14 file buffer,
   +0x18 bank memory, +0x1C size, +0x20/+0x24 completion callback, +0x28 status/id), built by 0x4869A0 and loaded in
