@@ -4,8 +4,8 @@ Local **split screen for 2-6 players** in *Need for Speed Underground 2* on PC.
 
 ![6-player split screen](docs/split-screen-6p.gif)
 
-**Status: 0.10.0 alpha.** Every race mode works with 2-4 players. 5-6 players are new and still being tested with
-real controllers ([open issues](docs/open-issues.md)).
+**Status: 0.10.0 alpha.** Every race mode works with 2-6 players, tested with real controllers (4 native DualSense pads
+and 2 Xbox pads at once). Known issues are in [open issues](docs/open-issues.md).
 
 ## Install
 1. You need `speed2.exe` **v1.2** and the [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader).
@@ -41,7 +41,6 @@ options of whoever paused.
   (each player turns them on or off in the pause options)
 
 ## To do
-- [ ] 5-6 players: testing with real controllers ([pending tests](docs/open-issues.md))
 - [ ] More than 4 Xbox pads (Windows.Gaming.Input backend)
 - [ ] Session results: standings across back-to-back races
 - [ ] Replays of split-screen races

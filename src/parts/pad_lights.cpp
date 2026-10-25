@@ -319,6 +319,15 @@ static void UpdatePadLights() {
     bool racing = stage >= 4;       // racing, and whatever follows the finish while the state is still 6
     bool paused = racing && PauseMenuOpen();
     bool flashOn = (GetTickCount() % 1000) < 500;
+    // each local player's finish as the lightbar sees it (player +0x50, place racer +0xA), to tell a missing finish
+    // flag apart from a lightbar problem
+    static int finishSeen[MAX_LOCAL_PLAYERS];
+    int players = SplitMode() ? 2 + g_extraPlayers : 1;
+    for (int k = 0; k < MAX_LOCAL_PLAYERS; ++k) {
+        int place = racing && k < players && GetLocalPlayer(k) ? FinishedPosition(GetLocalPlayer(k)) : 0;
+        if (place && !finishSeen[k]) Log("finish: player %d place %d (race stage %d)", k + 1, place, stage);
+        finishSeen[k] = place;
+    }
     for (int pad = 0; pad < XPadMax(); ++pad) {
         if (!XPadIsDualSense(pad)) continue;
         uint8_t leds = 0;
@@ -331,6 +340,7 @@ static void UpdatePadLights() {
             else leds = flashOn ? 0x1F : 0;
         }
         uint8_t rgb[3] = {0, 0, 64};
+        int finishPlace = 0, finishPlayer = -1;    // finish colour shown this frame (logged on change)
         if (!g_lightbar) rgb[2] = 0;
         else if (racing || countdown) {
             int k = -1;                    // local player this pad drives
@@ -356,6 +366,8 @@ static void UpdatePadLights() {
             } else if (!paused && racing && FinishedPosition(GetLocalPlayer(k))) {   // finish colour until state 6 ends
                 static const uint8_t kPlace[3][3] = {{255, 180, 0}, {200, 200, 220}, {205, 100, 30}};
                 int place = FinishedPosition(GetLocalPlayer(k));
+                finishPlace = place;
+                finishPlayer = k;
                 for (int c = 0; c < 3; ++c)
                     rgb[c] = static_cast<uint8_t>((place <= 3 ? kPlace[place - 1][c] : 0) * g_lightbarBrightness / 100);
             } else if (paused) {            // the player's colour at 25%
@@ -364,8 +376,18 @@ static void UpdatePadLights() {
                 for (int c = 0; c < 3; ++c) rgb[c] = static_cast<uint8_t>(kPlayerColour[k][c] * g_lightbarBrightness / 100);
             } else CarLightbar(k, rgb);
         }
+        static int shownPlace[32];
+        if (pad < 32 && finishPlace != shownPlace[pad]) {
+            if (finishPlace)
+                Log("lightbar: pad %d shows player %d's finish place %d (%s)", pad + 1, finishPlayer + 1, finishPlace,
+                    finishPlace <= 3 ? "podium colour" : "off");
+            else
+                Log("lightbar: pad %d finish colour cleared (state %d, race stage %d, paused %d)", pad + 1, state,
+                    stage, paused);
+            shownPlace[pad] = finishPlace;
+        }
         XPadSetLights(pad, rgb, leds);
-        int drives = -1;                   // local player this pad drives, while it races and isn't paused or finished
+        int drives = -1;                  // local player this pad drives, while it races and isn't paused or finished
         if (racing && !paused) {
             if (SplitMode()) { for (int q = 0; q < MAX_LOCAL_PLAYERS; ++q) if (g_assignedPad[q] == pad) drives = q; }
             else if (pad == XPadLastActive()) drives = 0;
