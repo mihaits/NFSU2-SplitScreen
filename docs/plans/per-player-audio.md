@@ -14,9 +14,11 @@ sounds (music, menus, announcer) stay on the PC output. Pads without a speaker k
   `docs/sound.md` (0x7292BC, 64 voices at [0x8B4A00], stride 0x5C, mix-add 0x72C3E0).
 
 ## Open
-1. Map each mixer voice to its game sound and so its listener/player (sound+0xD0). Ideas: find the EA call that sets
-   a voice's volume/pan from the values 0x45DF00 computes (+8 volume, +0x10/+0xC azimuth), or follow who writes voice
-   +0x1C (the channel gains) back to the game object; engine sounds take their own path (0x462D51).
+1. Voice → player: **engines done** (car sound object +0xE0 channel, +0x9C audio node → +0x10 player index; see
+   `docs/sound.md`, `tools/ea_voices.py`). Open: the other per-car sounds (skids, collisions, turbo, wind) and world
+   sounds, which play through EA's sample-player pool. Next: follow the game call sites that set their gains
+   (0x46C13F in 0x46ABA0, 0x46C2DE, 0x46C841, 0x483E0D) back to the game object and its listener (+0xD0), or hook the
+   EA call that starts a pool sample and record the caller's sound object. A first version can route engines only.
 2. Mixer split: a hook on 0x7292BC that, after the normal render, renders each speaker player's voices again into
    their own buffers (or skips them in the PC mix). Voice sources are stateful (`call [src]` advances the stream),
    so a voice must be rendered once and routed, not rendered twice: replace the mix-add per voice instead.

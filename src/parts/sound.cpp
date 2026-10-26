@@ -138,6 +138,8 @@ static void __fastcall ListenerUpdate(void* ecx, void*) {
     }
 }
 
+static void DsNoteSound(const uint8_t* sound, int listener);   // DirectSound/EA voice log below (Debug = 1)
+
 // Nearest listener for a sound (replaces the 2-way choice at 0x45E147; the 2-listener mode was already established).
 #define AT_LISTENER_CHOICE 0x45E147      // mov edx, 1 (5 bytes) ... up to the consumer call at 0x45E1C1
 #define AT_LISTENER_CHOICE_DONE 0x45E1C1
@@ -152,6 +154,7 @@ static int __cdecl NearestListener(const uint8_t* sound) {
         float dx = pos[0] - l[0], dy = pos[1] - l[1], d = dx * dx + dy * dy;
         if (k == 0 || d < bestD) { best = k; bestD = d; }
     }
+    if (g_debug) DsNoteSound(sound, best);
     return best;
 }
 static __declspec(naked) void ListenerChoiceHook() {
@@ -309,3 +312,51 @@ static void InstallDsoundLog() {
     *slot = hook;
     VirtualProtect(slot, sizeof(void*), old, &old);
 }
+
+// EA channel -> game sound (per-player audio plan). EA channel i is mixer voice i; 0x724F5D(i) applies its channel
+// gains (volume [0x8B466C + i*0x90 + 0x48] times the pan matrix [0x8B4724 + i*0x88]) through 0x72905D. The game calls
+// EA from inside its sound objects' methods, so the hook looks for a known 3D sound object (seen by NearestListener) on
+// the stack and logs each (channel, owner) once; without one, the game-code return addresses instead.
+#define FN_EA_APPLY_GAINS 0x724F5D       // push ebp; mov ebp, esp; push ebx; push esi (5 bytes)
+typedef void(__cdecl* EaApplyGainsFn)(int);
+static EaApplyGainsFn g_origEaApplyGains;
+static std::unordered_set<const uint8_t*> g_dsSounds;
+static std::unordered_set<uint64_t> g_dsChannelSeen;    // (channel, owner or first game caller) already logged
+
+static void DsNoteSound(const uint8_t* sound, int listener) {
+    EnterCriticalSection(&g_dsLogLock);
+    bool added = g_dsSounds.size() < 2000 && g_dsSounds.insert(sound).second;
+    LeaveCriticalSection(&g_dsLogLock);
+    if (added) Log("sound %p listener %d vtable %08X", sound, listener, *reinterpret_cast<const uint32_t*>(sound));
+}
+static void __cdecl EaApplyGainsHook(int channel) {
+    auto* sp = reinterpret_cast<const uint32_t*>(_AddressOfReturnAddress());
+    auto* top = reinterpret_cast<const uint32_t*>(reinterpret_cast<NT_TIB*>(NtCurrentTeb())->StackBase);
+    const uint8_t* owner = nullptr;
+    uint32_t rets[6] = {};
+    int m = 0;
+    EnterCriticalSection(&g_dsLogLock);
+    for (int k = 1; sp + k < top && k < 1024; ++k) {
+        uint32_t v = sp[k];
+        if (!owner && g_dsSounds.count(reinterpret_cast<const uint8_t*>(v))) owner = reinterpret_cast<const uint8_t*>(v);
+        if (m < 6 && v >= 0x401005 && v < 0x700000 && reinterpret_cast<const uint8_t*>(v)[-5] == 0xE8) rets[m++] = v;
+    }
+    uint32_t key = owner ? static_cast<uint32_t>(reinterpret_cast<uintptr_t>(owner)) : rets[0];
+    if (g_dsChannelSeen.size() < 4000 && g_dsChannelSeen.insert(static_cast<uint64_t>(channel & 0x3F) << 32 | key).second) {
+        if (owner)
+            Log("ea voice %d <- sound %p listener %d vtable %08X", channel, owner,
+                *reinterpret_cast<const int*>(owner + 0xD0), *reinterpret_cast<const uint32_t*>(owner));
+        else
+            Log("ea voice %d <- no sound (game calls %08X %08X %08X %08X %08X %08X)", channel, rets[0], rets[1],
+                rets[2], rets[3], rets[4], rets[5]);
+    }
+    LeaveCriticalSection(&g_dsLogLock);
+    g_origEaApplyGains(channel);
+}
+static void InstallEaVoiceLog() {
+    static const uint8_t prologue[5] = {0x55, 0x8B, 0xEC, 0x53, 0x56};
+    if (memcmp(reinterpret_cast<void*>(FN_EA_APPLY_GAINS), prologue, 5) != 0) return;
+    g_origEaApplyGains = reinterpret_cast<EaApplyGainsFn>(MakeTrampoline(FN_EA_APPLY_GAINS, 5));
+    WriteJump(FN_EA_APPLY_GAINS, &EaApplyGainsHook, 5);
+}
+

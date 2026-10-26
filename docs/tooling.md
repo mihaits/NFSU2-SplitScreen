@@ -50,6 +50,8 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
   - `ds_bt_speaker.py [--list] [--pad n] [--file f | --freq hz --seconds s] [--gain g]` plays a sound on a Bluetooth
     DualSense's speaker (no game needed): Opus frames from ffmpeg/libopus in HID output report 0x39, after a 0x31
     speaker route. The report layout is in the script's docstring. Experiment for per-player audio.
+  - `ea_voices.py [--watch s]` lists the EA mixer voices playing (gains) and searches the sound objects the plugin
+    logged ("sound ... listener", Debug = 1) for their channels (see docs/sound.md, voice owners).
 - **Device loss / flicker log** (ini `Debug = 1`, `HookDeviceDebug`, installed from the first frame): logs Present
   failures, TestCooperativeLevel changes (with the free address space), every Reset with its call stack, and the
   activation/focus/size/display messages the game window receives ("d3d:" / "wnd:" lines). The game resets on

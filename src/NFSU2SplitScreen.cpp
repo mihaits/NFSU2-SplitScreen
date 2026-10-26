@@ -190,7 +190,7 @@ static void Install(HMODULE self) {
     WriteCall(AT_LISTENER_UPDATE_CALL, &ListenerUpdate);
     WriteJump(AT_LISTENER_CHOICE, &ListenerChoiceHook, 5);
     WriteJump(AT_EMITTER_RANGE, &EmitterRangeHook, 6);
-    if (g_debug) InstallDsoundLog();
+    if (g_debug) { InstallDsoundLog(); InstallEaVoiceLog(); }
     InstallHeadlights();
     {   // CubicCameraMover::Update through the plugin (start zoom)
         void* hook = reinterpret_cast<void*>(&ChaseMoverUpdateHook);

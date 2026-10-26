@@ -38,5 +38,18 @@
   [0x8B4A04] (0x72C3E0: scratch, gain, frames, destination), and into the aux sends (count [0x8180B8], gains +0x38,
   buses [0x8B47C4]) the same way. Then the optional post hook [0x8B4800] and the per-channel output stages
   [0x8B4940 + ch*4]. A per-player mix is this voice loop run once per player over that player's voices.
-- Which player owns a mixer voice isn't known yet. The game's 3D sound objects (listener index +0xD0) compute volume
-  (+8) and azimuth (+0x10/+0xC) against their listener in 0x45DF00 and pass them to EA through an API not traced yet.
+- **Voice owners.** EA channel i is mixer voice i, and an EA channel handle's low byte is i (0x725480 checks the full
+  handle against channel +0: the upper bits are a generation). Channel i's gains are its volume
+  ([0x8B466C] + i*0x90 + 0x48) times its pan row ([0x8B4724] + i*0x88), applied by 0x724F5D(i) through 0x72905D(i, ch,
+  gain); 0x729087 sets the aux sends. `InstallEaVoiceLog` (Debug = 1) hooks 0x724F5D and logs each (voice, owner) once.
+  - **Engines**: one object per car (vtable 0x78AF30; per-frame method 0x474310 → 0x473E60, which sets volume
+    0x72412A, pitch 0x723D9B and more on its handle). +0xE0 is the engine's EA channel handle; +0x9C is the car's
+    node in the audio player list ([[0x82B884]+0xAC]+0x10, next +4): node +0x10 is the player index, +0x30 → +0x18
+    the player. So engine voice = [obj+0xE0] & 0xFF, its player = [[obj+0x9C]+0x10] (checked live, 3 players).
+  - **Everything else** (world, collisions, skids, ambience): the handles are only in EA's sample-player pool
+    (0x0C00xxxx in a race; object +0x10 channel handle, +8/+0xC bank data, list at [0x8B446C]); no game object
+    holds them. Their gains are applied from game code at 0x46C13F, 0x46C2DE, 0x46C841, 0x483E0D and from the
+    sound thread. The link from a game 3D sound (listener +0xD0, volume +8 and azimuth +0x10/+0xC from 0x45DF00) to
+    its pool sample player is still open.
+  - EA "players" ([0x8B4068 + 4k], count byte 0x8B44DE; 0x722424(k)) are the stream players: music, speech. Their
+    events are listed at player +0x144 ({+0 next, +0xC handle}, 0x727A12); player 0's event owns the music voice.
