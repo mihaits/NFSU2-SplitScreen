@@ -27,3 +27,16 @@
   the device is recreated on the way into a race. No per-voice buffers exist, so per-player output (e.g. a DualSense
   speaker each, see `tools/ds_bt_speaker.py`) needs the mix split inside the EA mixer. `InstallDsoundLog` (Debug = 1)
   logs the buffers and a 5 s summary of Play / Lock calls ("dsound:" lines).
+- **EA mixer.** The sound thread (winmm timer, 0x7263C1) fills the stream at 0x726200: Lock (call 0x726268), then
+  0x725C8E(&ptr, frames), then Unlock. 0x725C8E works in 10 ms blocks: when its block count [0x8B478C] runs out it
+  runs the voice tick 0x721E13 (100 Hz voice state) and 0x721DE6 (callbacks), then 0x729574(&ptr, frames) renders and
+  converts in chunks of up to 256 frames: one planar float buffer per output channel ([0x8B48F0 + ch*4], channel
+  count byte 0x8B47F9, 2 here), rendered by **0x7292BC(channel buffers, frames)**, then interleaved to 16 bit (2/4/6
+  channel orders). 0x7292BC clears the channel buffers (0x727030), then for each of the 64 voices (byte 0x8B47F8;
+  array [0x8B4A00], stride 0x5C, byte +0 == 2 playing) calls the voice's source (+0x40, `call [src]`) to render mono
+  floats into the scratch buffer [0x8B48D4], and mix-adds them into each channel with gain +0x1C + ch*4 through
+  [0x8B4A04] (0x72C3E0: scratch, gain, frames, destination), and into the aux sends (count [0x8180B8], gains +0x38,
+  buses [0x8B47C4]) the same way. Then the optional post hook [0x8B4800] and the per-channel output stages
+  [0x8B4940 + ch*4]. A per-player mix is this voice loop run once per player over that player's voices.
+- Which player owns a mixer voice isn't known yet. The game's 3D sound objects (listener index +0xD0) compute volume
+  (+8) and azimuth (+0x10/+0xC) against their listener in 0x45DF00 and pass them to EA through an API not traced yet.

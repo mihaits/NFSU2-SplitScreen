@@ -219,6 +219,29 @@ static HRESULT WINAPI DsBufLock(IDirectSoundBuffer* b, DWORD off, DWORD n, LPVOI
     EnterCriticalSection(&g_dsLogLock);
     ++g_dsLocks;
     g_dsLocked.insert(b);
+    static uintptr_t callers[8];         // each new caller once, with the game-code return addresses on its stack
+    uintptr_t ret = reinterpret_cast<uintptr_t>(_ReturnAddress());
+    for (uintptr_t& c : callers) {
+        if (c == ret) break;
+        if (c) continue;
+        c = ret;
+        uint32_t rets[8] = {};
+        int m = 0;
+        auto* sp = reinterpret_cast<const uint32_t*>(_AddressOfReturnAddress());
+        auto* top = reinterpret_cast<const uint32_t*>(reinterpret_cast<NT_TIB*>(NtCurrentTeb())->StackBase);
+        for (int k = 1; sp + k < top && k < 512 && m < 8; ++k) {   // the sound thread's stack is shallow
+            uint32_t v = sp[k];
+            if (v < 0x401005 || v >= 0x780000) continue;
+            auto* c5 = reinterpret_cast<const uint8_t*>(v);
+            if (c5[-5] == 0xE8 || (c5[-2] == 0xFF && (c5[-1] & 0x38) == 0x10) ||
+                (c5[-3] == 0xFF && (c5[-2] & 0x38) == 0x10) || (c5[-6] == 0xFF && (c5[-5] & 0x38) == 0x10))
+                rets[m++] = v;
+        }
+        Log("dsound: Lock(%p, off %lu, %lu bytes) from %08X thread %lu (calls %08X %08X %08X %08X %08X %08X %08X %08X)",
+            b, off, n, static_cast<unsigned>(ret), GetCurrentThreadId(), rets[0], rets[1], rets[2], rets[3],
+            rets[4], rets[5], rets[6], rets[7]);
+        break;
+    }
     DsLogWindow();
     LeaveCriticalSection(&g_dsLogLock);
     return DsVtableOf(b)->lock(b, off, n, p1, n1, p2, n2, flags);
