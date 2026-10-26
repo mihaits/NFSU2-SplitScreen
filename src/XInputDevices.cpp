@@ -548,6 +548,10 @@ void XPadSetRumble(int pad, float low, float high) {
 
 bool XPadIsDualSense(int pad) { return pad >= kDsFirst && pad < kMaxPads && g_dsConnected[pad - kDsFirst]; }
 
+bool XPadSpeakerWrite(int pad, const float* mono, int frames, int rate) {
+    return pad >= kDsFirst && pad < kMaxPads && DsSpeakerWrite(pad - kDsFirst, mono, frames, rate);
+}
+
 void XPadSetLights(int pad, const uint8_t rgb[3], uint8_t playerLeds) {
     if (pad < kDsFirst || pad >= kMaxPads) return;
     DsOutput& o = g_dsOut[pad - kDsFirst];

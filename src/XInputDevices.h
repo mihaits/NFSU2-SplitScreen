@@ -34,6 +34,7 @@ bool XPadIsDualSense(int pad);                                                  
 void XPadSetLights(int pad, const uint8_t rgb[3], uint8_t playerLeds);           // lightbar + player LEDs (bits 0..4)
 void XPadSetTriggers(int pad, const uint8_t l[11], const uint8_t r[11]);         // trigger effects (mode + 10 params)
 bool XPadTouchClickPressed(int pad);   // touchpad click went down since the previous XPadUpdate
+bool XPadSpeakerWrite(int pad, const float* mono, int frames, int rate);   // Bluetooth DualSense speaker (DualSense.h)
 
 // A pad's state as virtual device 0 reports it to the game (DIJOYSTATE2, with the axis ranges the game set on that
 // device); for pads that have no joystick slot (players 3/4). False if the pad isn't connected or no device exists.

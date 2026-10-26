@@ -360,3 +360,230 @@ static void InstallEaVoiceLog() {
     WriteJump(FN_EA_APPLY_GAINS, &EaApplyGainsHook, 5);
 }
 
+
+// ---------------------------------------------------------------- engines on the pad speakers ([AUDIO] PadSpeakers)
+// Split racing: each player's engine plays on their Bluetooth DualSense's speaker instead of the PC mix (other sounds
+// stay on the PC). EA mixes every voice itself (docs/sound.md): the render 0x7292BC (called at 0x7295DD per chunk of
+// up to 256 frames) adds each voice into the output channels' float buffers ([0x8B48F0 + ch*4], 16-bit scale) with
+// `call [0x8B4A04]` (0x72942B; esi = voice, edi = its gain for the channel at voice +0x1C + ch*4) and into the aux
+// sends (0x729490). After a gain change (voice +1 set) 0x728B48 first renders the voice's next 16 frames itself,
+// ramping from the old gains (voice +4 + ch*4) to the new ones with 0x728957(old, new, src, dst) or mixing them with
+// [0x8B4A04], into the same buffers (channels 0x728C9D / 0x728CCB, aux sends 0x728C11 / 0x728C4B; esi = voice, edi =
+// gain as above). All six calls are patched: an engine voice whose player has a speaker goes into that player's own
+// buffers instead (no reverb). The engine objects (vtable 0x78AF30, per-frame update 0x474310 at vtable +0x48)
+// tell which voice is whose: EA channel = mixer voice = [obj+0xE0] & 0xFF, player = [[[obj+0x9C]+0x30]+0x18].
+// After each chunk, a player's buffers go to their pad (L+R mono, PadSpeakerGain) through XPadSpeakerWrite.
+#define ENGINE_UPDATE_SLOT 0x78AF78      // vtable 0x78AF30 +0x48 = 0x474310 (thiscall, no arguments)
+#define FN_ENGINE_UPDATE 0x474310
+#define AT_MIX_CHANNEL_CALL 0x72942B     // call [0x8B4A04] (6 bytes)
+#define AT_MIX_AUX_CALL 0x729490         // call [0x8B4A04] (6 bytes)
+#define AT_RAMP_CHANNEL_CALL 0x728C9D    // call 0x728957 (5 bytes)
+#define AT_RAMP_CHANNEL_MIX 0x728CCB     // call [0x8B4A04] (6 bytes)
+#define AT_RAMP_AUX_CALL 0x728C11        // call 0x728957
+#define AT_RAMP_AUX_MIX 0x728C4B         // call [0x8B4A04]
+#define FN_EA_MIX_RAMP 0x728957          // mix-add of 16 frames with the gain ramping old -> new (cdecl)
+#define AT_RENDER_CALL 0x7295DD          // call 0x7292BC
+#define FN_RENDER 0x7292BC
+#define EA_MIX_ADD 0x8B4A04              // mix-add(frames, gain, src, dst), cdecl
+#define EA_VOICES 0x8B4A00               // mixer voices, stride 0x5C
+#define EA_OUT_BUFS 0x8B48F0
+#define EA_OUTPUT_RATE 0x8B44C6          // word
+static bool g_padSpeakers = true;        // [AUDIO] PadSpeakers
+static float g_padSpeakerGain = 4.0f;    // [AUDIO] PadSpeakerGain, percent / 100
+typedef void(__cdecl* EaMixAddFn)(int, float, const float*, float*);
+static void* g_origEngineUpdate;
+static volatile LONG g_engineVoicePlayer[64];        // local player + 1 (0: none), written by the main thread
+static volatile DWORD g_engineVoiceSeen[64];
+static volatile LONG g_speakerPad[MAX_LOCAL_PLAYERS] = {-1, -1, -1, -1, -1, -1};   // pad with a speaker, or -1
+static volatile DWORD g_speakerSeen[MAX_LOCAL_PLAYERS];
+static volatile LONG g_speakerFailed[MAX_LOCAL_PLAYERS];   // the pad took no samples (not Bluetooth): PC mix
+static float g_speakerMix[MAX_LOCAL_PLAYERS][2][256];
+
+static void __fastcall EngineUpdateHook(uint8_t* obj, void* edx) {
+    reinterpret_cast<void(__fastcall*)(void*, void*)>(g_origEngineUpdate)(obj, edx);
+    __try {
+        int32_t h = *reinterpret_cast<int32_t*>(obj + 0xE0);
+        uint8_t* node = *reinterpret_cast<uint8_t**>(obj + 0x9C);
+        uint8_t* n30 = node ? *reinterpret_cast<uint8_t**>(node + 0x30) : nullptr;
+        void* player = n30 ? *reinterpret_cast<void**>(n30 + 0x18) : nullptr;
+        int k = -1;
+        for (int i = 0; i < g_localPlayers.count && i < MAX_LOCAL_PLAYERS; ++i)
+            if (player && g_localPlayers.byIndex[i] == player) k = i;
+        if (h < 0 || k < 0) return;
+        int pad = SplitRacing() ? g_assignedPad[k] : PAD_NONE;
+        if (pad == PAD_NONE || !XPadIsDualSense(pad)) pad = -1;
+        if (pad != g_speakerPad[k]) {
+            Log("pad speaker: player %d -> pad %d (engine voice %d)", k + 1, pad, h & 0x3F);
+            InterlockedExchange(&g_speakerFailed[k], 0);
+            InterlockedExchange(&g_speakerPad[k], pad);
+        }
+        g_speakerSeen[k] = GetTickCount();
+        g_engineVoicePlayer[h & 0x3F] = k + 1;
+        g_engineVoiceSeen[h & 0x3F] = GetTickCount();
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+    }
+}
+
+// The player whose speaker gets this voice, or -1 (mixer thread).
+static int SpeakerPlayerOfVoice(const uint8_t* voice) {
+    int v = static_cast<int>((voice - at<uint8_t*>(EA_VOICES)) / 0x5C);
+    if (v < 0 || v >= 64 || GetTickCount() - g_engineVoiceSeen[v] > 500) return -1;
+    int k = g_engineVoicePlayer[v] - 1;
+    return k >= 0 && k < MAX_LOCAL_PLAYERS && g_speakerPad[k] >= 0 && !g_speakerFailed[k] ? k : -1;
+}
+static void __cdecl MixChannel(const uint8_t* voice, const uint8_t* gainPtr, int frames, float gain,
+                               const float* src, float* dst) {
+    auto mixAdd = at<EaMixAddFn>(EA_MIX_ADD);
+    int k = SpeakerPlayerOfVoice(voice);
+    int ch = static_cast<int>(gainPtr - voice - 0x1C) / 4;
+    if (k < 0 || ch < 0 || ch > 1) { mixAdd(frames, gain, src, dst); return; }
+    ptrdiff_t off = dst - at<float*>(EA_OUT_BUFS + 4 * ch);
+    if (off >= 0 && off + frames <= 256) mixAdd(frames, gain, src, g_speakerMix[k][ch] + off);
+}
+typedef void(__cdecl* EaMixRampFn)(float, float, const float*, float*);
+static void __cdecl RampChannel(const uint8_t* voice, const uint8_t* gainPtr, float from, float to,
+                                const float* src, float* dst) {
+    auto ramp = reinterpret_cast<EaMixRampFn>(FN_EA_MIX_RAMP);
+    int k = SpeakerPlayerOfVoice(voice);
+    int ch = static_cast<int>(gainPtr - voice - 0x1C) / 4;
+    if (k < 0 || ch < 0 || ch > 1) { ramp(from, to, src, dst); return; }
+    ptrdiff_t off = dst - at<float*>(EA_OUT_BUFS + 4 * ch);
+    if (off >= 0 && off + 16 <= 256) ramp(from, to, src, g_speakerMix[k][ch] + off);
+}
+static void __cdecl RampAux(const uint8_t* voice, float from, float to, const float* src, float* dst) {
+    if (SpeakerPlayerOfVoice(voice) < 0) reinterpret_cast<EaMixRampFn>(FN_EA_MIX_RAMP)(from, to, src, dst);
+}
+static __declspec(naked) void RampChannelHook() {
+    __asm {
+        push ecx                         // EA's callers keep values in ecx / edx across these calls
+        push edx                         // (0x728C16 reads edx after the ramp): a C function may change them
+        mov eax, [esp + 0x18]            // copy the original call's 4 arguments (after edx, ecx, ret)
+        push eax
+        mov eax, [esp + 0x18]
+        push eax
+        mov eax, [esp + 0x18]
+        push eax
+        mov eax, [esp + 0x18]
+        push eax
+        push edi
+        push esi
+        call RampChannel
+        add esp, 0x18
+        pop edx
+        pop ecx
+        ret
+    }
+}
+static __declspec(naked) void RampAuxHook() {
+    __asm {
+        push ecx                         // EA's callers keep values in ecx / edx across these calls
+        push edx                         // (0x728C16 reads edx after the ramp): a C function may change them
+        mov eax, [esp + 0x18]            // copy the original call's 4 arguments (after edx, ecx, ret)
+        push eax
+        mov eax, [esp + 0x18]
+        push eax
+        mov eax, [esp + 0x18]
+        push eax
+        mov eax, [esp + 0x18]
+        push eax
+        push esi
+        call RampAux
+        add esp, 0x14
+        pop edx
+        pop ecx
+        ret
+    }
+}
+static void __cdecl MixAux(const uint8_t* voice, int frames, float gain, const float* src, float* dst) {
+    if (SpeakerPlayerOfVoice(voice) < 0) at<EaMixAddFn>(EA_MIX_ADD)(frames, gain, src, dst);
+}
+static __declspec(naked) void MixChannelHook() {
+    __asm {
+        push ecx                         // EA's callers keep values in ecx / edx across these calls
+        push edx                         // (0x728C16 reads edx after the ramp): a C function may change them
+        mov eax, [esp + 0x18]            // copy the original call's 4 arguments (after edx, ecx, ret)
+        push eax
+        mov eax, [esp + 0x18]
+        push eax
+        mov eax, [esp + 0x18]
+        push eax
+        mov eax, [esp + 0x18]
+        push eax
+        push edi
+        push esi
+        call MixChannel
+        add esp, 0x18
+        pop edx
+        pop ecx
+        ret
+    }
+}
+static __declspec(naked) void MixAuxHook() {
+    __asm {
+        push ecx                         // EA's callers keep values in ecx / edx across these calls
+        push edx                         // (0x728C16 reads edx after the ramp): a C function may change them
+        mov eax, [esp + 0x18]            // copy the original call's 4 arguments (after edx, ecx, ret)
+        push eax
+        mov eax, [esp + 0x18]
+        push eax
+        mov eax, [esp + 0x18]
+        push eax
+        mov eax, [esp + 0x18]
+        push eax
+        push esi
+        call MixAux
+        add esp, 0x14
+        pop edx
+        pop ecx
+        ret
+    }
+}
+static void __cdecl RenderChunk(void* channels, int frames) {
+    DWORD now = GetTickCount();
+    bool on[MAX_LOCAL_PLAYERS];
+    for (int k = 0; k < MAX_LOCAL_PLAYERS; ++k) {
+        on[k] = g_speakerPad[k] >= 0 && !g_speakerFailed[k] && now - g_speakerSeen[k] < 500 && frames <= 256;
+        if (on[k]) memset(g_speakerMix[k], 0, sizeof(g_speakerMix[k]));
+    }
+    reinterpret_cast<void(__cdecl*)(void*, int)>(FN_RENDER)(channels, frames);
+    for (int k = 0; k < MAX_LOCAL_PLAYERS; ++k) {
+        if (!on[k]) continue;
+        float mono[256];
+        float scale = g_padSpeakerGain * 0.5f / 32768.0f;
+        for (int i = 0; i < frames; ++i) mono[i] = (g_speakerMix[k][0][i] + g_speakerMix[k][1][i]) * scale;
+        if (!XPadSpeakerWrite(g_speakerPad[k], mono, frames, at<uint16_t>(EA_OUTPUT_RATE))) {
+            InterlockedExchange(&g_speakerFailed[k], 1);
+            Log("pad speaker: player %d's pad %ld has no Bluetooth speaker; engine stays on the PC", k + 1,
+                g_speakerPad[k]);
+        }
+    }
+}
+static void InstallPadSpeakers() {
+    static const uint8_t mixCall[6] = {0xFF, 0x15, 0x04, 0x4A, 0x8B, 0x00};
+    if (*reinterpret_cast<uint32_t*>(ENGINE_UPDATE_SLOT) != FN_ENGINE_UPDATE ||
+        memcmp(reinterpret_cast<void*>(AT_MIX_CHANNEL_CALL), mixCall, 6) ||
+        memcmp(reinterpret_cast<void*>(AT_MIX_AUX_CALL), mixCall, 6) ||
+        memcmp(reinterpret_cast<void*>(AT_RAMP_CHANNEL_MIX), mixCall, 6) ||
+        memcmp(reinterpret_cast<void*>(AT_RAMP_AUX_MIX), mixCall, 6) ||
+        *reinterpret_cast<uint8_t*>(AT_RAMP_CHANNEL_CALL) != 0xE8 || *reinterpret_cast<uint8_t*>(AT_RAMP_AUX_CALL) != 0xE8 ||
+        *reinterpret_cast<uint8_t*>(AT_RENDER_CALL) != 0xE8) {
+        Log("pad speakers: unexpected code, not installed");
+        return;
+    }
+    g_origEngineUpdate = reinterpret_cast<void*>(FN_ENGINE_UPDATE);
+    void* hook = reinterpret_cast<void*>(&EngineUpdateHook);
+    Write(ENGINE_UPDATE_SLOT, &hook, 4);
+    static const uint8_t nop = 0x90;
+    WriteCall(AT_MIX_CHANNEL_CALL, &MixChannelHook);
+    Write(AT_MIX_CHANNEL_CALL + 5, &nop, 1);
+    WriteCall(AT_MIX_AUX_CALL, &MixAuxHook);
+    Write(AT_MIX_AUX_CALL + 5, &nop, 1);
+    WriteCall(AT_RAMP_CHANNEL_MIX, &MixChannelHook);
+    Write(AT_RAMP_CHANNEL_MIX + 5, &nop, 1);
+    WriteCall(AT_RAMP_AUX_MIX, &MixAuxHook);
+    Write(AT_RAMP_AUX_MIX + 5, &nop, 1);
+    WriteCall(AT_RAMP_CHANNEL_CALL, &RampChannelHook);
+    WriteCall(AT_RAMP_AUX_CALL, &RampAuxHook);
+    WriteCall(AT_RENDER_CALL, &RenderChunk);
+    Log("pad speakers: installed (gain %.2f)", g_padSpeakerGain);
+}

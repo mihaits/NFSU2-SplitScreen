@@ -22,7 +22,7 @@ everything here was verified in game. The source is split by subsystem into `src
 | [rendering](rendering.md) | views, layout, viewports, projection; per-view passes (headlights, skins, reflections, weather, blur, streaks) |
 | [streaming](streaming.md) | track sections, streaming positions, pools, load priority, post-race |
 | [hud](hud.md) | FE objects, HUD packages and copies, quad HUD, minimaps, gauges, Free Run HUD |
-| [sound](sound.md) | listeners |
+| [sound](sound.md) | listeners, DirectSound output, the EA mixer and voice owners, engines on the pad speakers |
 | [race-flow](race-flow.md) | intros and grid, post-race scene, results counting, standings, "Hurry!" timer |
 | [free-run](free-run.md) | Free Run (free roam) in split screen |
 | [open-issues](open-issues.md) | known open bugs and leads |

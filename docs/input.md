@@ -42,11 +42,29 @@ controllers are hidden. Pads 0..3 are the real XInput pads, 4..9 debug pads driv
   L2/R2 = triggers, sticks `(v - 128) * 258` with Y negated. PS, Mute and touchpad click go to `DsExtra` only.
 - **Output:** USB report 0x02 (48 bytes) or BT 0x31 (78 bytes, CRC32 seed 0xA2 at 74..77). Sent on change, every 4 s
   while rumbling and every 500 ms on BT. On BT a change waits until 25 ms after the last report (at most 40 reports/s
-  per pad: the rpm lightbar changes every frame, and several pads share one adapter); rumble starting or stopping and
-  new trigger effects go out at once. After a failed write (100 ms timeout) the next try waits 250 ms, so a pad on a
+  per pad: the rpm lightbar changes every frame, and several pads share one adapter; 125 ms while the speaker
+  streams, below); rumble starting or stopping and new trigger effects go out at once (50 ms while streaming). After a failed write (100 ms timeout) the next try waits 250 ms, so a pad on a
   weak link keeps reading input; the failure and the recovery are logged once each. Rumble v2 (flag2 0x04) when `update_version >= 0x0215` or on an Edge, else v1
   (flag0 0x01); `DualSenseRumbleMode` overrides. The small motor is halved (as SDL does) to match an Xbox pad.
   Large motor = the game's left/low value, small = right/high.
+- **Speaker (Bluetooth; `DsSpeakerWrite`, `SpeakerThread`).** Windows has no audio device for a Bluetooth DualSense;
+  the speaker takes Opus in output report 0x39 (547 bytes, layout from awalol/DS5Dongle and KytyPS5): [1] seq << 4,
+  [2] 0x91 config (len 6: 0x7E = no microphone stream back, 4 × 48, [9] counter += 2), [10] 0xD2 haptics (len 64,
+  silent), [140] 0xD3 speaker (len 200) with two 480-frame Opus packets (48 kHz stereo, CBR 160 kbit/s, complexity 5:
+  200 bytes each), CRC32 seed 0xA2 over 0..542 at 543. One report per 21.333 ms; the pad plays them at 45 kHz, so the
+  queue is resampled to 45 kHz (linear) and encoded as if 48 kHz. A 0x31 report first sets audio_control = speaker
+  path (0x30), speaker volume 0x64 and preamp 2 (flags 0x80 | 0x20, 0x80). libopus 1.5.2 is built from
+  `third_party/opus` by `build.bat`. `tools/ds_bt_speaker.py` sends the same reports from Python (ffmpeg encodes).
+  - A thread per pad starts on the first samples and ends 1 s after the last (leftover samples are dropped); the I/O
+    thread stops it before closing the handle. A soft limiter (ceiling 0.9) replaces clipping.
+  - Queue: starts at 2048 input samples; the game delivers in bursts, so the lowest point left after a report is held
+    near 384 samples per half second by trimming the read rate (±1 %, proportional + integral); an underrun lowers
+    the rate at once and refills only to one report plus that reserve. The 5 s stats line (Debug) shows reports,
+    underruns, peak, the lowest reserve, the rate trim and the worst send lateness.
+  - While the speaker streams, other output reports wait at least 125 ms (rumble start/stop and trigger changes 50
+    ms): at 40 lightbar reports/s on the same link the speaker dropped out now and then. A state sub-packet (0x90,
+    the 0x31 settings block) in place of the haptics one, to carry the lightbar inside the audio reports, silenced the
+    speaker.
 - **Player LEDs (`parts/pad_lights.cpp`, `UpdatePadLights` from `LayoutApplyHook`, `[LIGHTS] PlayerLeds`):** from the
   car-select join until the race is left, a pad a player joined with shows that player's number (1 `--x--`, 2 `-x-x-`,
   3 `x-x-x`, 4 `xx-xx`); the session counts as on in the split car select and in game states 4..6 of a split game (state 3 is the frontend,

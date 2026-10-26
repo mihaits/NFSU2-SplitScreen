@@ -41,11 +41,13 @@ options of whoever paused.
 - [x] AI opponents with difficulty (up to 6 racers in all, 4 in drag; none in sprint drift; 6 players leave no room)
 - [x] Free Run: drive the whole city together, no race, from the district or venue you pick
 - [x] DualSense without DS4Windows: input, rumble, player LEDs, RPM and nitrous lightbar, adaptive triggers
+- [x] Each player's engine on their own DualSense's speaker (Bluetooth), so the engines don't overlap on the PC
 - [x] A controller that turns off keeps its player; press START on a spare one to take over that player
   (each player turns them on or off in the pause options)
 
 ## To do
 - [ ] More than 4 Xbox pads (Windows.Gaming.Input backend)
+- [ ] Other per-player sounds (skids, collisions, turbo) on the pad speakers; DualSense speaker over USB
 - [ ] Session results: standings across back-to-back races
 - [ ] Replays of split-screen races
 - [ ] Rear-view mirror in the bumper and hood cameras, like single player
@@ -69,6 +71,8 @@ and attach `scripts\NFSU2SplitScreen.log` (set `Debug = 1` in the ini to write i
 | `PlayerLeds` | 1 | DualSense player LEDs show the player number |
 | `NativeDualSense` | 1 | DualSense pads without DS4Windows (off while DS4Windows's virtual pad is active) |
 | `DualSenseRumbleMode` | 0 | 0 auto, 1 old firmware mode, 2 new firmware mode |
+| `PadSpeakers` | 1 | each player's engine on their DualSense speaker (Bluetooth, native DualSense) |
+| `PadSpeakerGain` | 400 | engine volume on the pad speakers (%) |
 | `SinglePlayerGauges` | 1 | single-player style gauges for every player |
 | `GaugeScalePercent` | 60 | gauge size |
 
@@ -79,3 +83,4 @@ work; [`tools/`](tools) has the testing and reverse-engineering helpers.
 
 ## License
 MIT. Need for Speed Underground 2 is © Electronic Arts; this project contains no game code or data.
+`third_party/opus` is libopus 1.5.2 (BSD, see its `COPYING`), built into the plugin for the DualSense speaker.

@@ -115,6 +115,8 @@ static void LoadConfig(HMODULE self) {
     if (g_lightbarBrightness < 0) g_lightbarBrightness = 0;
     if (g_lightbarBrightness > 100) g_lightbarBrightness = 100;
     if (g_dsRumbleMode != 1 && g_dsRumbleMode != 2) g_dsRumbleMode = -1;   // 0 = auto
+    g_padSpeakers = GetPrivateProfileIntA("AUDIO", "PadSpeakers", 1, path) != 0;
+    g_padSpeakerGain = GetPrivateProfileIntA("AUDIO", "PadSpeakerGain", 400, path) / 100.0f;
     strcpy_s(g_iniPath, path);
     strcpy_s(g_playersPath, path);
     strcpy_s(g_playersPath + (dot - path), MAX_PATH - (dot - path), "_Players.ini");
@@ -191,6 +193,7 @@ static void Install(HMODULE self) {
     WriteJump(AT_LISTENER_CHOICE, &ListenerChoiceHook, 5);
     WriteJump(AT_EMITTER_RANGE, &EmitterRangeHook, 6);
     if (g_debug) { InstallDsoundLog(); InstallEaVoiceLog(); }
+    if (g_padSpeakers && g_nativeDualSense && g_xinputPads) InstallPadSpeakers();
     InstallHeadlights();
     {   // CubicCameraMover::Update through the plugin (start zoom)
         void* hook = reinterpret_cast<void*>(&ChaseMoverUpdateHook);

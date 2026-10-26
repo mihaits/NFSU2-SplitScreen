@@ -36,3 +36,8 @@ bool DsInstall(bool enabled, int rumbleMode, DsLogFn log);
 int  DsCount();                                        // pads connected now
 bool DsState(int slot, DsPadState* out, DsExtra* extra);   // false if the slot is empty (extra may be null)
 void DsSetOutput(int slot, const DsOutput& o);         // whole wanted output; sent by the I/O thread on change
+
+// Speaker of a Bluetooth DualSense: mono samples in -1..1 at `rate` Hz are queued and streamed to the pad (Opus in
+// output report 0x39, see docs/input.md), starting the stream if needed; it stops by itself after 1 s without
+// samples. False (nothing queued) if the slot isn't a connected Bluetooth pad.
+bool DsSpeakerWrite(int slot, const float* mono, int frames, int rate);

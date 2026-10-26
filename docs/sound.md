@@ -50,6 +50,30 @@
     (0x0C00xxxx in a race; object +0x10 channel handle, +8/+0xC bank data, list at [0x8B446C]); no game object
     holds them. Their gains are applied from game code at 0x46C13F, 0x46C2DE, 0x46C841, 0x483E0D and from the
     sound thread. The link from a game 3D sound (listener +0xD0, volume +8 and azimuth +0x10/+0xC from 0x45DF00) to
-    its pool sample player is still open.
+    its pool sample player is still open, so only engines go to the pad speakers (below).
   - EA "players" ([0x8B4068 + 4k], count byte 0x8B44DE; 0x722424(k)) are the stream players: music, speech. Their
     events are listed at player +0x144 ({+0 next, +0xC handle}, 0x727A12); player 0's event owns the music voice.
+
+## Engines on the pad speakers (`[AUDIO] PadSpeakers`, `PadSpeakerGain`)
+In split racing each player's engine plays on the speaker of their Bluetooth DualSense instead of the PC mix; every
+other sound stays on the PC, and a player on another pad keeps their engine there. Code: the "engines on the pad
+speakers" block of `parts/sound.cpp`; the pad side is `DsSpeakerWrite` in `DualSense.cpp` (docs/input.md).
+- **Which voice is whose.** The engine object's per-frame update (vtable 0x78AF30 +0x48 = 0x474310, hooked in the
+  vtable) records, on the main thread, voice = [obj+0xE0] & 0xFF → local player ([[[obj+0x9C]+0x30]+0x18] matched in
+  `g_localPlayers`), with a time stamp; a voice is routed while its stamp is under 500 ms old and its player's pad
+  (`g_assignedPad`, split racing only) is a native DualSense that took the last samples.
+- **Splitting the mix** (sound thread). Every place 0x7292BC puts a voice into the output channels or aux sends is
+  patched; a routed voice goes into its player's own two float buffers (same chunk offsets, 16-bit scale) instead,
+  without reverb:
+  - main loop: `call [0x8B4A04]` at 0x72942B (channels; esi = voice, edi = voice +0x1C + ch*4) and 0x729490 (aux);
+  - after a gain change (voice +1 set by 0x72905D, i.e. every game frame for an engine) 0x728B48 first renders the
+    voice's next 16 frames itself, ramping old → new gains with 0x728957(old, new, src, dst) at 0x728C9D (channels)
+    / 0x728C11 (aux), or plain `call [0x8B4A04]` at 0x728CCB / 0x728C4B. Missing these left a 16-sample hole in the
+    pad stream about every 10 ms (constant crackle) and leaked those samples to the PC.
+  - The stubs keep ecx and edx: EA's code reads edx after the aux ramp (0x728C16) and crashed in the intro when a C
+    function changed it.
+- **Sending.** 0x7292BC is wrapped at its call 0x7295DD (`RenderChunk`): the player buffers are cleared, the chunk is
+  rendered, then (L + R) / 2 × PadSpeakerGain / 32768 goes to `XPadSpeakerWrite` at the mixer rate (word 0x8B44C6,
+  44100).
+- **Timing.** The game fills its DirectSound buffer in bursts of up to ~65 ms, so the pad's queue is a sawtooth; the
+  pad side holds the queue's lowest point after each report above ~9 ms (see input.md).
