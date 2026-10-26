@@ -47,6 +47,10 @@ controllers are hidden. Pads 0..3 are the real XInput pads, 4..9 debug pads driv
   weak link keeps reading input; the failure and the recovery are logged once each. Rumble v2 (flag2 0x04) when `update_version >= 0x0215` or on an Edge, else v1
   (flag0 0x01); `DualSenseRumbleMode` overrides. The small motor is halved (as SDL does) to match an Xbox pad.
   Large motor = the game's left/low value, small = right/high.
+- **Mute button and LED.** `XPadMutePressed(pad)` is the press edge of `DsExtra.mute` (like the touchpad click);
+  `XPadSetMuteLed(pad, mode)` sets `DsOutput.muteLed` (common block byte 8, valid flag1 bit 0x01: 0 off, 1 on, 2
+  pulsing). In split races the mute button turns the player's pad speaker off / on (pad_lights.cpp → sound.cpp
+  `PadSpeakerToggle`); the LED is lit while it's off.
 - **Speaker (Bluetooth; `DsSpeakerWrite`, `SpeakerThread`).** Windows has no audio device for a Bluetooth DualSense;
   the speaker takes Opus in output report 0x39 (547 bytes, layout from awalol/DS5Dongle and KytyPS5): [1] seq << 4,
   [2] 0x91 config (len 6: 0x7E = no microphone stream back, 4 × 48, [9] counter += 2), [10] 0xD2 haptics (len 64,

@@ -422,6 +422,15 @@ static volatile LONG g_speakerPad[MAX_LOCAL_PLAYERS] = {-1, -1, -1, -1, -1, -1};
 static volatile DWORD g_speakerSeen[MAX_LOCAL_PLAYERS];
 static volatile LONG g_speakerFailed[MAX_LOCAL_PLAYERS];   // the pad took no samples (not Bluetooth): PC mix
 static float g_speakerMix[MAX_LOCAL_PLAYERS][2][256];
+// The player's mute button turns their pad speaker off and on during split races (pad_lights.cpp; the mute LED is lit
+// while it's off); kept per seat until the game closes.
+static bool g_speakerOn[MAX_LOCAL_PLAYERS] = {true, true, true, true, true, true};
+static void PadSpeakerToggle(int k) {
+    if (k < 0 || k >= MAX_LOCAL_PLAYERS || !g_padSpeakers) return;
+    g_speakerOn[k] = !g_speakerOn[k];
+    Log("pad speaker: player %d turned it %s (mute button)", k + 1, g_speakerOn[k] ? "on" : "off");
+}
+static bool PadSpeakerOff(int k) { return g_padSpeakers && k >= 0 && k < MAX_LOCAL_PLAYERS && !g_speakerOn[k]; }
 
 static void __fastcall EngineUpdateHook(uint8_t* obj, void* edx) {
     reinterpret_cast<void(__fastcall*)(void*, void*)>(g_origEngineUpdate)(obj, edx);
@@ -435,7 +444,7 @@ static void __fastcall EngineUpdateHook(uint8_t* obj, void* edx) {
             if (player && g_localPlayers.byIndex[i] == player) k = i;
         if (h < 0 || k < 0) return;
         int pad = SplitRacing() ? g_assignedPad[k] : PAD_NONE;
-        if (pad == PAD_NONE || !XPadIsDualSense(pad)) pad = -1;
+        if (pad == PAD_NONE || !XPadIsDualSense(pad) || !g_speakerOn[k]) pad = -1;
         if (pad != g_speakerPad[k]) {
             Log("pad speaker: player %d -> pad %d (engine voice %d)", k + 1, pad, h & 0x3F);
             InterlockedExchange(&g_speakerFailed[k], 0);

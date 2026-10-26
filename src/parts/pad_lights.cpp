@@ -406,6 +406,13 @@ static void UpdatePadLights() {
             shownPlace[pad] = finishPlace;
         }
         XPadSetLights(pad, rgb, leds);
+        {   // mute button: the player's pad speaker off / on (sound.cpp); its LED is lit while it's off
+            int seat = -1;
+            if ((racing || countdown) && SplitMode())
+                for (int q = 0; q < MAX_LOCAL_PLAYERS; ++q) if (g_assignedPad[q] == pad) seat = q;
+            if (seat >= 0 && XPadMutePressed(pad)) PadSpeakerToggle(seat);
+            XPadSetMuteLed(pad, PadSpeakerOff(seat) ? 1 : 0);
+        }
         int drives = -1;                  // local player this pad drives, while it races and isn't paused or finished
         if (racing && !paused) {
             if (SplitMode()) { for (int q = 0; q < MAX_LOCAL_PLAYERS; ++q) if (g_assignedPad[q] == pad) drives = q; }

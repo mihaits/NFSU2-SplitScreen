@@ -26,6 +26,7 @@ struct DsOutput {
     uint8_t playerLeds;                   // bits 0..4, left to right (the "no fade" bit is added inside)
     uint8_t smallMotor, largeMotor;       // 0..255
     uint8_t trigR[11], trigL[11];         // trigger effect: mode + 10 parameters; mode 0 = leave as it is
+    uint8_t muteLed;                      // mute button LED: 0 off, 1 on, 2 pulsing
 };
 
 typedef void (*DsLogFn)(const char* fmt, ...);

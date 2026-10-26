@@ -41,7 +41,8 @@ options of whoever paused.
 - [x] AI opponents with difficulty (up to 6 racers in all, 4 in drag; none in sprint drift; 6 players leave no room)
 - [x] Free Run: drive the whole city together, no race, from the district or venue you pick
 - [x] DualSense without DS4Windows: input, rumble, player LEDs, RPM and nitrous lightbar, adaptive triggers
-- [x] Each player's engine on their own DualSense's speaker (Bluetooth), so the engines don't overlap on the PC
+- [x] Each player's engine on their own DualSense's speaker (Bluetooth), so the engines don't overlap on the PC; the
+  mute button switches it off and on (its LED lights while the engine is back on the PC)
 - [x] A controller that turns off keeps its player; press START on a spare one to take over that player
   (each player turns them on or off in the pause options)
 

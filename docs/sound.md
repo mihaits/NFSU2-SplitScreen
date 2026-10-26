@@ -72,6 +72,9 @@ speakers" block of `parts/sound.cpp`; the pad side is `DsSpeakerWrite` in `DualS
     pad stream about every 10 ms (constant crackle) and leaked those samples to the PC.
   - The stubs keep ecx and edx: EA's code reads edx after the aux ramp (0x728C16) and crashed in the intro when a C
     function changed it.
+- **Mute button.** A player's mute button toggles their pad speaker during split races (`g_speakerOn[k]`, per seat
+  until the game closes, on at start); off, the player counts as having no speaker pad, so their engine goes back to
+  the PC mix at once and the pad stream stops after 1 s. The mute LED is lit while it's off.
 - **Sending.** 0x7292BC is wrapped at its call 0x7295DD (`RenderChunk`): the player buffers are cleared, the chunk is
   rendered, then (L + R) / 2 × PadSpeakerGain / 32768 goes to `XPadSpeakerWrite` at the mixer rate (word 0x8B44C6,
   44100).

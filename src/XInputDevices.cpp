@@ -56,9 +56,10 @@ int g_lastActive = 0;
 bool g_virtualConnected[kDebugPads];
 XPadState g_virtual[kDebugPads];
 
-// native DualSense: merged output per pad, touchpad click edge
+// native DualSense: merged output per pad, touchpad click and mute button edges
 DsOutput g_dsOut[kDsMax];
 bool g_touch[kMaxPads], g_prevTouch[kMaxPads];
+bool g_mute[kMaxPads], g_prevMute[kMaxPads];
 bool g_dsConnected[kDsMax];
 
 DWORD GetPad(int pad, XPadState* s) {
@@ -494,10 +495,12 @@ void XPadUpdate() {
         g_buttons[i] = g_connected[i] ? s.buttons : 0;
         g_prevTouch[i] = g_touch[i];
         g_touch[i] = false;
+        g_prevMute[i] = g_mute[i];
+        g_mute[i] = false;
         if (i >= kDsFirst) {
             DsPadState ds;
             DsExtra ex = {};
-            if (DsState(i - kDsFirst, &ds, &ex)) g_touch[i] = ex.touchClick;
+            if (DsState(i - kDsFirst, &ds, &ex)) { g_touch[i] = ex.touchClick; g_mute[i] = ex.mute; }
             g_dsConnected[i - kDsFirst] = g_connected[i];
         }
         if (g_connected[i] && PadActive(s)) g_lastActive = i;
@@ -572,6 +575,16 @@ void XPadSetTriggers(int pad, const uint8_t l[11], const uint8_t r[11]) {
 
 bool XPadTouchClickPressed(int pad) {
     return pad >= kDsFirst && pad < kMaxPads && g_touch[pad] && !g_prevTouch[pad];
+}
+
+bool XPadMutePressed(int pad) { return pad >= kDsFirst && pad < kMaxPads && g_mute[pad] && !g_prevMute[pad]; }
+
+void XPadSetMuteLed(int pad, uint8_t mode) {
+    if (pad < kDsFirst || pad >= kMaxPads) return;
+    DsOutput& o = g_dsOut[pad - kDsFirst];
+    if (o.muteLed == mode) return;
+    o.muteLed = mode;
+    DsSetOutput(pad - kDsFirst, o);
 }
 
 void XPadSetResolver(int (*resolver)(int device)) { g_resolver = resolver; }

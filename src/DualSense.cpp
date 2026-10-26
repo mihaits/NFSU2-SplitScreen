@@ -168,6 +168,8 @@ DWORD BuildReport(const Slot* s, const DsOutput& o, bool setup, uint8_t* r, int 
         c[38] |= 0x01;
         c[42] = 0;                        // player LED brightness: high
         c[43] = o.playerLeds | 0x20;      // 0x20: change instantly
+        c[1] |= 0x01;                     // mute LED
+        c[8] = o.muteLed;
         c[44] = o.rgb[0]; c[45] = o.rgb[1]; c[46] = o.rgb[2];
     }
     if (!s->usb) BtSign(r);
