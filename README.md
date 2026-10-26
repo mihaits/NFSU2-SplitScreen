@@ -9,7 +9,9 @@ and 2 Xbox pads at once). Known issues are in [open issues](docs/open-issues.md)
 
 ## Install
 1. You need `speed2.exe` **v1.2** and the [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader).
-   [WidescreenFix](https://github.com/ThirteenAG/WidescreenFixesPack/releases/tag/nfsu2) is recommended.
+   [WidescreenFix](https://github.com/ThirteenAG/WidescreenFixesPack/releases/tag/nfsu2) is recommended. Set its
+   `WindowedMode = 4` (borderless fullscreen): in exclusive fullscreen the game now and then freezes on the startup
+   loading screen. That's WidescreenFix's, not this mod's: it happens without it too.
 2. Download the [latest release](https://github.com/mihaits/NFSU2-SplitScreen/releases) and copy
    `NFSU2SplitScreen.asi` and `NFSU2SplitScreen.ini` into the game's `scripts` folder.
 3. One controller per player. Xbox pads work directly (up to 4: the XInput limit); PlayStation DualSense pads work
