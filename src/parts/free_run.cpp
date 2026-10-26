@@ -45,9 +45,36 @@ static NextScreenFn g_origNextScreen;
 static uint32_t __cdecl NextScreenAfterMode() {
     if (SplitMode() && at<int>(QR_RACE_TYPE) == 9) {
         at<uint16_t>(QR_SETTINGS + 9 * 0x14 + 8) = FREE_RUN_TRACK;
+        at<uint32_t>(QR_SETTINGS + 9 * 0x14 + 0xC) = 0;   // track direction forward (its row is hidden)
         return at<uint32_t>(SCREEN_RACE_OPTIONS);
     }
     return g_origNextScreen();
+}
+// Back from the race options (0x4B2AF0, the screen's "previous" function): split screen's Outrun goes back to the mode
+// select (0x7F445C), the rest to the track list, which Free Run skips. Free Run goes back to the mode select too.
+#define FN_PREV_SCREEN_RACE_OPTIONS 0x4B2AF0   // const char* __cdecl (): 5 bytes stolen
+#define SCREEN_MODE_SELECT 0x7F445C
+static NextScreenFn g_origPrevScreen;
+static uint32_t __cdecl PrevScreenRaceOptions() {
+    if (SplitMode() && at<int>(QR_RACE_TYPE) == 9) return at<uint32_t>(SCREEN_MODE_SELECT);
+    return g_origPrevScreen();
+}
+// Free Run's option rows (0x4B4A10): the Track Direction row (vtable 0x791608, settings +4) when the track can be
+// reversed, then traffic. Split screen drives the whole city from the airport and skips the direction row.
+#define AT_FREE_RUN_DIRECTION_ROW 0x4B4A42   // mov ecx, 0x83AAB4 (5 bytes)
+#define FREE_RUN_DIRECTION_ROW_RET  0x4B4A47
+#define FREE_RUN_DIRECTION_ROW_SKIP 0x4B4AD2
+static __declspec(naked) void FreeRunDirectionRowHook() {
+    __asm {
+        cmp dword ptr ds:[GAME_MODE], 4
+        je skip
+        mov ecx, 0x83AAB4
+        push FREE_RUN_DIRECTION_ROW_RET
+        ret
+    skip:
+        push FREE_RUN_DIRECTION_ROW_SKIP
+        ret
+    }
 }
 // Outrun challenges in Free Run (user: "the point is FREE roam"): in the free state (0x89E7B0 == 7) the race update runs
 // the challenge logic (0x607CA9..0x608C01: picks an opponent, race +0xBD0, and ends the race when the player pulls
@@ -85,6 +112,9 @@ static void InstallFreeRun() {
     Write(AT_MODE_LIST_FREE_RUN, nops, 2);
     g_origNextScreen = reinterpret_cast<NextScreenFn>(MakeTrampoline(FN_NEXT_SCREEN_AFTER_MODE, 5));
     WriteJump(FN_NEXT_SCREEN_AFTER_MODE, &NextScreenAfterMode, 5);
+    g_origPrevScreen = reinterpret_cast<NextScreenFn>(MakeTrampoline(FN_PREV_SCREEN_RACE_OPTIONS, 5));
+    WriteJump(FN_PREV_SCREEN_RACE_OPTIONS, &PrevScreenRaceOptions, 5);
+    WriteJump(AT_FREE_RUN_DIRECTION_ROW, &FreeRunDirectionRowHook, 5);
     WriteCall(AT_OUTRUN_ELEMENT_UPDATE, &OutrunElementUpdate);
     WriteJump(AT_FREE_STATE_PLAYERS, &FreeStatePlayersHook, 9);
     WriteJump(AT_FREE_RUN_SKIN, &FreeRunSkinHook, 7);

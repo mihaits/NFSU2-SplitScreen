@@ -8,7 +8,12 @@ challenges and without the race HUD. Race type 9 (0x83AAB4), installed by `Insta
 - **Next screen.** After the mode select (0x4B2A80) split screen's Outrun goes to the race options (0x7F4460) and the
   rest to the track list, except Free Run, which goes to its own screen (0x7F446C: straight to the car select, no
   Players row). `NextScreenAfterMode`: split screen + type 9 → the race options screen, track word (0x83AAC4 + 9 ×
-  0x14 + 8) = 4000. No track choice (user).
+  0x14 + 8) = 4000 and the direction dword (+0xC) = 0 (forward). No track choice (user).
+- **Back.** The race options' previous screen (0x4B2AF0) is the mode select (0x7F445C) for split screen's Outrun, else
+  the track list. `PrevScreenRaceOptions` returns the mode select for split screen's Free Run too.
+- **Options rows.** Free Run's row builder (0x4B4A10) adds Track Direction (vtable 0x791608, settings +4) when the track
+  can be reversed (track info +0x86 == 1, 4000 can), then Traffic. `FreeRunDirectionRowHook` (0x4B4A42) skips the
+  direction row in split screen.
 - **Players.** Free Run's starter (0x53F580) sets 1 local player and creates 1 human; `CreateHumanRacers` makes it 2 in
   split screen, then adds players 3..6 as usual ([players](players.md)).
 - **Free state.** When driving starts, Free Run switches the race to its free state (0x89E7B0 = 7, 0x607190) and sets
