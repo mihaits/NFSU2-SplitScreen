@@ -28,8 +28,8 @@ challenges and without the race HUD. Race type 9 (0x83AAB4), installed by `Insta
 - **HUD.** The position, lap time and outrun elements are hidden or skipped; see "Free Run HUD" in [hud](hud.md).
 
 ## Ideas (not built yet)
-Game modes and extras to make Free Run more fun (discussed 2026-10-26; the start location is planned in
-[plans/free-run-spawn](plans/free-run-spawn.md)):
+Game modes and extras to make Free Run more fun (discussed 2026-10-26; the start location is planned
+separately):
 1. **Waypoint race** (user's idea, first pick): any player drops a pin on the map, or the game picks a random one;
    everyone gets an arrow to it, first there scores a point, short scoreboard. The direction arrow (0x5F3AE0,
    MARKER_DIRECTION_AID, skipped today) might be reusable.
