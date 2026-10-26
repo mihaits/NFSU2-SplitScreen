@@ -414,10 +414,18 @@ static void InstallEaVoiceLog() {
 #define EA_OUTPUT_RATE 0x8B44C6          // word
 static bool g_padSpeakers = true;        // [AUDIO] PadSpeakers
 static float g_padSpeakerGain = 4.0f;    // [AUDIO] PadSpeakerGain, percent / 100
+// [AUDIO] PadSpeakerSounds default: what tells a player about their own car; weather, wind and road noise (shared,
+// broadband or low: the pad's small speaker can't carry them) stay on the PC
+static const char kPadSpeakerSoundsDefault[] = "CAR, CAR_SWTN, CAR_Sputter, FX_TURBO_01, FX_SHIFTING_01, FX_NITROUS, "
+                                               "FX_PURGE, FX_SKID, FX_Scrape, AEMS_StichCollision";
+static int g_speakerTestPad = -1;        // [DEBUG] SpeakerTestPad: player 1's speaker is this pad (automated tests)
+static int g_speakerDumpSeconds = 0;     // [DEBUG] SpeakerDumpSeconds: PC mix + player 1's pad stream to a raw file
 typedef void(__cdecl* EaMixAddFn)(int, float, const float*, float*);
 static void* g_origEngineUpdate;
 static volatile LONG g_engineVoicePlayer[64];        // local player + 1 (0: none), written by the main thread
+                                                     // (engines, and the cars' patch sounds: NotePatchVoices)
 static volatile DWORD g_engineVoiceSeen[64];
+static volatile LONG g_engineVoiceHandle[64];        // the channel handle it was claimed with (EA reuses voices)
 static volatile LONG g_speakerPad[MAX_LOCAL_PLAYERS] = {-1, -1, -1, -1, -1, -1};   // pad with a speaker, or -1
 static volatile DWORD g_speakerSeen[MAX_LOCAL_PLAYERS];
 static volatile LONG g_speakerFailed[MAX_LOCAL_PLAYERS];   // the pad took no samples (not Bluetooth): PC mix
@@ -444,6 +452,7 @@ static void __fastcall EngineUpdateHook(uint8_t* obj, void* edx) {
             if (player && g_localPlayers.byIndex[i] == player) k = i;
         if (h < 0 || k < 0) return;
         int pad = SplitRacing() ? g_assignedPad[k] : PAD_NONE;
+        if (k == 0 && g_speakerTestPad >= 0 && SplitRacing()) pad = g_speakerTestPad;
         if (pad == PAD_NONE || !XPadIsDualSense(pad) || !g_speakerOn[k]) pad = -1;
         if (pad != g_speakerPad[k]) {
             Log("pad speaker: player %d -> pad %d (engine voice %d)", k + 1, pad, h & 0x3F);
@@ -452,8 +461,141 @@ static void __fastcall EngineUpdateHook(uint8_t* obj, void* edx) {
         }
         g_speakerSeen[k] = GetTickCount();
         g_engineVoicePlayer[h & 0x3F] = k + 1;
+        g_engineVoiceHandle[h & 0x3F] = h;
         g_engineVoiceSeen[h & 0x3F] = GetTickCount();
     } __except (EXCEPTION_EXECUTE_HANDLER) {
+    }
+}
+
+// Patch sounds of a car: an EA patch runs a compiled program from the sound bank that starts its own sample-player
+// voices ("children"), so those voices have no handle in any game object. Each car has a dozen (names from the
+// definitions: CAR = the engine's layers (engine object +0xB0, 8 children), CAR_Sputter, FX_SHIFTING_01, FX_SKID,
+// FX_ROADNOISE(_TRANS), FX_WIND(_Weather), FX_TURBO_01). The game's per-frame sound object loop (0x469CC0:
+// `mov eax, [esi]; mov ecx, esi; call [eax+0x28]`, next object at +0x50) is patched to call SoundObjectUpdate, which
+// runs the update and then, for a per-car sound object (vtable 0x789000..0x78C000, +0x44 = the car's audio node),
+// records the children's voices of every patch it holds for that car's player. A patch field holds a param struct
+// whose [0] is the patch player {definition, ?, +8 block}; definition [0] = program header (+8 = 0x721096 in every one
+// seen), header +0x18 low byte = number of children, +0x24 instance size, +0x30 + 4i = child i's offset from the
+// instance (block - 0x2C); a child is a sample player {+0/+4 bank, +8 channel handle, ...}; definition +4 = the
+// patch's name. Only patches named in [AUDIO] PadSpeakerSounds go to the pad. A voice is routed while its channel
+// still has the handle it was claimed with.
+#define AT_SOUND_OBJECT_LOOP_CALL 0x469CC0   // 8B 06 8B CE FF 50 28 (7 bytes)
+#define EA_PATCH_HEADER_SIGNATURE 0x721096
+#define EA_CHANNELS 0x8B466C                  // channels, stride 0x90, +0 handle
+static int CarSoundLocalPlayer(const uint8_t* obj) {   // local player of a per-car sound object, or -1
+    __try {
+        uint32_t vt = *reinterpret_cast<const uint32_t*>(obj);
+        if (vt < 0x789000 || vt >= 0x78C000) return -1;
+        uint8_t* node = *reinterpret_cast<uint8_t* const*>(obj + 0x44);
+        uint8_t* n30 = node ? *reinterpret_cast<uint8_t**>(node + 0x30) : nullptr;
+        void* player = n30 ? *reinterpret_cast<void**>(n30 + 0x18) : nullptr;
+        for (int i = 0; player && i < g_localPlayers.count && i < MAX_LOCAL_PLAYERS; ++i)
+            if (g_localPlayers.byIndex[i] == player) return i;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+    }
+    return -1;
+}
+static uint8_t* PatchHeaderAt(const uint8_t* obj, int off, uint8_t** block, const char** name) {   // patch in `off`
+    __try {
+        uint8_t* param = *reinterpret_cast<uint8_t* const*>(obj + off);
+        if (reinterpret_cast<uintptr_t>(param) < 0x10000 || (reinterpret_cast<uintptr_t>(param) & 3)) return nullptr;
+        uint8_t* patch = *reinterpret_cast<uint8_t**>(param);
+        if (reinterpret_cast<uintptr_t>(patch) < 0x10000) return nullptr;
+        uint8_t* def = *reinterpret_cast<uint8_t**>(patch);
+        if (reinterpret_cast<uintptr_t>(def) < 0x10000) return nullptr;
+        uint8_t* hdr = *reinterpret_cast<uint8_t**>(def);
+        if (reinterpret_cast<uintptr_t>(hdr) < 0x10000 || *reinterpret_cast<uint32_t*>(hdr + 8) != EA_PATCH_HEADER_SIGNATURE)
+            return nullptr;
+        *block = *reinterpret_cast<uint8_t**>(patch + 8);
+        *name = *reinterpret_cast<const char**>(def + 4);
+        return *block && *name ? hdr : nullptr;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+    }
+    return nullptr;
+}
+static void RecordPatchChildren(int k, const uint8_t* hdr, uint8_t* block) {
+    __try {
+        int n = hdr[0x18];
+        uint32_t size = *reinterpret_cast<const uint32_t*>(hdr + 0x24);
+        uint8_t* inst = block - 0x2C;
+        auto* chans = at<uint8_t*>(EA_CHANNELS);
+        DWORD now = GetTickCount();
+        for (int i = 0; i < n && i < 16; ++i) {
+            uint32_t off = *reinterpret_cast<const uint32_t*>(hdr + 0x30 + 4 * i);
+            if (off >= size) break;
+            int32_t h = *reinterpret_cast<int32_t*>(inst + off + 8);
+            if (h < 0 || *reinterpret_cast<int32_t*>(chans + (h & 0xFF) * 0x90) != h) continue;   // not playing now
+            g_engineVoicePlayer[h & 0x3F] = k + 1;
+            g_engineVoiceHandle[h & 0x3F] = h;
+            g_engineVoiceSeen[h & 0x3F] = now;
+        }
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+    }
+}
+// Which patches go to the pad: [AUDIO] PadSpeakerSounds, patch names (case-insensitive), comma-separated.
+static std::vector<std::string> g_padSpeakerSounds;
+static void SetPadSpeakerSounds(const char* list) {
+    g_padSpeakerSounds.clear();
+    std::string cur;
+    for (const char* c = list;; ++c) {
+        if (*c == ',' || !*c) {
+            size_t a = cur.find_first_not_of(" 	"), b = cur.find_last_not_of(" 	");
+            if (a != std::string::npos) g_padSpeakerSounds.push_back(cur.substr(a, b - a + 1));
+            cur.clear();
+            if (!*c) break;
+        } else {
+            cur += *c;
+        }
+    }
+}
+static bool PatchGoesToPad(const char* name) {
+    char n[32] = {};
+    __try {
+        strncpy_s(n, name, _TRUNCATE);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+    for (const std::string& s : g_padSpeakerSounds)
+        if (!_stricmp(s.c_str(), n)) return true;
+    return false;
+}
+// Sound objects sit back to back, so an object's fields end where the next object starts: the loop's objects are
+// collected over a frame (the loop starts over at its first object) and processed then, each scanned up to the next
+// every frame (a patch can be created at any time: the engine's CAR patch when the engine starts, FX_NITROUS when
+// nitrous is used).
+static void NotePatchesOfFrame(std::vector<const uint8_t*>& objs) {
+    std::vector<const uint8_t*> sorted(objs);
+    std::sort(sorted.begin(), sorted.end());
+    for (size_t i = 0; i < sorted.size(); ++i) {
+        const uint8_t* obj = sorted[i];
+        int k = CarSoundLocalPlayer(obj);
+        if (k < 0) continue;
+        uint32_t size = i + 1 < sorted.size() ? static_cast<uint32_t>(sorted[i + 1] - obj) : 0x400;
+        if (size > 0x800) size = 0x800;
+        for (uint32_t off = 0x40; off + 4 <= size; off += 4) {
+            uint8_t* block;
+            const char* name;
+            if (uint8_t* hdr = PatchHeaderAt(obj, off, &block, &name))
+                if (PatchGoesToPad(name)) RecordPatchChildren(k, hdr, block);
+        }
+    }
+}
+static void __stdcall NotePatchVoices(const uint8_t* obj) {   // main thread, every object of the loop
+    static std::vector<const uint8_t*> frame;
+    if (!frame.empty() && (obj == frame.front() || frame.size() >= 4096)) {   // loop started over (or no end seen)
+        NotePatchesOfFrame(frame);
+        frame.clear();
+    }
+    frame.push_back(obj);
+}
+static __declspec(naked) void SoundObjectUpdate() {
+    __asm {
+        mov eax, [esi]
+        mov ecx, esi
+        call dword ptr [eax + 0x28]
+        push esi
+        call NotePatchVoices
+        ret
     }
 }
 
@@ -461,6 +603,7 @@ static void __fastcall EngineUpdateHook(uint8_t* obj, void* edx) {
 static int SpeakerPlayerOfVoice(const uint8_t* voice) {
     int v = static_cast<int>((voice - at<uint8_t*>(EA_VOICES)) / 0x5C);
     if (v < 0 || v >= 64 || GetTickCount() - g_engineVoiceSeen[v] > 500) return -1;
+    if (*reinterpret_cast<int32_t*>(at<uint8_t*>(EA_CHANNELS) + v * 0x90) != g_engineVoiceHandle[v]) return -1;   // reused
     int k = g_engineVoicePlayer[v] - 1;
     return k >= 0 && k < MAX_LOCAL_PLAYERS && g_speakerPad[k] >= 0 && !g_speakerFailed[k] ? k : -1;
 }
@@ -579,6 +722,24 @@ static void __cdecl RenderChunk(void* channels, int frames) {
         if (on[k]) memset(g_speakerMix[k], 0, sizeof(g_speakerMix[k]));
     }
     reinterpret_cast<void(__cdecl*)(void*, int)>(FN_RENDER)(channels, frames);
+    if (g_speakerDumpSeconds > 0 && on[0]) {   // debug: float32 frames {PC left, PC right, player 1's pad (16-bit scale)}
+        static FILE* dump;
+        static int left = -1;
+        if (left < 0) {
+            char path[MAX_PATH];
+            strcpy_s(path, g_logPath);
+            strcpy_s(strrchr(path, '.'), 16, "_speaker.raw");
+            fopen_s(&dump, path, "wb");
+            left = g_speakerDumpSeconds * at<uint16_t>(EA_OUTPUT_RATE);
+            Log("speaker dump: %s, %d frames", path, left);
+        }
+        for (int i = 0; dump && i < frames && left > 0; ++i, --left) {
+            float f[3] = {at<float*>(EA_OUT_BUFS)[i] - 12582912.0f, at<float*>(EA_OUT_BUFS + 4)[i] - 12582912.0f,
+                          (g_speakerMix[0][0][i] + g_speakerMix[0][1][i]) * 0.5f};
+            fwrite(f, 4, 3, dump);
+        }
+        if (dump && !left) { fclose(dump); dump = nullptr; Log("speaker dump: done"); }
+    }
     for (int k = 0; k < MAX_LOCAL_PLAYERS; ++k) {
         if (!on[k]) continue;
         float mono[256];
@@ -618,5 +779,13 @@ static void InstallPadSpeakers() {
     WriteCall(AT_RAMP_CHANNEL_CALL, &RampChannelHook);
     WriteCall(AT_RAMP_AUX_CALL, &RampAuxHook);
     WriteCall(AT_RENDER_CALL, &RenderChunk);
+    static const uint8_t loopCall[7] = {0x8B, 0x06, 0x8B, 0xCE, 0xFF, 0x50, 0x28};
+    if (memcmp(reinterpret_cast<void*>(AT_SOUND_OBJECT_LOOP_CALL), loopCall, 7) == 0) {
+        static const uint8_t nops[2] = {0x90, 0x90};
+        WriteCall(AT_SOUND_OBJECT_LOOP_CALL, &SoundObjectUpdate);
+        Write(AT_SOUND_OBJECT_LOOP_CALL + 5, nops, 2);
+    } else {
+        Log("pad speakers: sound object loop not as expected, patch sounds stay on the PC");
+    }
     Log("pad speakers: installed (gain %.2f)", g_padSpeakerGain);
 }

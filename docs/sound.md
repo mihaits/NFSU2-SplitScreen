@@ -49,19 +49,40 @@
   - **Everything else** (world, collisions, skids, ambience): the handles are only in EA's sample-player pool
     (0x0C00xxxx in a race; object +0x10 channel handle, +8/+0xC bank data, list at [0x8B446C]); no game object
     holds them. Their gains are applied from game code at 0x46C13F, 0x46C2DE, 0x46C841, 0x483E0D and from the
-    sound thread. The link from a game 3D sound (listener +0xD0, volume +8 and azimuth +0x10/+0xC from 0x45DF00) to
-    its pool sample player is still open, so only engines go to the pad speakers (below).
+    sound thread. A car's sounds are mostly EA patches whose children are such sample players: found through the
+    patch, below ("Which voice is whose"). World sounds (other cars' 3D sounds, ambience) aren't attributed.
   - EA "players" ([0x8B4068 + 4k], count byte 0x8B44DE; 0x722424(k)) are the stream players: music, speech. Their
     events are listed at player +0x144 ({+0 next, +0xC handle}, 0x727A12); player 0's event owns the music voice.
 
-## Engines on the pad speakers (`[AUDIO] PadSpeakers`, `PadSpeakerGain`)
-In split racing each player's engine plays on the speaker of their Bluetooth DualSense instead of the PC mix; every
-other sound stays on the PC, and a player on another pad keeps their engine there. Code: the "engines on the pad
+## Car sounds on the pad speakers (`[AUDIO] PadSpeakers`, `PadSpeakerGain`, `PadSpeakerSounds`)
+In split racing each player's own car sounds play on the speaker of their Bluetooth DualSense instead of the PC mix;
+every other sound stays on the PC, and a player on another pad keeps their car there. Code: the "engines on the pad
 speakers" block of `parts/sound.cpp`; the pad side is `DsSpeakerWrite` in `DualSense.cpp` (docs/input.md).
-- **Which voice is whose.** The engine object's per-frame update (vtable 0x78AF30 +0x48 = 0x474310, hooked in the
-  vtable) records, on the main thread, voice = [obj+0xE0] & 0xFF → local player ([[[obj+0x9C]+0x30]+0x18] matched in
-  `g_localPlayers`), with a time stamp; a voice is routed while its stamp is under 500 ms old and its player's pad
-  (`g_assignedPad`, split racing only) is a native DualSense that took the last samples.
+- **Which voice is whose** (main thread; voice → local player + 1 in `g_engineVoicePlayer`, with the channel handle
+  and a time stamp). A voice is routed while its stamp is under 500 ms old, its channel still has that handle (EA
+  reuses voices) and its player's pad (`g_assignedPad`, split racing only) is a native DualSense that took the last
+  samples and isn't muted.
+  - Engine master: the engine object's per-frame update (vtable 0x78AF30 +0x48 = 0x474310, hooked in the vtable)
+    records voice = [obj+0xE0] & 0xFF → player [[[obj+0x9C]+0x30]+0x18] matched in `g_localPlayers`. Always routed.
+  - Patches: the master alone is a small part of the engine; the audible layers, and turbo, shifts, nitrous, skids
+    ..., are EA patches. A patch runs a program compiled into the sound bank that starts its own sample-player voices
+    ("children"), which no game object holds. The game's per-frame sound object loop (0x469CC0:
+    `mov eax, [esi]; mov ecx, esi; call [eax+0x28]`, next object at +0x50) is patched to call `SoundObjectUpdate`,
+    which runs the update and collects the objects of one pass. When the loop starts over, every per-car object
+    (vtable 0x789000..0x78C000, +0x44 = the car's audio node → player as above) is scanned from +0x40 up to the next
+    object (sorted by address, at most 0x800) for patch fields, each frame (patches like nitrous are created when
+    first used). A patch field holds a param struct whose [0] is the patch player {definition, ?, +8 block};
+    definition [0] = program header (+8 = 0x721096 in every one seen), definition +4 = the patch's name; header
+    +0x18 low byte = number of children, +0x24 instance size, +0x30 + 4i = child i's offset from the instance
+    (block - 0x2C); a child is a sample player {+0/+4 bank, +8 channel handle, +0xC flags}. Each playing child of a
+    patch named in `PadSpeakerSounds` (case-insensitive, comma list) is recorded for the car's player.
+  - Patch names per car (3P race): CAR (engine layers, 8 children, engine object +0xB0), CAR_SWTN, CAR_Sputter
+    (limiter), FX_TURBO_01, FX_SHIFTING_01, FX_NITROUS, FX_PURGE, FX_SKID, FX_Scrape, AEMS_StichCollision,
+    AEMS_StichWoosh, FX_ROADNOISE(_TRANS), FX_WIND, FX_WIND_Weather, FX_Weather (rain), FX_Camera, FX_TRAFFIC,
+    ENV_STATIC, PlayCommonSample. The default list keeps feedback about the player's own car (short, mid/high
+    sounds a small speaker carries) on the pad; rain, wind and road noise (shared, broadband or low rumble) on the PC.
+  - A new sound can play on the PC for up to a frame before it's claimed: EA starts it on the sound thread.
+  - `tools/unclaimed_voices.py` lists playing voices that follow one car but aren't routed.
 - **Splitting the mix** (sound thread). Every place 0x7292BC puts a voice into the output channels or aux sends is
   patched; a routed voice goes into its player's own two float buffers (same chunk offsets, 16-bit scale) instead,
   without reverb:
@@ -73,10 +94,13 @@ speakers" block of `parts/sound.cpp`; the pad side is `DsSpeakerWrite` in `DualS
   - The stubs keep ecx and edx: EA's code reads edx after the aux ramp (0x728C16) and crashed in the intro when a C
     function changed it.
 - **Mute button.** A player's mute button toggles their pad speaker during split races (`g_speakerOn[k]`, per seat
-  until the game closes, on at start); off, the player counts as having no speaker pad, so their engine goes back to
+  until the game closes, on at start); off, the player counts as having no speaker pad, so their car goes back to
   the PC mix at once and the pad stream stops after 1 s. The mute LED is lit while it's off.
 - **Sending.** 0x7292BC is wrapped at its call 0x7295DD (`RenderChunk`): the player buffers are cleared, the chunk is
   rendered, then (L + R) / 2 × PadSpeakerGain / 32768 goes to `XPadSpeakerWrite` at the mixer rate (word 0x8B44C6,
   44100).
+- **Debug options** ([DEBUG]): `SpeakerTestPad = n` gives player 1 pad n's speaker in split races (automated
+  tests); with Debug = 1, `SpeakerDumpSeconds = s` writes s seconds of float32 frames {PC left, PC right, player 1's
+  pad} (16-bit scale) to `scripts/NFSU2SplitScreen_speaker.raw`, to check what leaks to the PC.
 - **Timing.** The game fills its DirectSound buffer in bursts of up to ~65 ms, so the pad's queue is a sawtooth; the
   pad side holds the queue's lowest point after each report near ~17 ms (see input.md).

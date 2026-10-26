@@ -54,6 +54,9 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
     logged ("sound ... listener", Debug = 1) for their channels (see docs/sound.md, voice owners).
   - `car_sounds.py [--watch s]` (in a race) lists every car's sound objects (each has +0x44 = the car's audio node)
     by class and player, and the EA voices each holds; `--watch` prints the ones whose voices change.
+  - `unclaimed_voices.py [seconds=8]` (in a split race, read-only) prints the playing voices whose stereo balance
+    follows one car's engine over time but that the pad speakers don't route, with their patch name and owning
+    object (or bank): finds car sounds missing from `PadSpeakerSounds`.
 - **Device loss / flicker log** (ini `Debug = 1`, `HookDeviceDebug`, installed from the first frame): logs Present
   failures, TestCooperativeLevel changes (with the free address space), every Reset with its call stack, and the
   activation/focus/size/display messages the game window receives ("d3d:" / "wnd:" lines). The game resets on

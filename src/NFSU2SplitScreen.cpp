@@ -25,6 +25,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include <string>
 #include <algorithm>
 #include <utility>
 #include <cstring>
@@ -117,6 +118,13 @@ static void LoadConfig(HMODULE self) {
     if (g_dsRumbleMode != 1 && g_dsRumbleMode != 2) g_dsRumbleMode = -1;   // 0 = auto
     g_padSpeakers = GetPrivateProfileIntA("AUDIO", "PadSpeakers", 1, path) != 0;
     g_padSpeakerGain = GetPrivateProfileIntA("AUDIO", "PadSpeakerGain", 400, path) / 100.0f;
+    {
+        char list[512];
+        GetPrivateProfileStringA("AUDIO", "PadSpeakerSounds", kPadSpeakerSoundsDefault, list, sizeof(list), path);
+        SetPadSpeakerSounds(list);
+    }
+    g_speakerTestPad = GetPrivateProfileIntA("DEBUG", "SpeakerTestPad", -1, path);
+    g_speakerDumpSeconds = g_debug ? GetPrivateProfileIntA("DEBUG", "SpeakerDumpSeconds", 0, path) : 0;
     strcpy_s(g_iniPath, path);
     strcpy_s(g_playersPath, path);
     strcpy_s(g_playersPath + (dot - path), MAX_PATH - (dot - path), "_Players.ini");
