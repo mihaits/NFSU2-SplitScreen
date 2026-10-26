@@ -168,3 +168,121 @@ static __declspec(naked) void ListenerChoiceHook() {
         ret
     }
 }
+
+// ---------------------------------------------------------------- DirectSound buffer log (Debug=1)
+// How the EA sound engine feeds DirectSound (one device, DirectSoundCreate through the IAT thunk 0x770D16): per-voice
+// secondary buffers, or one stream it mixes itself. Logs every buffer created or duplicated (flags, format, size) and
+// every 5 s the Play / Lock calls and the distinct buffers they touched.
+#define IMPORT_DIRECTSOUNDCREATE 0x78302C
+typedef HRESULT(WINAPI* DirectSoundCreateFn)(LPCGUID, LPDIRECTSOUND*, LPUNKNOWN);
+typedef HRESULT(WINAPI* CreateSoundBufferFn)(IDirectSound*, LPCDSBUFFERDESC, LPDIRECTSOUNDBUFFER*, LPUNKNOWN);
+typedef HRESULT(WINAPI* DuplicateSoundBufferFn)(IDirectSound*, LPDIRECTSOUNDBUFFER, LPDIRECTSOUNDBUFFER*);
+typedef HRESULT(WINAPI* BufPlayFn)(IDirectSoundBuffer*, DWORD, DWORD, DWORD);
+typedef HRESULT(WINAPI* BufLockFn)(IDirectSoundBuffer*, DWORD, DWORD, LPVOID*, LPDWORD, LPVOID*, LPDWORD, DWORD);
+static DirectSoundCreateFn g_origDsCreate;
+static CreateSoundBufferFn g_origCreateBuffer;
+static DuplicateSoundBufferFn g_origDuplicate;
+struct DsBufVtable { void** vt; BufPlayFn play; BufLockFn lock; };
+static DsBufVtable g_dsBufVtables[4];
+static CRITICAL_SECTION g_dsLogLock;
+static int g_dsCreated, g_dsDuplicated, g_dsPlays, g_dsLocks;
+static std::unordered_set<void*> g_dsPlayed, g_dsLocked;
+static DWORD g_dsWindowStart;
+
+static void DsLogWindow() {      // under g_dsLogLock
+    DWORD now = GetTickCount();
+    if (now - g_dsWindowStart < 5000) return;
+    Log("dsound 5s: %d plays on %d buffers, %d locks on %d buffers (created %d, duplicated %d)", g_dsPlays,
+        static_cast<int>(g_dsPlayed.size()), g_dsLocks, static_cast<int>(g_dsLocked.size()), g_dsCreated,
+        g_dsDuplicated);
+    g_dsPlays = g_dsLocks = 0;
+    g_dsPlayed.clear();
+    g_dsLocked.clear();
+    g_dsWindowStart = now;
+}
+static DsBufVtable* DsVtableOf(IDirectSoundBuffer* b) {
+    void** vt = *reinterpret_cast<void***>(b);
+    for (DsBufVtable& v : g_dsBufVtables)
+        if (v.vt == vt) return &v;
+    return nullptr;
+}
+static HRESULT WINAPI DsBufPlay(IDirectSoundBuffer* b, DWORD r, DWORD prio, DWORD flags) {
+    EnterCriticalSection(&g_dsLogLock);
+    ++g_dsPlays;
+    g_dsPlayed.insert(b);
+    DsLogWindow();
+    LeaveCriticalSection(&g_dsLogLock);
+    return DsVtableOf(b)->play(b, r, prio, flags);
+}
+static HRESULT WINAPI DsBufLock(IDirectSoundBuffer* b, DWORD off, DWORD n, LPVOID* p1, LPDWORD n1, LPVOID* p2,
+                                LPDWORD n2, DWORD flags) {
+    EnterCriticalSection(&g_dsLogLock);
+    ++g_dsLocks;
+    g_dsLocked.insert(b);
+    DsLogWindow();
+    LeaveCriticalSection(&g_dsLogLock);
+    return DsVtableOf(b)->lock(b, off, n, p1, n1, p2, n2, flags);
+}
+static void DsHookBufferVtable(IDirectSoundBuffer* b) {     // under g_dsLogLock
+    void** vt = *reinterpret_cast<void***>(b);
+    if (DsVtableOf(b)) return;
+    for (DsBufVtable& v : g_dsBufVtables) {
+        if (v.vt) continue;
+        v = {vt, reinterpret_cast<BufPlayFn>(vt[12]), reinterpret_cast<BufLockFn>(vt[11])};
+        DWORD old;
+        VirtualProtect(vt + 11, 2 * sizeof(void*), PAGE_READWRITE, &old);
+        vt[11] = reinterpret_cast<void*>(&DsBufLock);
+        vt[12] = reinterpret_cast<void*>(&DsBufPlay);
+        VirtualProtect(vt + 11, 2 * sizeof(void*), old, &old);
+        Log("dsound: buffer vtable %p hooked", vt);
+        return;
+    }
+    Log("dsound: buffer vtable %p not hooked (table full)", vt);
+}
+static HRESULT WINAPI DsCreateBuffer(IDirectSound* ds, LPCDSBUFFERDESC d, LPDIRECTSOUNDBUFFER* out, LPUNKNOWN u) {
+    HRESULT hr = g_origCreateBuffer(ds, d, out, u);
+    EnterCriticalSection(&g_dsLogLock);
+    int n = ++g_dsCreated;
+    const WAVEFORMATEX* f = d->lpwfxFormat;
+    if (n <= 100 || n % 100 == 0)
+        Log("dsound: create #%d hr %08lX flags %05lX bytes %lu fmt %s%u ch %lu Hz %u bit", n, hr, d->dwFlags,
+            d->dwBufferBytes, f ? "" : "none ", f ? f->nChannels : 0, f ? f->nSamplesPerSec : 0,
+            f ? f->wBitsPerSample : 0);
+    if (SUCCEEDED(hr) && out && *out) DsHookBufferVtable(*out);
+    LeaveCriticalSection(&g_dsLogLock);
+    return hr;
+}
+static HRESULT WINAPI DsDuplicate(IDirectSound* ds, LPDIRECTSOUNDBUFFER src, LPDIRECTSOUNDBUFFER* out) {
+    HRESULT hr = g_origDuplicate(ds, src, out);
+    EnterCriticalSection(&g_dsLogLock);
+    int n = ++g_dsDuplicated;
+    if (n <= 20 || n % 100 == 0) Log("dsound: duplicate #%d of %p hr %08lX", n, src, hr);
+    LeaveCriticalSection(&g_dsLogLock);
+    return hr;
+}
+static HRESULT WINAPI DsCreateHook(LPCGUID guid, LPDIRECTSOUND* out, LPUNKNOWN u) {
+    HRESULT hr = g_origDsCreate(guid, out, u);
+    Log("dsound: DirectSoundCreate(%s) hr %08lX", guid ? "device guid" : "default device", hr);
+    if (SUCCEEDED(hr) && out && *out && !g_origCreateBuffer) {
+        void** vt = *reinterpret_cast<void***>(*out);
+        g_origCreateBuffer = reinterpret_cast<CreateSoundBufferFn>(vt[3]);
+        g_origDuplicate = reinterpret_cast<DuplicateSoundBufferFn>(vt[5]);
+        DWORD old;
+        VirtualProtect(vt + 3, 3 * sizeof(void*), PAGE_READWRITE, &old);
+        vt[3] = reinterpret_cast<void*>(&DsCreateBuffer);
+        vt[5] = reinterpret_cast<void*>(&DsDuplicate);
+        VirtualProtect(vt + 3, 3 * sizeof(void*), old, &old);
+    }
+    return hr;
+}
+static void InstallDsoundLog() {
+    InitializeCriticalSection(&g_dsLogLock);
+    g_dsWindowStart = GetTickCount();
+    auto* slot = reinterpret_cast<void**>(IMPORT_DIRECTSOUNDCREATE);
+    g_origDsCreate = reinterpret_cast<DirectSoundCreateFn>(*slot);
+    void* hook = reinterpret_cast<void*>(&DsCreateHook);
+    DWORD old;
+    VirtualProtect(slot, sizeof(void*), PAGE_READWRITE, &old);
+    *slot = hook;
+    VirtualProtect(slot, sizeof(void*), old, &old);
+}

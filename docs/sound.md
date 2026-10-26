@@ -21,3 +21,9 @@
   −6 and the job never completes, so the race load stays in game state 4 (no error). Every different player car adds
   an engine bank (~115 KB, `sound\Engine\CAR_nn_ENG_MB_SPU.abk`): with 6 different cars the 5th did not fit.
   `EnlargeAudioPool` makes the pool 6 MB (imm32 at 0x4859BA).
+- **DirectSound output.** The EA engine mixes every voice itself into one streaming buffer: `DirectSoundCreate` (IAT
+  0x78302C, thunk 0x770D16) on the default device, a primary buffer, probe buffers of 1/2/4/6 channels at boot, then
+  one 2-channel 44.1 kHz 16-bit buffer of 88192 bytes (0.5 s, flags 0x18000) that it locks about 100 times a second;
+  the device is recreated on the way into a race. No per-voice buffers exist, so per-player output (e.g. a DualSense
+  speaker each, see `tools/ds_bt_speaker.py`) needs the mix split inside the EA mixer. `InstallDsoundLog` (Debug = 1)
+  logs the buffers and a 5 s summary of Play / Lock calls ("dsound:" lines).
