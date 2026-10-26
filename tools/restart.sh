@@ -12,4 +12,4 @@ cp "$HERE/../build/NFSU2SplitScreen.asi" "$GAME/scripts/" || exit 1
 rm -f "$GAME/scripts/NFSU2SplitScreen.log"
 explorer.exe "$(cygpath -w "$HERE/launch_game.bat")"
 [ "$1" = "--noskip" ] && exit 0
-cd "$HERE" && python -I boot.py 60
+cd "$HERE" && python -I boot.py 20   # a boot takes about 8 s: fail fast on a hung one

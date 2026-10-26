@@ -71,6 +71,13 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
 - **Automation**:
   - `restart.sh` kills the game (waits until it is gone), installs build/NFSU2SplitScreen.asi and launches the game.
   - `boot.py` gets to the main menu (re-focusing the game and retrying while it loads).
+    `restart.sh` gives it 20 s (a boot takes about 8 s). A boot that hangs on the startup loading screen (main thread
+    waiting in d3d9) is WidescreenFix in exclusive fullscreen, also without this plugin: use its `WindowedMode = 4`.
+  - `go_freerun.sh [start]` restarts the game and starts a split-screen Free Run from the Start row's entry `start`
+    (`[FREERUN] Start`, set in the installed ini for that launch and restored), joining every player on virtual pads
+    (`freerun_flow.py`: mode select, options, Press START..., loading; a timestamped line per step, a few seconds'
+    timeout each), and waits for the logged start spots. `VIRTUAL=n` joins players 1..n and stops at the next Press
+    START for real pads. `go_race_nointro.sh` doesn't fit Free Run's screens (no track list).
   - `go_race_nointro.sh <mode>` starts a split race without the intro, joining players on virtual pads. Optional
     `POKES="addr=value"`; `INTRO=1` keeps the intro.
   - Fewer real pads than players: set `[DEBUG] ExtraPlayers` for the player count (read at boot), then
