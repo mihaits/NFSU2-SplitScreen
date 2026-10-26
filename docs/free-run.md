@@ -26,3 +26,17 @@ challenges and without the race HUD. Race type 9 (0x83AAB4), installed by `Insta
   screen. The player update aims a 3D direction arrow at that opponent (0x5F3AE0, MARKER_DIRECTION_AID);
   `DirectionArrowHook` (trampoline) returns at once (`ret 4`) in split screen.
 - **HUD.** The position, lap time and outrun elements are hidden or skipped; see "Free Run HUD" in [hud](hud.md).
+
+## Ideas (not built yet)
+Game modes and extras to make Free Run more fun (discussed 2026-10-26; the start location is planned in
+[plans/free-run-spawn](plans/free-run-spawn.md)):
+1. **Waypoint race** (user's idea, first pick): any player drops a pin on the map, or the game picks a random one;
+   everyone gets an arrow to it, first there scores a point, short scoreboard. The direction arrow (0x5F3AE0,
+   MARKER_DIRECTION_AID, skipped today) might be reusable.
+2. **Tag / "it"**: bump someone to pass it on; least time as "it" wins. Needs only car-car contact detection.
+3. **King of the hill**: a zone that scores for whoever is alone in it, moving now and then.
+4. **Outrun duels on demand**: two players flash their lights to start the game's own outrun challenge between them.
+5. **Speed traps / longest drift**: a running best top speed through a spot, or drift score, per player.
+6. **Convoy / cop chase**: one runs, the others box them in within a time limit.
+7. **Quality of life**: regroup (teleport everyone to the leader), a "where is everyone" map ping, time of day and
+   weather.

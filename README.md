@@ -47,6 +47,7 @@ options of whoever paused.
 - [ ] Replays of split-screen races
 - [ ] Rear-view mirror in the bumper and hood cameras, like single player
 - [ ] Maybe: everyone picking a car at once; press START to join at any time
+- [ ] Free Run: pick the start location; game modes like a waypoint race (see [Free Run ideas](docs/free-run.md#ideas-not-built-yet))
 
 This is an alpha, so expect the odd bug. If you hit one, please
 [open an issue](https://github.com/mihaits/NFSU2-SplitScreen/issues): fill in the [bug report template](docs/bug-report.md)
