@@ -317,7 +317,7 @@ DWORD WINAPI IoThread(LPVOID param) {
 constexpr int kSpkRing = 16384;           // queued input samples (at the input rate)
 constexpr int kSpkReport = 547, kSpkOpusBytes = 200, kSpkOut = 960;   // 960 output samples (45 kHz) per report
 constexpr int kSpkTarget = 2048, kSpkMaxQueue = 8820;   // input samples: ~46 ms to start, 200 ms max
-constexpr int kSpkLowTarget = 384;        // what's left after a report, at its lowest per half second (~9 ms)
+constexpr int kSpkLowTarget = 768;        // what's left after a report, at its lowest per half second (~17 ms)
 
 void SpeakerRoute(uint8_t* r, int seq) {  // r[78]
     memset(r, 0, 78);

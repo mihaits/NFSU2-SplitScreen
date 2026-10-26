@@ -58,9 +58,9 @@ controllers are hidden. Pads 0..3 are the real XInput pads, 4..9 debug pads driv
   - A thread per pad starts on the first samples and ends 1 s after the last (leftover samples are dropped); the I/O
     thread stops it before closing the handle. A soft limiter (ceiling 0.9) replaces clipping.
   - Queue: starts at 2048 input samples; the game delivers in bursts, so the lowest point left after a report is held
-    near 384 samples per half second by trimming the read rate (±1 %, proportional + integral); an underrun lowers
-    the rate at once and refills only to one report plus that reserve. The 5 s stats line (Debug) shows reports,
-    underruns, peak, the lowest reserve, the rate trim and the worst send lateness.
+    near 768 samples (~17 ms) per half second by trimming the read rate (±1 %, proportional + integral); an underrun
+    lowers the rate at once and refills only to one report plus that reserve. The 5 s stats line (Debug) shows
+    reports, underruns, peak, the lowest reserve, the rate trim and the worst send lateness.
   - While the speaker streams, other output reports wait at least 125 ms (rumble start/stop and trigger changes 50
     ms): at 40 lightbar reports/s on the same link the speaker dropped out now and then. A state sub-packet (0x90,
     the 0x31 settings block) in place of the haptics one, to carry the lightbar inside the audio reports, silenced the

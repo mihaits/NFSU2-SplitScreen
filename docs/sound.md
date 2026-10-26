@@ -76,4 +76,4 @@ speakers" block of `parts/sound.cpp`; the pad side is `DsSpeakerWrite` in `DualS
   rendered, then (L + R) / 2 × PadSpeakerGain / 32768 goes to `XPadSpeakerWrite` at the mixer rate (word 0x8B44C6,
   44100).
 - **Timing.** The game fills its DirectSound buffer in bursts of up to ~65 ms, so the pad's queue is a sawtooth; the
-  pad side holds the queue's lowest point after each report above ~9 ms (see input.md).
+  pad side holds the queue's lowest point after each report near ~17 ms (see input.md).
