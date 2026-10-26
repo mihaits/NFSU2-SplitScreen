@@ -8,6 +8,15 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
   - `refs.py lo hi` finds immediate references to an address range (strings).
   - `callers.py addr` lists call/jmp sites.
   - `opscan.py substr [lo hi]` finds instructions by operand text.
+  - `trackmarkers.py [--track id] [--type text] [--json out] [--tracks] [--verify]` reads every track's position
+    markers from the game files: start grids (`Forward/BackwardStartingPosition`, the ones 0x5EB5D0 returns),
+    start and finish lines, and track 4000's shop and crib spots (x y z heading). Also the track table with each
+    TRACKMAP's calibration. File formats in its docstring; `--verify` checks spots measured in game.
+  - `trackmap_explorer.py [-o path]` writes `build/trackmap.html`, a self-contained page with the markers on the game's
+    TRACKMAP textures (city, speedways, drift, drag, Street X): filter by track and type, hover for values, click a
+    marker or any point (z estimated from the nearest markers, check it in game when far from one), turn it with
+    right-drag or Q/E, with a 6-car grid preview. It gives the `kFreeRunStarts` line and `[DEBUG] FreeRunStart`.
+    Needs numpy and Pillow.
   - `fxdump/`: the game's shaders. `extract.py` writes the compiled effects (PE resources `IDI_*_FX`) to
     `fxdump/build/fx`; `fxdump.exe` (32-bit, `build.bat`, uses SysWOW64 `d3dx9_33.dll`) `dis` disassembles them,
     `hash` lists each shader's token hash (the plugin recognises shaders by it), `asm` / `frag` assemble.
