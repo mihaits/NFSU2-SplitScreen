@@ -21,7 +21,8 @@ and 2 Xbox pads at once). Known issues are in [open issues](docs/open-issues.md)
 ## Play
 1. Main menu → **Split-Screen** (next to Quick Race).
 2. Pick the race type, track, the number of **Players**, **Opponents** (AI) and their **Difficulty**. **Free Run**
-   (the last mode) drops you in the city with no race.
+   (the last mode) drops you in the city with no race; its **Start** row picks where: a city district, Random, or a
+   closed venue (speedways, drift areas).
 3. Each player presses **START** on their own pad and picks a car. One player can use the keyboard instead: press
    **Enter** on their Press START screen. Back undoes only your own step: on your car choice it returns to your Press
    START screen, and on the next player's Press START screen only you can go back to your car choice.
@@ -38,7 +39,7 @@ options of whoever paused.
 - [x] Catch-up between players
 - [x] Traffic around every player, not only players 1 and 2
 - [x] AI opponents with difficulty (up to 6 racers in all, 4 in drag; none in sprint drift; 6 players leave no room)
-- [x] Free Run: drive the whole city together, no race
+- [x] Free Run: drive the whole city together, no race, from the district or venue you pick
 - [x] DualSense without DS4Windows: input, rumble, player LEDs, RPM and nitrous lightbar, adaptive triggers
 - [x] A controller that turns off keeps its player; press START on a spare one to take over that player
   (each player turns them on or off in the pause options)
@@ -49,7 +50,7 @@ options of whoever paused.
 - [ ] Replays of split-screen races
 - [ ] Rear-view mirror in the bumper and hood cameras, like single player
 - [ ] Maybe: everyone picking a car at once; press START to join at any time
-- [ ] Free Run: pick the start location; game modes like a waypoint race (see [Free Run ideas](docs/free-run.md#ideas-not-built-yet))
+- [ ] Free Run: game modes like a waypoint race (see [Free Run ideas](docs/free-run.md#ideas-not-built-yet))
 
 This is an alpha, so expect the odd bug. If you hit one, please
 [open an issue](https://github.com/mihaits/NFSU2-SplitScreen/issues): fill in the [bug report template](docs/bug-report.md)

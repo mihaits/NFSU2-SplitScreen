@@ -218,6 +218,8 @@ static void UpdateFreeCamHook();
 static void UpdateStartZoom();
 static void UpdateIntroHiding();
 static void UpdatePadLights();
+static void UpdateVenueBarriers();
+static void DrawVenueWalls(View* v, const float* carPos);
 
 static void __cdecl LayoutApplyHook() {
     if (g_debug) CheckX87("frame start");
@@ -242,6 +244,7 @@ static void __cdecl LayoutApplyHook() {
     UpdatePadLights();
     RunMailbox();
     UpdateModeTransitions();
+    UpdateVenueBarriers();
     ApplySplitLayout();
 }
 
@@ -335,6 +338,11 @@ static void __cdecl PoolsForTraffic(View* v) {
 static void __cdecl SplitPassWithHeadlightPools(View* v) {
     reinterpret_cast<void(__cdecl*)(View*)>(FN_SPLIT_PASS)(v);
     if (SplitRacing() && at<int>(OPT_CAR_HEADLIGHTS)) PoolsForTraffic(v);
+    for (int k = 0; k < g_screenViews; ++k)
+        if (v == &GetView(kPlayerViewId[k])) {
+            uint8_t* car = PlayerCar(k);
+            DrawVenueWalls(v, car ? reinterpret_cast<float*>(car + 0x60) : nullptr);
+        }
 }
 // The race intro is drawn full screen by the 1-player path, which draws the pools itself (0x5CAC07).
 #define AT_1P_POOLS_CALL     0x5CAC07

@@ -25,6 +25,9 @@ find an address, grep `docs/` (and the source's comment blocks) for it.
 | 0x870CB8.. | graphics options in registry order (0x870CB8 car env map, 0x870CD4 road reflection, 0x870CDC blur, 0x870CE0 light streaks, 0x870CE4 glow, 0x870CF0 DoF, 0x870CFC overbright, 0x870D08 FSAA level, 0x870D10 rain) |
 | 0x89E7C4 / 0x89E7C8 / 0x89E7CC | race counters: AI racers / count B (the plugin adds the extra racers here for the results) / one more; the results use 0x89E7C0 + all three |
 | 0x89E7B0 | race state (7 = Free Run's free state) |
+| 0x89E7A0 | the loaded race's track id |
+| [0x883DA0] | track table, count [0x883DA4], stride 0x128; lookup by id 0x5D3E40(id) (+0x8A id): +0x00 name, +0x20 path, +0x40 region, +0x80 sprint drift, +0x86 reversible, +0xAC region bounds (same for every city track) |
+| 0x5EB5D0(n, out) | start spots from the Forward/BackwardStartingPosition markers: n entries of 0x20 (x, y, z +0, heading word +0x10, angle = h × 2π / 65536, forward = (cos, sin)); called by the race start placement 0x6065B0 at 0x6065C6 during the loading screen |
 | 0x8707DC | layout computed by 0x5C2120 (applied copy 0x8707E0) |
 | 0x88EB00 | track streamer (position blocks +0xB0 + k*0x5C, +0 = the car array index it follows, copied by 0x5E4F20) |
 
