@@ -329,21 +329,45 @@ static void DsNoteSound(const uint8_t* sound, int listener) {
     LeaveCriticalSection(&g_dsLogLock);
     if (added) Log("sound %p listener %d vtable %08X", sound, listener, *reinterpret_cast<const uint32_t*>(sound));
 }
+// A per-car sound object (vtable 0x789000..0x78C000, +0x44 = the car's node in the audio player list): its player
+// index (node +0x10), else -1.
+static int CarSoundPlayer(uint32_t v) {
+    if (v < 0x01000000 || v >= 0x7FFF0000 || (v & 3)) return -1;
+    __try {
+        uint32_t vt = *reinterpret_cast<const uint32_t*>(v);
+        if (vt < 0x789000 || vt >= 0x78C000) return -1;
+        uint8_t* node = *reinterpret_cast<uint8_t**>(v + 0x44);
+        auto* root = at<uint8_t*>(0x82B884);
+        auto* list = root ? *reinterpret_cast<uint8_t**>(root + 0xAC) : nullptr;
+        int n = 0;
+        for (auto* nd = list ? *reinterpret_cast<uint8_t**>(list + 0x10) : nullptr; nd && n < 16;
+             nd = *reinterpret_cast<uint8_t**>(nd + 4), ++n)
+            if (nd == node) return *reinterpret_cast<int*>(nd + 0x10);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+    }
+    return -1;
+}
 static void __cdecl EaApplyGainsHook(int channel) {
     auto* sp = reinterpret_cast<const uint32_t*>(_AddressOfReturnAddress());
     auto* top = reinterpret_cast<const uint32_t*>(reinterpret_cast<NT_TIB*>(NtCurrentTeb())->StackBase);
     const uint8_t* owner = nullptr;
+    uint32_t car = 0;                    // a per-car sound object on the stack
     uint32_t rets[6] = {};
     int m = 0;
     EnterCriticalSection(&g_dsLogLock);
     for (int k = 1; sp + k < top && k < 1024; ++k) {
         uint32_t v = sp[k];
         if (!owner && g_dsSounds.count(reinterpret_cast<const uint8_t*>(v))) owner = reinterpret_cast<const uint8_t*>(v);
+        if (!car && CarSoundPlayer(v) >= 0) car = v;
         if (m < 6 && v >= 0x401005 && v < 0x700000 && reinterpret_cast<const uint8_t*>(v)[-5] == 0xE8) rets[m++] = v;
     }
-    uint32_t key = owner ? static_cast<uint32_t>(reinterpret_cast<uintptr_t>(owner)) : rets[0];
+    uint32_t key = car ? *reinterpret_cast<const uint32_t*>(car) ^ CarSoundPlayer(car) << 28
+                       : owner ? static_cast<uint32_t>(reinterpret_cast<uintptr_t>(owner)) : rets[0];
     if (g_dsChannelSeen.size() < 4000 && g_dsChannelSeen.insert(static_cast<uint64_t>(channel & 0x3F) << 32 | key).second) {
-        if (owner)
+        if (car)
+            Log("ea voice %d <- car sound vtable %08X player %d (%08X; game calls %08X %08X %08X %08X)", channel,
+                *reinterpret_cast<const uint32_t*>(car), CarSoundPlayer(car), car, rets[0], rets[1], rets[2], rets[3]);
+        else if (owner)
             Log("ea voice %d <- sound %p listener %d vtable %08X", channel, owner,
                 *reinterpret_cast<const int*>(owner + 0xD0), *reinterpret_cast<const uint32_t*>(owner));
         else
