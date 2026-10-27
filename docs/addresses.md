@@ -65,7 +65,7 @@ Car and race values the DualSense lights and triggers read (`parts/pad_lights.cp
 | car +0x434 | gear: 0 reverse, 1 neutral, 2 = 1st |
 | `*(*(car+0x34)+0x4C)` | drivetrain: +0x84 + 4*gear up-shift rpm, +0xE4 and +0xF0 shift-light factors; shift rpm = up - `*(float*)0x7FBF5C` * `*(float*)(0x7FBF60 + 4*(gear + 9**(drv+0xF0)))` * `*(float*)(drv+0xE4)` (tach shift light 0x4C6ACF..0x4C6B45) |
 | car +0x460 | nitrous burn start time (0 / 0x7FFFFFFF = off); nitrous object at car +0x40 (+0x41C remaining, +0x418 capacity) |
-| `*(car+0x34)` +0x38 + 4*i | wheels (0 FL, 1 FR, 2 RL, 3 RR): +0x170 grip used (1.0 = at the limit, 0 on all four = airborne), +0x124 longitudinal force, +0x28 angular speed. The rear reads 1.0 when slow or stopped. |
+| `*(car+0x34)` +0x38 + 4*i | wheels (0 FL, 1 FR, 2 RL, 3 RR): +0x170 grip used (1.0 = at the limit, 0 on all four = airborne), +0x124 longitudinal force, +0x28 angular speed, `*(+0x14)` tyre data (+0x10 radius, 0.3015 m on the Miata). The rear reads 1.0 when slow or stopped. |
 | `*(car+0x1C)` (racer) | +0x14 progress (laps done + fraction), +0xA position (1-based); finished = player +0x50 |
 | `**(int**)0x890118` | race stage: 0 none, 1 flyby, 2 prerace, 3 countdown (3.0 s), 4 racing |
 | 0x7FB718 | game clock (seconds) |

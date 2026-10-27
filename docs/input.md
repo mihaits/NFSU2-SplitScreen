@@ -104,6 +104,32 @@ controllers are hidden. Pads 0..3 are the real XInput pads, 4..9 debug pads driv
   applies.
 - Tested with 4 native DualSense pads over Bluetooth at once, next to 2 Xbox pads (5-6 player races, 2026-10-24).
 
+**Xbox impulse triggers (`XboxWgi.cpp`).**
+- XInput can't drive the trigger motors of Xbox One / Series pads; Windows.Gaming.Input (`Gamepad.Vibration`) can.
+  WinRT is loaded from combase.dll at run time (no import), and one MTA thread owns every WGI object. Input stays on
+  XInput.
+- `Gamepad.Gamepads` fills in shortly after first use; a `GamepadAdded` handler is registered as well (it does
+  nothing; some desktop apps report an empty list without one, not confirmed here: a build without it paired too).
+  The list is polled every second.
+- WGI doesn't tell which XInput user a Gamepad is. A free XInput user and a free WGI pad are paired when their input
+  matches (buttons, triggers and sticks within 0.04) while it isn't idle and neither matches another free one, or by
+  elimination: one of each left and as many WGI pads as connected XInput users. A pad that drops from either side is
+  unpaired. Logged as "xbox: pad N = WGI gamepad VID:PID (...)".
+- A paired pad with trigger motors (anything except the Xbox 360 class PIDs 045E:028E/028F/0291/02A1/0719, which
+  includes DS4Windows' virtual pad) sends its whole vibration through WGI (`XPadSetRumble` and
+  `XPadSetImpulseTriggers` merge into one `WgiSetVibration`), since an XInputSetState would zero the triggers.
+  Resent every second while non-zero (Windows drops vibration when the window loses focus).
+- Effects (`UpdateImpulseTriggers` in `parts/pad_lights.cpp`), Forza Horizon style: the motors buzz in proportion to
+  tyre slip, wheel surface speed (angular speed `wheel+0x28` × the wheel's radius `*(*(wheel+0x14)+0x10)`, per wheel
+  from the car's tyre data) against ground speed (length of the body velocity `[mover+0x20]+0xA0`), s = (surface −
+  ground) / max(ground, 3 m/s). R = ramp(fastest axle's s, 0.04..0.5) × throttle (live: launch wheelspin 1..3, RWD
+  power oversteer 0.07..0.1); L = ramp(slowest wheel's −s, 0.04..0.25) × brake (hard braking 0.08..0.2 on the fronts;
+  the game has no ABS, the wheels do slip). Mapped to 0.08..0.5 (R) / 0.6 (L) × `TriggerStrength`, smoothed 40 ms up /
+  80 ms down; silent in the air, below 1 m/s, paused or finished. No engine cues (limiter, nitrous). Debug logs
+  "impulse: pad N L x R y" once a second while on. Same per-player switch as the DualSense (the pause row reads
+  "Impulse Triggers").
+- Tested with an Xbox One S pad (045E:02E0) over Bluetooth.
+
 **Pad resolver (`PadForDevice`).**
 - Outside split: device 0 = the last active XInput pad.
 - Split menus: only the current FE player's pad (its joined pad on the car select, else the last active pad).

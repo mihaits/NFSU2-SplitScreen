@@ -1,4 +1,4 @@
-// Part of NFSU2SplitScreen.cpp: DualSense lights (player LEDs, lightbar) and adaptive triggers.
+// Part of NFSU2SplitScreen.cpp: DualSense lights (player LEDs, lightbar), adaptive triggers and Xbox impulse triggers.
 // Included by NFSU2SplitScreen.cpp in a fixed order (one translation unit); not compiled on its own.
 
 // ---------------------------------------------------------------- player LEDs
@@ -162,7 +162,8 @@ static void LoadTriggerChoices() {
 
 // "Adaptive Triggers" On/Off row in the pause menu's player options (UI_PauseOptions, builder around 0x4C4800: the
 // Feedback row, vtable 0x791DB0, is added by `call 0x54F170` at 0x4C4985 and the result kept in screen+0x154). The row
-// follows Feedback when the pausing player's pad is a DualSense; it is built like the Players row (seats.cpp).
+// follows Feedback when the pausing player's pad is a DualSense ("Impulse Triggers" on an Xbox pad with trigger
+// motors); it is built like the Players row (seats.cpp).
 #define AT_PAUSE_FEEDBACK_ADD 0x4C4985
 static uint32_t g_triggersRowVt[18];
 static int PausingLocalPlayer() { return SplitRacing() ? g_pausePort : 0; }
@@ -173,7 +174,8 @@ static int PadOfPlayer(int k) {
 static void __fastcall TriggersRowDraw(uint8_t* row) {
     auto printf_ = reinterpret_cast<void(__cdecl*)(void*, const char*, ...)>(FN_FE_PRINTF);
     int k = PausingLocalPlayer();
-    printf_(*reinterpret_cast<void**>(row + 0x2C), "%s", "Adaptive Triggers");
+    printf_(*reinterpret_cast<void**>(row + 0x2C), "%s",
+            XPadHasImpulseTriggers(PadOfPlayer(k)) ? "Impulse Triggers" : "Adaptive Triggers");
     printf_(*reinterpret_cast<void**>(row + 0x30), "%s", k >= 0 && TriggersOn(k) ? "On" : "Off");
 }
 static void __fastcall TriggersRowAct(uint8_t* row, void*, const char* fng, uint32_t msg) {
@@ -193,7 +195,7 @@ static void __fastcall TriggersRowAct(uint8_t* row, void*, const char* fng, uint
 static int __fastcall PauseFeedbackAdd(uint8_t* screen, void*, void* row, int flag) {
     int r = reinterpret_cast<int(__thiscall*)(void*, void*, int)>(FN_SCREEN_ADD_ROW)(screen, row, flag);
     int pad = PadOfPlayer(PausingLocalPlayer());
-    if (pad != PAD_NONE && XPadIsDualSense(pad)) {
+    if (pad != PAD_NONE && (XPadIsDualSense(pad) || XPadHasImpulseTriggers(pad))) {
         if (!g_triggersRowVt[0]) {
             memcpy(g_triggersRowVt, reinterpret_cast<void*>(ROW_VTABLE_LAPS), sizeof(g_triggersRowVt));
             g_triggersRowVt[1] = reinterpret_cast<uint32_t>(&TriggersRowAct);
@@ -202,6 +204,24 @@ static int __fastcall PauseFeedbackAdd(uint8_t* screen, void*, void* row, int fl
         AddRow(screen, g_triggersRowVt);
     }
     return r;                            // the Feedback row's result (kept in screen+0x154)
+}
+
+static bool ReadWheelRadius(void* player, float radius[4]) {
+    __try {
+        auto* car = *reinterpret_cast<uint8_t**>(static_cast<uint8_t*>(player) + 4);
+        auto* mover = car ? *reinterpret_cast<uint8_t**>(car + 0x34) : nullptr;
+        if (!mover) return false;
+        for (int i = 0; i < 4; ++i) {
+            auto* w = *reinterpret_cast<uint8_t**>(mover + 0x38 + 4 * i);
+            auto* tyre = w ? *reinterpret_cast<uint8_t**>(w + 0x14) : nullptr;
+            if (!tyre) return false;
+            radius[i] = *reinterpret_cast<float*>(tyre + 0x10);
+            if (!(radius[i] > 0.15f && radius[i] < 0.6f)) return false;
+        }
+        return true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
 }
 
 static bool ReadWheels(void* player, float grip[4], float force[4], float speed[4]) {
@@ -263,6 +283,83 @@ static void TrigVibration(uint8_t* b, int start, int amp, int hz) {
     b[0] = 0x26;
     TrigPack(b, start, v);
     b[9] = static_cast<uint8_t>(hz);
+}
+
+// Xbox One / Series pads (XPadHasImpulseTriggers): Forza Horizon style. The trigger motors buzz (they can't resist)
+// in proportion to tyre slip, measured as wheel surface speed against ground speed: wheel angular speed *(float*)(w+0x28)
+// times the wheel's radius *(float*)(*(w+0x14) + 0x10) (per wheel, the car's tyre data; 0.3015 m on the Miata, where
+// cruising then reads the body speed exactly) against the length of the body velocity *(vec3*)([mover+0x20] + 0xA0).
+// Slip s = (surface - ground) / max(ground, 3 m/s).
+//   R (throttle): the axle that spins fastest, ramp(s, 0.04 .. 0.5) * throttle (launch wheelspin reads 1..3, power
+//     oversteer 0.07..0.1);
+//   L (brake): the slowest wheel, ramp(-s, 0.04 .. 0.25) * brake (hard braking reads 0.08..0.2 on the fronts).
+// A non-zero level maps to the motor's range 0.08 .. 0.5 (R) / 0.6 (L) times TriggerStrength, smoothed (40 ms up,
+// 80 ms down). Silent in the air, below 1 m/s, paused or finished.
+static bool ReadGroundSpeed(void* player, float* speed) {
+    __try {
+        auto* car = *reinterpret_cast<uint8_t**>(static_cast<uint8_t*>(player) + 4);
+        auto* mover = car ? *reinterpret_cast<uint8_t**>(car + 0x34) : nullptr;
+        auto* body = mover ? *reinterpret_cast<uint8_t**>(mover + 0x20) : nullptr;
+        if (!body) return false;
+        auto* v = reinterpret_cast<float*>(body + 0xA0);
+        *speed = sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+        return true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+}
+
+static float Ramp(float v, float lo, float hi) { return v <= lo ? 0 : v >= hi ? 1 : (v - lo) / (hi - lo); }
+
+static void UpdateImpulseTriggers(int pad, int k) {
+    if (pad < 0 || pad >= 32) return;
+    static float levelL[32], levelR[32];
+    static DWORD last[32];
+    float wantL = 0, wantR = 0;
+    void* player = k >= 0 && TriggersOn(k) ? GetLocalPlayer(k) : nullptr;
+    float grip[4], force[4], wheel[4], radius[4] = {}, ground;
+    if (player && ReadWheels(player, grip, force, wheel) && ReadWheelRadius(player, radius) &&
+        ReadGroundSpeed(player, &ground)) {
+        uint16_t buttons;
+        uint8_t lt = 0, rt = 0;
+        int16_t lx;
+        XPadRawState(pad, &buttons, &lt, &rt, &lx);
+        bool airborne = grip[0] < 0.005f && grip[1] < 0.005f && grip[2] < 0.005f && grip[3] < 0.005f;
+        if (!airborne && ground > 1.0f) {
+            float denom = ground > 3.0f ? ground : 3.0f;
+            float slip[4];
+            for (int i = 0; i < 4; ++i) slip[i] = (wheel[i] * radius[i] - ground) / denom;
+            float spin = (slip[0] + slip[1]) * 0.5f, rear = (slip[2] + slip[3]) * 0.5f;
+            if (rear > spin) spin = rear;
+            float lock = 0;
+            for (float x : slip) if (-x > lock) lock = -x;
+            float r = Ramp(spin, 0.04f, 0.5f) * rt / 255.0f, l = Ramp(lock, 0.04f, 0.25f) * lt / 255.0f;
+            float gain = g_triggerStrength / 100.0f;
+            if (r > 0.01f) wantR = (0.08f + 0.42f * r) * gain;
+            if (l > 0.01f) wantL = (0.08f + 0.52f * l) * gain;
+        }
+    }
+    DWORD now = GetTickCount();
+    float dt = last[pad] ? (now - last[pad]) / 1000.0f : 0.016f;
+    last[pad] = now;
+    auto smooth = [dt](float& level, float want) {
+        float tau = want > level ? 0.04f : 0.08f;
+        float a = dt / (tau + dt);
+        level += (want - level) * a;
+        if (want == 0 && level < 0.04f) level = 0;    // below the motor's start: off
+        if (level > 1) level = 1;
+    };
+    smooth(levelL[pad], wantL);
+    smooth(levelR[pad], wantR);
+    XPadSetImpulseTriggers(pad, levelL[pad], levelR[pad]);
+    if (g_debug) {      // once a second while on: what the motors get
+        static DWORD logged[32];
+        if ((levelL[pad] > 0 || levelR[pad] > 0) && now - logged[pad] >= 1000) {
+            Log("impulse: pad %d L %.2f R %.2f (radius %.4f / %.4f m)", pad + 1, levelL[pad], levelR[pad], radius[0],
+                radius[2]);
+            logged[pad] = now;
+        }
+    }
 }
 
 // player k (>= 0) races with this pad now; -1 = no effects
@@ -348,6 +445,16 @@ static void UpdatePadLights() {
         finishSeen[k] = place;
     }
     for (int pad = 0; pad < XPadMax(); ++pad) {
+        if (XPadHasImpulseTriggers(pad)) {
+            int drives = -1;
+            if (racing && !paused) {
+                if (SplitMode()) { for (int q = 0; q < MAX_LOCAL_PLAYERS; ++q) if (g_assignedPad[q] == pad) drives = q; }
+                else if (pad == XPadLastActive()) drives = 0;
+                if (drives >= 0 && FinishedPosition(GetLocalPlayer(drives))) drives = -1;
+            }
+            UpdateImpulseTriggers(pad, drives);
+            continue;
+        }
         if (!XPadIsDualSense(pad)) continue;
         uint8_t leds = 0;
         if (g_playerLeds) {

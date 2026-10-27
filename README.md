@@ -45,6 +45,7 @@ options of whoever paused.
 
 **Controllers**
 - DualSense without DS4Windows: rumble, player LEDs, RPM / nitrous lightbar, adaptive triggers
+- Xbox One / Series impulse triggers, Forza Horizon style: they buzz with wheelspin and brake slip
 - Each player's car sounds on their own DualSense's speaker (Bluetooth), so the cars don't overlap on the PC
 - A controller that turns off keeps its player; a spare one can take over
 
@@ -71,7 +72,7 @@ are most likely to change:
 | `PadSpeakers` | 1 | car sounds on each player's DualSense speaker (0: all on the PC) |
 | `PadSpeakerGain` | 400 | pad speaker volume (%) |
 | `RumbleStrength` | 100 | rumble strength (%) |
-| `AdaptiveTriggers` | 1 | DualSense trigger effects (also per player in the pause options) |
+| `AdaptiveTriggers` | 1 | DualSense and Xbox impulse trigger effects (also per player in the pause options) |
 | `GaugeScalePercent` | 60 | gauge size |
 
 ## Mod compatibility

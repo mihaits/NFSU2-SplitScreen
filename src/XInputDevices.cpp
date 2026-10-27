@@ -18,6 +18,7 @@
 
 #include "XInputDevices.h"
 #include "DualSense.h"
+#include "XboxWgi.h"
 
 namespace {
 
@@ -34,6 +35,8 @@ struct XPadVibration { WORD left, right; };
 typedef DWORD(WINAPI* XInputSetStateFn)(DWORD, XPadVibration*);
 XInputSetStateFn g_xinputSetState;
 WORD g_rumbleSent[4][2];
+float g_xbMotors[4][2], g_xbTriggers[4][2];   // wanted rumble / trigger motors of real pads, 0..1
+bool g_xbViaWgi[4];                          // the last rumble went through WGI (XboxWgi.h)
 
 enum : WORD {
     XB_DPAD_UP = 0x0001, XB_DPAD_DOWN = 0x0002, XB_DPAD_LEFT = 0x0004, XB_DPAD_RIGHT = 0x0008,
@@ -546,11 +549,24 @@ void XPadSetRumble(int pad, float low, float high) {
         DsSetOutput(pad - kDsFirst, o);
         return;
     }
-    if (pad < 0 || pad >= kRealPads || !g_xinputSetState) return;     // test pads have no motors
+    if (pad < 0 || pad >= kRealPads) return;     // test pads have no motors
+    g_xbMotors[pad][0] = low; g_xbMotors[pad][1] = high;
+    bool wgi = WgiHasTriggers(pad);              // paired Xbox One / Series pad: all four motors through WGI
+    if (wgi != g_xbViaWgi[pad]) { g_xbViaWgi[pad] = wgi; g_rumbleSent[pad][0] = g_rumbleSent[pad][1] = 0xFFFF; }
+    if (wgi) { WgiSetVibration(pad, low, high, g_xbTriggers[pad][0], g_xbTriggers[pad][1]); return; }
+    if (!g_xinputSetState) return;
     auto speed = [](float v) { return static_cast<WORD>((v < 0 ? 0 : v > 1 ? 1 : v) * 65535.0f); };
     XPadVibration v = {speed(low), speed(high)};
     if (v.left == g_rumbleSent[pad][0] && v.right == g_rumbleSent[pad][1]) return;   // only changes
     if (g_xinputSetState(pad, &v) == ERROR_SUCCESS) { g_rumbleSent[pad][0] = v.left; g_rumbleSent[pad][1] = v.right; }
+}
+
+bool XPadHasImpulseTriggers(int pad) { return pad >= 0 && pad < kRealPads && WgiHasTriggers(pad); }
+
+void XPadSetImpulseTriggers(int pad, float left, float right) {
+    if (pad < 0 || pad >= kRealPads) return;
+    g_xbTriggers[pad][0] = left; g_xbTriggers[pad][1] = right;
+    if (WgiHasTriggers(pad)) WgiSetVibration(pad, g_xbMotors[pad][0], g_xbMotors[pad][1], left, right);
 }
 
 bool XPadIsDualSense(int pad) { return pad >= kDsFirst && pad < kMaxPads && g_dsConnected[pad - kDsFirst]; }
@@ -624,6 +640,8 @@ bool InstallXInputDevices(uintptr_t importSlot, bool nativeDualSense, int dsRumb
         }
     }
     if (!g_xinputGetState) return false;
+    if (!WgiInstall(reinterpret_cast<WgiXInputGetStateFn>(g_xinputGetState), log))
+        log("xbox: no Windows.Gaming.Input runtime; no impulse triggers");
     for (int i = 0; i < kDsMax; ++i) {     // until the lights policy exists: dim blue + player 1 LED mark a native pad
         g_dsOut[i].rgb[2] = 64;
         g_dsOut[i].playerLeds = 0x04;

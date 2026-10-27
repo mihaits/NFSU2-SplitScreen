@@ -11,5 +11,5 @@ if not exist build\opus.lib (
     cl /nologo /c /O2 /MT /W0 /DOPUS_BUILD /DUSE_ALLOCA /DPACKAGE_VERSION=\"1.5.2\" /Ithird_party\opus\include /Ithird_party\opus\celt /Ithird_party\opus\silk /Ithird_party\opus\silk\float /Ithird_party\opus /Fobuild\opus\ third_party\opus\celt\*.c third_party\opus\silk\*.c third_party\opus\silk\float\*.c third_party\opus\src\*.c || exit /b 1
     lib /nologo /out:build\opus.lib build\opus\*.obj || exit /b 1
 )
-cl /nologo /O2 /MT /W3 /EHsc /LD /D_CRT_SECURE_NO_WARNINGS /Ithird_party\opus\include /Fobuild\ /Febuild\NFSU2SplitScreen.asi src\NFSU2SplitScreen.cpp src\XInputDevices.cpp src\DualSense.cpp user32.lib shlwapi.lib hid.lib setupapi.lib cfgmgr32.lib build\opus.lib winmm.lib /link /SAFESEH:NO /MAP:build/NFSU2SplitScreen.map || exit /b 1
+cl /nologo /O2 /MT /W3 /EHsc /LD /D_CRT_SECURE_NO_WARNINGS /Ithird_party\opus\include /Fobuild\ /Febuild\NFSU2SplitScreen.asi src\NFSU2SplitScreen.cpp src\XInputDevices.cpp src\DualSense.cpp src\XboxWgi.cpp user32.lib shlwapi.lib hid.lib setupapi.lib cfgmgr32.lib build\opus.lib winmm.lib /link /SAFESEH:NO /MAP:build/NFSU2SplitScreen.map || exit /b 1
 echo built build\NFSU2SplitScreen.asi

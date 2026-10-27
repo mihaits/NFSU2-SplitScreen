@@ -31,8 +31,9 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
     the radius, nearest car) and logs traffic cars that teleport (recycled) within the radius of a player ("pop-in");
     totals at the end. Read-only.
   - `telemetry.py [interval] [seconds]` streams every local player's car values live (race stage, engine and
-    shift-light rpm, gear, nitrous, grip used per wheel, wheels in the air, position, finished); read-only, needs the
-    plugin loaded. The values the DualSense lights and triggers use.
+    shift-light rpm, gear, nitrous, grip used per wheel, wheels in the air, position, finished, pedals, ground and
+    wheel speed, wheel radius, slip ratio); read-only, needs the plugin loaded. The values the DualSense lights and the
+    DualSense / Xbox triggers use.
   - `drcheck.py [--clear]` lists game threads that still have hardware breakpoints armed (e.g. after a `hwwatch.py`
     run); `--clear` zeroes DR0-3/6/7 on them.
   - `packages.py` lists the FE package cache.
