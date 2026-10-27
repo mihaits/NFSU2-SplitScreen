@@ -15,17 +15,6 @@ Local **split screen for 2-6 players** in *Need for Speed Underground 2* on PC.
    natively (USB or Bluetooth, up to 8) or through DS4Windows. For 5-6 players use native DualSense pads (DS4Windows
    off) for the players past the 4th Xbox pad, or the keyboard for one player.
 
-## Mod compatibility
-| Mod | Status |
-|---|---|
-| [WidescreenFix](https://github.com/ThirteenAG/WidescreenFixesPack/releases/tag/nfsu2) | required; works, its free camera per player included |
-| underground2.net 1.0.3 | works (tested); the mod removes its old WidescreenFix's joystick hook, which made the menus press Up endlessly |
-| NFSU2 Extra Options | testing pending |
-| NFSU2 Unlimiter | testing pending |
-| NFSU2 HD Reflections | testing pending |
-| NFSU2 Redux | testing pending |
-| XtendedInput | testing pending |
-
 ## Play
 1. Main menu → **Split-Screen** (next to Quick Race).
 2. Pick the race type, track, the number of **Players**, **Opponents** (AI) and their **Difficulty**. **Free Run**
@@ -83,6 +72,17 @@ are most likely to change:
 | `RumbleStrength` | 100 | rumble strength (%) |
 | `AdaptiveTriggers` | 1 | DualSense trigger effects (also per player in the pause options) |
 | `GaugeScalePercent` | 60 | gauge size |
+
+## Mod compatibility
+| Mod | Status |
+|---|---|
+| [WidescreenFix](https://github.com/ThirteenAG/WidescreenFixesPack/releases/tag/nfsu2) | required; works, its free camera per player included |
+| underground2.net 1.0.3 | works (tested); the mod removes its old WidescreenFix's joystick hook, which made the menus press Up endlessly |
+| NFSU2 Extra Options | testing pending |
+| NFSU2 Unlimiter | testing pending |
+| NFSU2 HD Reflections | testing pending |
+| NFSU2 Redux | testing pending |
+| XtendedInput | not recommended: replaces the same controller input code, and this mod already handles Xbox and DualSense pads per player |
 
 ## For developers
 Build with Visual Studio 2022 Build Tools (C++, x86): run `build.bat`.
