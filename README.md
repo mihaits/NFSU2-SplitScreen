@@ -30,24 +30,27 @@ and 2 Xbox pads at once). Known issues are in [open issues](docs/open-issues.md)
 Every player has their own controls page (Options → Controls) and their own player options. Pausing opens the
 options of whoever paused.
 
+**Handy buttons:**
+- **Mute** (DualSense): moves your car's sound from your pad's speaker back to the PC, and again to switch back.
+- **Y / Space** on player 1's Press START: rematch with the same cars and controllers.
+- **START** on a spare pad: take over a player whose controller turned off.
+
 ## Features
-- [x] 2 to 6 players, in every race mode (Outrun is 2 players, drag up to 4): halves, quadrants, 3 + 2, 3 × 2
-- [x] Each player has their own view, HUD, gauges, minimap, camera, sound and rumble
-- [x] Full graphics in every view: reflections, rain, headlights, blur, light streaks, overbright, anti-aliasing
-- [x] Own controls, options and last car per player
-- [x] WidescreenFix support, including its free camera per player. Old builds (e.g. the one in underground2.net) work
-  too: their joystick hook made the menus press Up endlessly, and the mod removes it
-- [x] Catch-up between players
-- [x] Traffic around every player, not only players 1 and 2
-- [x] AI opponents with difficulty (up to 6 racers in all, 4 in drag; none in sprint drift; 6 players leave no room)
-- [x] Free Run: drive the whole city together, no race, from the district or venue you pick
-- [x] DualSense without DS4Windows: input, rumble, player LEDs, RPM and nitrous lightbar, adaptive triggers
-- [x] Each player's car (engine, turbo, shifts, nitrous, skids, hits) on their own DualSense's speaker (Bluetooth), so
-  the cars don't overlap on the PC; rain, wind and the world stay on the PC. The mute button switches it off and on
-  (its LED lights while the car is back on the PC)
-- [x] Rematch: press Y (or Space) on player 1's Press START to race again with the same cars and controllers, no picks
-- [x] A controller that turns off keeps its player; press START on a spare one to take over that player
-  (each player turns them on or off in the pause options)
+**Split screen**
+- 2 to 6 players in every race mode (Outrun 2, drag up to 4): halves, quadrants, 3 + 2, 3 × 2
+- Each player has their own view, HUD, gauges, minimap, camera, controls, options and last car
+- Full graphics in every view: reflections, rain, headlights, blur, light streaks, overbright, anti-aliasing
+- WidescreenFix support, its free camera per player included (old builds too)
+
+**Racing**
+- AI opponents with difficulty (up to 6 racers in all), catch-up between players, traffic around every player
+- Free Run: drive the whole city together from the district or venue you pick
+- Rematch without picking cars again
+
+**Controllers**
+- DualSense without DS4Windows: rumble, player LEDs, RPM / nitrous lightbar, adaptive triggers
+- Each player's car sounds on their own DualSense's speaker (Bluetooth), so the cars don't overlap on the PC
+- A controller that turns off keeps its player; a spare one can take over
 
 ## To do
 - [ ] More than 4 Xbox pads (Windows.Gaming.Input backend)
@@ -63,22 +66,15 @@ This is an alpha, so expect the odd bug. If you hit one, please
 and attach `scripts\NFSU2SplitScreen.log` (set `Debug = 1` in the ini to write it).
 
 ## Settings
-`NFSU2SplitScreen.ini` explains every option. The ones you might change:
+`NFSU2SplitScreen.ini` explains every option (rumble and trigger strength, lightbar, gauges, ...). The ones you
+are most likely to change:
 
 | Setting | Default | |
 |---|---|---|
-| `Rumble` | 1 | controller rumble |
+| `PadSpeakers` | 1 | car sounds on each player's DualSense speaker (0: all on the PC) |
+| `PadSpeakerGain` | 400 | pad speaker volume (%) |
 | `RumbleStrength` | 100 | rumble strength (%) |
-| `AdaptiveTriggers` | 1 | DualSense triggers: resistance, grip-limit / limiter buzz, nitrous kick (default; per player in the pause options) |
-| `TriggerStrength` | 100 | trigger effect strength (%) |
-| `Lightbar` | 1 | DualSense lightbar shows engine rpm / nitrous while racing |
-| `PlayerLeds` | 1 | DualSense player LEDs show the player number |
-| `NativeDualSense` | 1 | DualSense pads without DS4Windows (off while DS4Windows's virtual pad is active) |
-| `DualSenseRumbleMode` | 0 | 0 auto, 1 old firmware mode, 2 new firmware mode |
-| `PadSpeakers` | 1 | each player's car sounds on their DualSense speaker (Bluetooth, native DualSense) |
-| `PadSpeakerGain` | 400 | volume on the pad speakers (%) |
-| `PadSpeakerSounds` | CAR, CAR_SWTN, ... | the car's sounds (bank names) that go to the pad; see the ini for the others |
-| `SinglePlayerGauges` | 1 | single-player style gauges for every player |
+| `AdaptiveTriggers` | 1 | DualSense trigger effects (also per player in the pause options) |
 | `GaugeScalePercent` | 60 | gauge size |
 
 ## For developers
