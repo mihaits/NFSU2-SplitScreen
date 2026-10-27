@@ -1,16 +1,12 @@
 # Open issues and leads
 
 - **Light streaks without overbright** in split views ([rendering](rendering.md)).
-- **Results ambient sound stutter (3P).** Continuous ~2 Hz gating, music off. Not frame hitches, sound fs handles, the
-  nearest-player functions or ListenerUpdate (each was reverted live with no change). Left to check: the relocated
-  listener arrays, or the original 2P behaviour.
-- **Black results background**, seen once after a 2P race. If it happens again, capture state while it is still
-  happening (g_currentView, views 1-4 active/rt, viewport).
-- **Boot hang at the splash, about 1 boot in 5** (2026-10-23, before any split code runs). Game not responding, all
-  threads waiting; 2-3 in the game's `WaitForSingleObject(INFINITE)` wrapper 0x6F6335 (from 0x6F71F7 / 0x6F5B29 ->
-  0x6F57E3 -> 0x75F617), log ends at `sound fs: N free handles (opened bf:/speech/UG2_Speech...)`. Suspect: the
-  plugin's `SoundFsOpen`/`SoundFsClose` critical section (threads_memory.cpp) around the game's open/close, which take
-  the game's own mutex inside: lock-order inversion with a thread that holds that mutex and closes.
+
+Closed 2026-10-27, not seen since their fixes:
+- Results ambient sound stutter (3P, ~2 Hz gate) and the black results background: both came from the post-race scene
+  (cars it holds were reset as fallen, 25f765b; streaming followed a car the scene parked at the origin, 3744558).
+- Boot hang at the splash: WidescreenFix in exclusive fullscreen, also without this plugin (1 boot in 2 to 8);
+  none in 12 boots with `WindowedMode = 4`, which the README recommends (e28686c).
 
 ## 5-6 players
 Tested with real controllers on 2026-10-24: 4 native DualSense pads over Bluetooth at once plus 1-2 Xbox pads. 6P, 5P
