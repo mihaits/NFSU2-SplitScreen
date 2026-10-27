@@ -35,7 +35,8 @@ options of whoever paused.
 - [x] Each player has their own view, HUD, gauges, minimap, camera, sound and rumble
 - [x] Full graphics in every view: reflections, rain, headlights, blur, light streaks, overbright, anti-aliasing
 - [x] Own controls, options and last car per player
-- [x] WidescreenFix support, including its free camera per player
+- [x] WidescreenFix support, including its free camera per player. Old builds (e.g. the one in underground2.net) work
+  too: their joystick hook made the menus press Up endlessly, and the mod removes it
 - [x] Catch-up between players
 - [x] Traffic around every player, not only players 1 and 2
 - [x] AI opponents with difficulty (up to 6 racers in all, 4 in drag; none in sprint drift; 6 players leave no room)

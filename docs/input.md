@@ -148,6 +148,19 @@ with Back (the game's own P2 pause too). `MirrorFrontendTables` copies slot 0's 
 before each poll (no-op without the widescreen fix: both records then have the game's defaults). Players 3..6 already
 use a copy of the slot-0 record.
 
+**Old widescreen fix builds (`RepairOldWidescreenFixPoll`).** The 0x5CFA10 loop polls slot esi = 0..1 through 0x5C8700
+(GetDeviceState at 0x5C8828). Old WidescreenFix builds (the one bundled with underground2.net 1.0.3, 366 KB) add a stick
+deadzone there with `call; nop` over `mov esi, eax; test esi, esi; jge` at 0x5C882B. The hook resumes at 0x5C8869 by
+writing it over the saved esi on the stack instead of its return address, so the loop stops after slot 0. Slot 1 is
+never polled, and its zeroed DIJOYSTATE2 reads POV 0, D-pad up. The game alone shows this only with two real pads;
+with the plugin, the virtual pad in slot 1 sends an endless Up to every menu. Before each port-0 poll, the plugin checks
+the site. If it holds `E8 rel32 90` and the call goes into a module whose name contains "WidescreenFix", the plugin puts
+back the original `8B F0 85 F6 7D 38` once and logs "input: removed an old WidescreenFix joystick hook". The old fix's
+deadzone (slot 0 only) is lost with it. Current builds hook the same site with a safetyhook `jmp` (E9) and are left
+alone. Test copies that run both builds share `Settings.ini` (`WriteSettingsToFile`). There, the current build saves
+`g_RacingResolution` as packed width/height, which the old build reads as an index: device creation fails at
+startup, and the game crashes at 0x5D2780 (null device 0x870974). Set it to 0 to go back.
+
 **Device records and bindings.** A record turns its device's state into action bits (+8, 8 bytes, active low) and
 analog values (+0x10..+0x13) every frame: 0x5CF220 → 0x5C1840. For joysticks it reads the slot's DIJOYSTATE2 at
 0x86FFC0 + slot*0x110 (buttons) and at [0x870760] + slot*0x110 (axes, POV). Bindings: 4 action tables of 32 inputs at

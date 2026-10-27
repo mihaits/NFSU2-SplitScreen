@@ -259,11 +259,40 @@ static void MirrorFrontendTables() {
     Log("joypad record: slot 1 frontend actions copied from slot 0");
 }
 
+// Old WidescreenFix builds (e.g. the one bundled with underground2.net 1.0.3) put a stick deadzone on the joystick
+// poll 0x5C8700 with `call; nop` over `mov esi, eax; test esi, esi; jge` at 0x5C882B. Their hook resumes at 0x5C8869
+// by writing it over the saved esi on the stack instead of its return address, so 0x5CFA10's slot loop (esi) ends
+// after slot 0: slot 1 is never polled and its zeroed DIJOYSTATE2 reads POV 0 = D-pad up, which the menus get through
+// the virtual pad in slot 1 (endless Up). Current builds hook here with a jmp (safetyhook) and are left alone.
+// Checked every frame because WidescreenFix may patch after this plugin is loaded.
+#define AT_JOY_STATE_RESULT 0x5C882B
+static void RepairOldWidescreenFixPoll() {
+    static bool repaired = false;
+    if (repaired) return;
+    const uint8_t* site = reinterpret_cast<const uint8_t*>(AT_JOY_STATE_RESULT);
+    if (site[0] != 0xE8 || site[5] != 0x90) return;
+    uintptr_t target = AT_JOY_STATE_RESULT + 5 + *reinterpret_cast<const int32_t*>(site + 1);
+    HMODULE mod = nullptr;
+    char name[MAX_PATH] = {};
+    if (!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                            reinterpret_cast<LPCSTR>(target), &mod) ||
+        !GetModuleFileNameA(mod, name, MAX_PATH) || !StrStrIA(name, "WidescreenFix"))
+        return;
+    static const uint8_t original[6] = {0x8B, 0xF0, 0x85, 0xF6, 0x7D, 0x38};
+    Write(AT_JOY_STATE_RESULT, original, sizeof(original));
+    repaired = true;
+    Log("input: removed an old WidescreenFix joystick hook at %X (-> %p in %s) that stopped joystick slot 1 from "
+        "being polled", AT_JOY_STATE_RESULT, reinterpret_cast<void*>(target), PathFindFileNameA(name));
+}
+
 static void* __cdecl PollPortHook(int port, int* type, void** prev) {
     // The original polls every device (and drives force feedback) on port 0 and leaves each device's state in its
     // record; port 1 just gets the same merged buffer back. In split mode, port N only sees devices in slot N.
     if (port >= 2 && port < INPUT_PORTS) return PollExtraPort(port, type, prev);
-    if (port == 0) MirrorFrontendTables();
+    if (port == 0) {
+        RepairOldWidescreenFixPoll();
+        MirrorFrontendTables();
+    }
     void* merged = g_origPollPort(port, type, prev);
     if (port == 0) g_port0Type = *type;
     if (!SplitMode() || port < 0 || port > 1) return merged;
