@@ -6,7 +6,7 @@ Closed 2026-10-27, not seen since their fixes:
 - Results ambient sound stutter (3P, ~2 Hz gate) and the black results background: both came from the post-race scene
   (cars it holds were reset as fallen, 25f765b; streaming followed a car the scene parked at the origin, 3744558).
 - Boot hang at the splash: WidescreenFix in exclusive fullscreen, also without this plugin (1 boot in 2 to 8);
-  none in 12 boots with `WindowedMode = 4`, which the README recommends (e28686c).
+  none in 12 boots with `WindowedMode = 4` (borderless fullscreen).
 
 ## 5-6 players
 Tested with real controllers on 2026-10-24: 4 native DualSense pads over Bluetooth at once plus 1-2 Xbox pads. 6P, 5P
