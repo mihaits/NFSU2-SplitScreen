@@ -45,6 +45,7 @@ options of whoever paused.
 - [x] Each player's car (engine, turbo, shifts, nitrous, skids, hits) on their own DualSense's speaker (Bluetooth), so
   the cars don't overlap on the PC; rain, wind and the world stay on the PC. The mute button switches it off and on
   (its LED lights while the car is back on the PC)
+- [x] Rematch: press Y (or Space) on player 1's Press START to race again with the same cars and controllers, no picks
 - [x] A controller that turns off keeps its player; press START on a spare one to take over that player
   (each player turns them on or off in the pause options)
 

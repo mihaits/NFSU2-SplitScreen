@@ -83,6 +83,11 @@ static void SaveSeatStore(int i) {
 #define PAD_NONE -1
 static int g_assignedPad[MAX_LOCAL_PLAYERS] = {PAD_NONE, PAD_NONE, PAD_NONE, PAD_NONE, PAD_NONE, PAD_NONE};
 static int g_keyboardSeat = -1;          // the player who joined with the keyboard this round (-1: nobody)
+// The last round that started a race (RememberRound): Y / Space on player 1's Press START popup gives every player
+// their pad, car and gearbox from it again and starts the race (QuickStart).
+static int g_lastPlayers = 0;            // 0: no round yet
+static int g_lastPad[MAX_LOCAL_PLAYERS], g_lastKeyboardSeat = -1;
+static int g_lastCar[MAX_LOCAL_PLAYERS], g_lastPort[MAX_LOCAL_PLAYERS], g_lastGearbox[MAX_LOCAL_PLAYERS];
 
 static int g_seat = 0;                   // car select: whose turn (0..5); the frontend serves FE player seat & 1
 static int g_splitPlayers = 2;           // players chosen on the split-screen options screen (2..6)
@@ -159,6 +164,7 @@ static void UpdatePadTakeover() {      // per frame, after XPadUpdate
         if (taken || !XPadStartPressed(pad)) continue;
         Log("player %d's pad %d is off: pad %d takes over", lost + 1, g_assignedPad[lost] + 1, pad + 1);
         g_assignedPad[lost] = pad;
+        if (lost < g_lastPlayers) g_lastPad[lost] = pad;
         g_takeoverPad = pad;
         return;
     }
@@ -198,12 +204,27 @@ static int __cdecl PadForDevice(int device) {
 
 #define FN_PLAY_FE_SOUND   0x50D180      // void __cdecl (sound id; -1 = none)
 
-static bool KeyboardEnterPressed() {
-    static bool wasDown = false;
-    bool down = (GetAsyncKeyState(VK_RETURN) & 0x8000) != 0 && GetForegroundWindow() == FindWindowA("GameFrame", nullptr);
+static bool KeyPressed(int vk, bool& wasDown) {
+    bool down = (GetAsyncKeyState(vk) & 0x8000) != 0 && GetForegroundWindow() == FindWindowA("GameFrame", nullptr);
     bool pressed = down && !wasDown;
     wasDown = down;
     return pressed;
+}
+static bool KeyboardEnterPressed() { static bool wasDown = false; return KeyPressed(VK_RETURN, wasDown); }
+static bool KeyboardSpacePressed() { static bool wasDown = false; return KeyPressed(VK_SPACE, wasDown); }
+
+// Last round again: only with the same number of players, every pad of that round connected and every car still in
+// the garage.
+static bool GarageHasCar(int id);
+static bool g_quickStart = false;        // player 1 joined through Y / Space: CarselFilter starts the race
+static bool LastRoundReady() {
+    if (!g_lastPlayers || g_lastPlayers != SplitPlayers()) return false;
+    for (int k = 0; k < g_lastPlayers; ++k) {
+        uint16_t buttons; uint8_t lt, rt; int16_t lx;
+        if (k != g_lastKeyboardSeat && !XPadRawState(g_lastPad[k], &buttons, &lt, &rt, &lx)) return false;
+        if (!GarageHasCar(g_lastCar[k])) return false;
+    }
+    return true;
 }
 
 // 2P_PressStart handler filter (thiscall: this, msg, p3, port). The PC frontend never sends START itself in a
@@ -219,12 +240,27 @@ static uint32_t __stdcall PressStartFilter(uint8_t* popup, uint32_t msg, uint32_
     int seat = (g_seat & 1) == player ? g_seat : player;      // players 3/4 join on FE players 1/2's popups
     if (msg == MSG_FRAME_TICK) {
         bool keyboard = KeyboardEnterPressed() && (seat == 0 || g_keyboardSeat < 0 || g_keyboardSeat >= seat);
+        bool space = KeyboardSpacePressed();
         if (!popup[0x4C]) return msg;                 // first tick sets the popup's ready flag
         if (g_autoJoinSeat == seat) {
             g_autoJoinSeat = -1;
             *port = 1u << player;
             Log("player %d rejoined after customize", seat + 1);
             return MSG_START;
+        }
+        if (seat == 0 && LastRoundReady()) {
+            bool again = space && g_lastKeyboardSeat >= 0;
+            for (int k = 0; k < g_lastPlayers && !again; ++k)
+                again = k != g_lastKeyboardSeat && XPadYPressed(g_lastPad[k]);
+            if (again) {                              // player 1 joins; the race starts on the next car select tick
+                for (int k = 0; k < MAX_LOCAL_PLAYERS; ++k) g_assignedPad[k] = k < g_lastPlayers ? g_lastPad[k] : PAD_NONE;
+                g_keyboardSeat = g_lastKeyboardSeat;
+                g_quickStart = true;
+                *port = 1u << player;
+                Log("last round again: %d players", g_lastPlayers);
+                reinterpret_cast<void(__cdecl*)(int)>(FN_PLAY_FE_SOUND)(6);
+                return MSG_START;
+            }
         }
         for (int pad = 0; pad < XPadMax(); ++pad) {
             // player 1 joining starts a new round: any pad may join; later players can't take a joined pad
@@ -367,6 +403,40 @@ static void RestoreSeat(int seat) {            // players 1/2's picks back into 
         at<uint8_t>(GEARBOX_SETTINGS + seat * PLAYER_SETTING_SIZE) = static_cast<uint8_t>(g_seatGearbox[seat] - 1);
 }
 
+// Called right before a split race starts from the car select: players 1/2's picks are in the game's slots (restored),
+// the others' in the seat arrays.
+static void RememberRound(int players) {
+    g_lastPlayers = players;
+    g_lastKeyboardSeat = g_keyboardSeat;
+    for (int k = 0; k < players; ++k) {
+        g_lastPad[k] = g_assignedPad[k];
+        g_lastCar[k] = k < 2 ? at<int>(CAR_IDS + k * 4) : g_seatCar[k];
+        g_lastPort[k] = k < 2 ? at<int>(PLAYER_PORTS + k * 4) : g_seatPort[k];
+        g_lastGearbox[k] = k < 2 ? at<uint8_t>(GEARBOX_SETTINGS + k * PLAYER_SETTING_SIZE) + 1 : g_seatGearbox[k];
+    }
+}
+
+static void StartSplitRace() {
+    g_extraPlayers = SplitPlayers() - 2;
+    g_seat = 0;
+    RememberRound(SplitPlayers());
+    reinterpret_cast<void(__cdecl*)()>(FN_START_RACE)();
+}
+
+// Player 1 joined through Y / Space (PressStartFilter): everyone's last car, port and gearbox, then the race.
+static void QuickStart() {
+    g_quickStart = false;
+    for (int k = 0; k < g_lastPlayers; ++k) {
+        g_seatCar[k] = g_lastCar[k];
+        g_seatPort[k] = g_lastPort[k];
+        g_seatGearbox[k] = g_lastGearbox[k];
+        if (k < 2) RestoreSeat(k);
+        else if (g_seatStore[k - 2].car != g_lastCar[k]) { g_seatStore[k - 2].car = g_lastCar[k]; SaveSeatStore(k - 2); }
+    }
+    Log("last round again: race starts");
+    StartSplitRace();
+}
+
 static void SwitchSeat(uint8_t* carsel, int seat) {
     g_seat = seat;
     g_carsel = carsel;
@@ -391,9 +461,7 @@ static void __fastcall CarselToP2(uint8_t* carsel, void*, int) {      // after F
         SaveSeat(seat);
         RestoreSeat(0);
         if (seat + 1 >= SplitPlayers()) {      // the last seat
-            g_seat = 0;
-            g_extraPlayers = SplitPlayers() - 2;
-            reinterpret_cast<void(__cdecl*)()>(FN_START_RACE)();
+            StartSplitRace();
             return;
         }
         SwitchSeat(carsel, seat + 1);
@@ -420,7 +488,11 @@ static void __stdcall CarselStart(uint8_t* carsel) {                   // after 
             }
         }
     }
-    g_extraPlayers = SplitMode() ? SplitPlayers() - 2 : 0;
+    if (SplitMode()) {
+        StartSplitRace();
+        return;
+    }
+    g_extraPlayers = 0;
     g_seat = 0;
     reinterpret_cast<void(__cdecl*)()>(FN_START_RACE)();
 }
@@ -493,6 +565,10 @@ static bool __stdcall CarselFilter(uint8_t* carsel, uint32_t msg) {
         return false;
     }
     if (msg == MSG_FRAME_TICK && g_returnSeat == 0 && g_autoJoinSeat < 0) g_returnSeat = -1;
+    if (msg == MSG_FRAME_TICK && g_quickStart && at<int>(FE_PLAYER) == 0 && !active("2P_PressStart.fng")) {
+        QuickStart();
+        return true;
+    }
     if (msg != MSG_BACK || g_seat < 2 || (g_seat & 1)) return false;   // Back on player 3 / 5's popup: to player 2 / 4
     // Back on the pick screen itself undoes only this player's join: the game's own Back (0x4FC795) reopens the popup
     using ActiveFn = bool(__cdecl*)(const char*);
@@ -600,6 +676,14 @@ static void UpdateSeats() {
         if (obj) reinterpret_cast<void(__cdecl*)(void*, const char*, ...)>(FN_FE_PRINTF)(
             obj, "Player %s Press START", kSeatWords[g_seat - 2]);
     }
+    if (g_inCarSelect && g_seat == 0 && at<int>(FE_PLAYER) == 0 && g_autoJoinSeat < 0 && LastRoundReady() &&
+        reinterpret_cast<ActiveFn>(FN_FE_PACKAGE_ACTIVE)("2P_PressStart.fng")) {
+        void* obj = reinterpret_cast<void*(__cdecl*)(const char*, uint32_t)>(0x537A10)("2P_PressStart.fng", 0x2EBB974D);
+        if (obj) reinterpret_cast<void(__cdecl*)(void*, const char*, ...)>(FN_FE_PRINTF)(
+            obj, g_lastKeyboardSeat >= 0 ? "Player One Press START\nPress Y / SPACE for Rematch"
+                                         : "Player One Press START\nPress Y for Rematch");
+    }
+    if (!g_inCarSelect) g_quickStart = false;
     static int s_waited = 0;                       // X that didn't open the shop: forget it after 30 frames
     if (g_customizeSeat >= 0 && !g_customizeLeft && g_inCarSelect && ++s_waited > 30) g_customizeSeat = -1;
     if (g_customizeSeat < 0 || g_customizeLeft) s_waited = 0;

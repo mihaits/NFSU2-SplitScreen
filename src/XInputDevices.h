@@ -14,6 +14,7 @@ void XPadSetResolver(int (*resolver)(int device));
 // Once per frame: snapshot all pads (connection, buttons, last pad with any input).
 void XPadUpdate();
 bool XPadStartPressed(int pad);   // Start went down since the previous XPadUpdate
+bool XPadYPressed(int pad);       // Y (triangle) went down since the previous XPadUpdate
 int  XPadLastActive();
 int  XPadMax();
 

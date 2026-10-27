@@ -511,6 +511,10 @@ bool XPadStartPressed(int pad) {
     return pad >= 0 && pad < kMaxPads && (g_buttons[pad] & XB_START) && !(g_prevButtons[pad] & XB_START);
 }
 
+bool XPadYPressed(int pad) {
+    return pad >= 0 && pad < kMaxPads && (g_buttons[pad] & XB_Y) && !(g_prevButtons[pad] & XB_Y);
+}
+
 int XPadLastActive() { return g_lastActive; }
 
 bool XPadRawState(int pad, uint16_t* buttons, uint8_t* lt, uint8_t* rt, int16_t* lx) {

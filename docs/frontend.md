@@ -31,6 +31,14 @@ On a later seat's popup only the previous seat's pad or keyboard drives the fron
 `PadForDevice` and `KeyboardPort`), so only the player who joined last can press Back to undo their pick. P1's popup
 starts a new round, so any pad or the keyboard drives it (the previous round's pads no longer count).
 
+**Last race again.** Each split race started from the car select is remembered (`RememberRound`: player count, every
+seat's pad or keyboard, car 0x83AAB8, port 0x83A9D8, gearbox +0x15). Player 1's Press START popup then also shows
+"Press Y for Rematch" ("Y / SPACE" when the keyboard played), while the player count matches and every
+car is still in the garage and every pad still connected (`LastRoundReady`). Y on any of those pads (or Space) joins
+player 1 (`PressStartFilter`), restores every seat's assignment, and on the next car select tick `QuickStart` puts the
+cars, ports and gearboxes back and starts the race (0x53FC20) without the picks. A pad takeover in a race updates the
+remembered pad.
+
 **Car select sounds: one per action.** Every FE sound goes through 0x458520 (thiscall sound manager [0x82B884]; id),
 hooked by `FeSound`. Two layers play them: the generic package layer (0x51DD40: runs the package's handler, then plays
 the table 0x837FE0 sound of the input it handled, call at 0x51DD81) plays Back (5) / Start (6) for whatever the
