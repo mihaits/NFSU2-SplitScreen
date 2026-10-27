@@ -92,12 +92,13 @@ controllers are hidden. Pads 0..3 are the real XInput pads, 4..9 debug pads driv
   situations the
   bar keeps a dim blue until the pause, countdown, finish and player-colour steps.
 - **Adaptive triggers (`[LIGHTS] AdaptiveTriggers`, `TriggerStrength`):** while a player races with the pad (not paused,
-  not finished) L2 has light resistance and buzzes (35 Hz) while braking with the front tyres at their grip limit (above a minimum wheel speed; the rear tyres read
-  1.0 whenever the car is slow or stopped, so they aren't used); R2 has light
-  resistance, buzzes at 25 Hz in wheelspin (driven wheels at the limit), at 60 Hz at the rev limiter (shift-light rpm) and
-  pushes harder for the first 300 ms of a nitrous burn. The grip signal (`wheel+0x170`, 1.0 = at the limit, 0 on all four
-  wheels = airborne) and the hold times are described in `parts/pad_lights.cpp`. Everything else sends Off. Only the
-  official trigger modes are used (0x05 off, 0x21 feedback, 0x26 vibration); 0xFC..0xFE break the trigger.
+  not finished) L2 has light resistance and buzzes (35 Hz) while braking with a wheel sliding (brake slip >= 0.06);
+  R2 has light resistance, buzzes at 25 Hz in wheelspin (drive slip >= 0.06), at 60 Hz at the rev limiter (shift-light
+  rpm) and pushes harder for the first 300 ms of a nitrous burn. Slip is the same wheel-vs-ground measure as the Xbox
+  impulse triggers (below); the grip used (`wheel+0x170`) used before reads 1.0 at full throttle without wheelspin,
+  so it only marks the car airborne (0 on all four). The hold times are described in `parts/pad_lights.cpp`.
+  Everything else sends Off. Only the official trigger modes are used (0x05 off, 0x21 feedback, 0x26 vibration);
+  0xFC..0xFE break the trigger.
   Each player turns them on or off with the "Adaptive Triggers" row of the pause options (`PauseFeedbackAdd`: added
   after the Feedback row, `call 0x54F170` at 0x4C4985, when the pausing player's pad is a DualSense). The choice is
   saved as `[PlayerN] AdaptiveTriggers` in `NFSU2SplitScreen_Players.ini`; without one, the ini's `AdaptiveTriggers`

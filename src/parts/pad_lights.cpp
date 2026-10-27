@@ -133,17 +133,16 @@ static int ControllingPad() {
 }
 
 // ---------------------------------------------------------------- adaptive triggers
-// While a player races (stage >= 4, not paused, not finished) the pad that drives them gets trigger effects from the
-// tyres' grip. Per wheel w = *(*(car+0x34) + 0x38 + 4*i) (0 FL, 1 FR, 2 RL, 3 RR): *(float*)(w+0x170) is the grip used
-// (request / limit, 1.0 = at the limit; all four < 0.005 = airborne, which never reads as the limit) and
-// *(float*)(w+0x124) the longitudinal force. Effects (modes of docs/input.md; never the calibration modes 0xFC..0xFE):
-//   L2 (brake): feedback from zone 2, strength 3; vibration (zone 2, amplitude 5, 35 Hz) while braking with the front axle at the limit (the rear reads 1.0
-//     when slow or stopped, so it isn't used; wheel speed *(float*)(w+0x28) must be above 15)
-//   R2 (throttle): feedback from zone 3, strength 2; vibration (zone 3, amplitude 4, 25 Hz) while the driven wheels
-//     are at the limit (wheelspin); (zone 2, amplitude 3, 60 Hz) at the shift-light rpm; feedback strength 8 for the
-//     first 300 ms of a nitrous burn
-// "At the limit" = grip >= 0.98 for 50 ms, released after 100 ms below, so a one-frame kerb spike doesn't buzz.
-// Driven wheels: the axle with the larger longitudinal force, all four if both axles are within 10%.
+// While a player races (stage >= 4, not paused, not finished) the pad that drives them gets trigger effects from
+// tyre slip (TyreSlip below). Effects (modes of docs/input.md; never the calibration modes 0xFC..0xFE):
+//   L2 (brake): feedback from zone 2, strength 3; vibration (zone 2, amplitude 5, 35 Hz) while braking with a wheel
+//     sliding (brake slip >= 0.06; hard braking reads 0.08..0.2 on the fronts)
+//   R2 (throttle): feedback from zone 3, strength 2; vibration (zone 3, amplitude 4, 25 Hz) in wheelspin (drive slip
+//     >= 0.06; RWD power oversteer reads 0.07..0.1, a smoky launch 1..3); (zone 2, amplitude 3, 60 Hz) at the
+//     shift-light rpm; feedback strength 8 for the first 300 ms of a nitrous burn
+// A cue needs its pedal past 40 and holds for 50 ms before it starts and 100 ms after it ends, so a one-frame bump
+// doesn't buzz. The grip used (*(float*)(w+0x170)) isn't a slip signal: it reads 1.0 at full throttle without any
+// wheelspin; it only tells the car is airborne (all four < 0.005).
 // Anything else (menus, countdown, pause, finish, the player turned them off) sends Off on both triggers.
 static bool g_adaptiveTriggers = true;    // [LIGHTS] AdaptiveTriggers: the default for players without their own choice
 static int  g_triggerStrength = 100;      // [LIGHTS] TriggerStrength, percent
@@ -206,6 +205,11 @@ static int __fastcall PauseFeedbackAdd(uint8_t* screen, void*, void* row, int fl
     return r;                            // the Feedback row's result (kept in screen+0x154)
 }
 
+// Tyre slip, for both pads' triggers: wheel surface speed against ground speed. Per wheel w = *(*(car+0x34) + 0x38 +
+// 4*i) (0 FL, 1 FR, 2 RL, 3 RR): angular speed *(float*)(w+0x28) times the wheel's radius *(float*)(*(w+0x14) + 0x10)
+// (the car's tyre data; 0.3015 m on the Miata, where cruising then reads the body speed exactly), against the length
+// of the body velocity *(vec3*)([mover+0x20] + 0xA0). Slip s = (surface - ground) / max(ground, 3 m/s); drive slip =
+// the axle that spins fastest, brake slip = -s of the slowest wheel. Zero below 1 m/s.
 static bool ReadWheelRadius(void* player, float radius[4]) {
     __try {
         auto* car = *reinterpret_cast<uint8_t**>(static_cast<uint8_t*>(player) + 4);
@@ -240,6 +244,38 @@ static bool ReadWheels(void* player, float grip[4], float force[4], float speed[
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         return false;
     }
+}
+
+static bool ReadGroundSpeed(void* player, float* speed) {
+    __try {
+        auto* car = *reinterpret_cast<uint8_t**>(static_cast<uint8_t*>(player) + 4);
+        auto* mover = car ? *reinterpret_cast<uint8_t**>(car + 0x34) : nullptr;
+        auto* body = mover ? *reinterpret_cast<uint8_t**>(mover + 0x20) : nullptr;
+        if (!body) return false;
+        auto* v = reinterpret_cast<float*>(body + 0xA0);
+        *speed = sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+        return true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+}
+
+struct TyreSlip { bool airborne; float ground, drive, brake; };
+static bool ReadSlip(void* player, TyreSlip* out) {
+    float grip[4], force[4], wheel[4], radius[4];
+    if (!ReadWheels(player, grip, force, wheel) || !ReadWheelRadius(player, radius) ||
+        !ReadGroundSpeed(player, &out->ground))
+        return false;
+    out->airborne = grip[0] < 0.005f && grip[1] < 0.005f && grip[2] < 0.005f && grip[3] < 0.005f;
+    out->drive = out->brake = 0;
+    if (out->ground <= 1.0f) return true;
+    float denom = out->ground > 3.0f ? out->ground : 3.0f;
+    float slip[4];
+    for (int i = 0; i < 4; ++i) slip[i] = (wheel[i] * radius[i] - out->ground) / denom;
+    float front = (slip[0] + slip[1]) * 0.5f, rear = (slip[2] + slip[3]) * 0.5f;
+    out->drive = front > rear ? front : rear;
+    for (float x : slip) if (-x > out->brake) out->brake = -x;
+    return true;
 }
 
 struct Hold { DWORD onSince, offSince; bool active; };
@@ -286,29 +322,11 @@ static void TrigVibration(uint8_t* b, int start, int amp, int hz) {
 }
 
 // Xbox One / Series pads (XPadHasImpulseTriggers): Forza Horizon style. The trigger motors buzz (they can't resist)
-// in proportion to tyre slip, measured as wheel surface speed against ground speed: wheel angular speed *(float*)(w+0x28)
-// times the wheel's radius *(float*)(*(w+0x14) + 0x10) (per wheel, the car's tyre data; 0.3015 m on the Miata, where
-// cruising then reads the body speed exactly) against the length of the body velocity *(vec3*)([mover+0x20] + 0xA0).
-// Slip s = (surface - ground) / max(ground, 3 m/s).
-//   R (throttle): the axle that spins fastest, ramp(s, 0.04 .. 0.5) * throttle (launch wheelspin reads 1..3, power
-//     oversteer 0.07..0.1);
-//   L (brake): the slowest wheel, ramp(-s, 0.04 .. 0.25) * brake (hard braking reads 0.08..0.2 on the fronts).
+// in proportion to tyre slip (TyreSlip):
+//   R (throttle): ramp(drive slip, 0.04 .. 0.5) * throttle;
+//   L (brake): ramp(brake slip, 0.04 .. 0.25) * brake.
 // A non-zero level maps to the motor's range 0.08 .. 0.5 (R) / 0.6 (L) times TriggerStrength, smoothed (40 ms up,
 // 80 ms down). Silent in the air, below 1 m/s, paused or finished.
-static bool ReadGroundSpeed(void* player, float* speed) {
-    __try {
-        auto* car = *reinterpret_cast<uint8_t**>(static_cast<uint8_t*>(player) + 4);
-        auto* mover = car ? *reinterpret_cast<uint8_t**>(car + 0x34) : nullptr;
-        auto* body = mover ? *reinterpret_cast<uint8_t**>(mover + 0x20) : nullptr;
-        if (!body) return false;
-        auto* v = reinterpret_cast<float*>(body + 0xA0);
-        *speed = sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
-        return true;
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
-        return false;
-    }
-}
-
 static float Ramp(float v, float lo, float hi) { return v <= lo ? 0 : v >= hi ? 1 : (v - lo) / (hi - lo); }
 
 static void UpdateImpulseTriggers(int pad, int k) {
@@ -317,23 +335,14 @@ static void UpdateImpulseTriggers(int pad, int k) {
     static DWORD last[32];
     float wantL = 0, wantR = 0;
     void* player = k >= 0 && TriggersOn(k) ? GetLocalPlayer(k) : nullptr;
-    float grip[4], force[4], wheel[4], radius[4] = {}, ground;
-    if (player && ReadWheels(player, grip, force, wheel) && ReadWheelRadius(player, radius) &&
-        ReadGroundSpeed(player, &ground)) {
+    TyreSlip ts;
+    if (player && ReadSlip(player, &ts)) {
         uint16_t buttons;
         uint8_t lt = 0, rt = 0;
         int16_t lx;
         XPadRawState(pad, &buttons, &lt, &rt, &lx);
-        bool airborne = grip[0] < 0.005f && grip[1] < 0.005f && grip[2] < 0.005f && grip[3] < 0.005f;
-        if (!airborne && ground > 1.0f) {
-            float denom = ground > 3.0f ? ground : 3.0f;
-            float slip[4];
-            for (int i = 0; i < 4; ++i) slip[i] = (wheel[i] * radius[i] - ground) / denom;
-            float spin = (slip[0] + slip[1]) * 0.5f, rear = (slip[2] + slip[3]) * 0.5f;
-            if (rear > spin) spin = rear;
-            float lock = 0;
-            for (float x : slip) if (-x > lock) lock = -x;
-            float r = Ramp(spin, 0.04f, 0.5f) * rt / 255.0f, l = Ramp(lock, 0.04f, 0.25f) * lt / 255.0f;
+        if (!ts.airborne) {
+            float r = Ramp(ts.drive, 0.04f, 0.5f) * rt / 255.0f, l = Ramp(ts.brake, 0.04f, 0.25f) * lt / 255.0f;
             float gain = g_triggerStrength / 100.0f;
             if (r > 0.01f) wantR = (0.08f + 0.42f * r) * gain;
             if (l > 0.01f) wantL = (0.08f + 0.52f * l) * gain;
@@ -355,8 +364,7 @@ static void UpdateImpulseTriggers(int pad, int k) {
     if (g_debug) {      // once a second while on: what the motors get
         static DWORD logged[32];
         if ((levelL[pad] > 0 || levelR[pad] > 0) && now - logged[pad] >= 1000) {
-            Log("impulse: pad %d L %.2f R %.2f (radius %.4f / %.4f m)", pad + 1, levelL[pad], levelR[pad], radius[0],
-                radius[2]);
+            Log("impulse: pad %d L %.2f R %.2f", pad + 1, levelL[pad], levelR[pad]);
             logged[pad] = now;
         }
     }
@@ -371,25 +379,18 @@ static void UpdatePadTriggers(int pad, int k) {
     static Hold brakeHold[MAX_LOCAL_PLAYERS], spinHold[MAX_LOCAL_PLAYERS];
     static DWORD nosStart[MAX_LOCAL_PLAYERS];
     static bool nosWas[MAX_LOCAL_PLAYERS];
-    float grip[4], force[4], speed[4], t;
+    TyreSlip ts;
+    float t;
     bool shiftLight, nitrous;
-    if (player && ReadWheels(player, grip, force, speed) && ReadCarLight(player, &t, &shiftLight, &nitrous)) {
+    if (player && ReadSlip(player, &ts) && ReadCarLight(player, &t, &shiftLight, &nitrous)) {
         DWORD now = GetTickCount();
         uint16_t buttons;
         uint8_t lt = 0, rt = 0;
         int16_t lx;
         XPadRawState(pad, &buttons, &lt, &rt, &lx);
-        bool airborne = grip[0] < 0.005f && grip[1] < 0.005f && grip[2] < 0.005f && grip[3] < 0.005f;
-        float maxGrip = 0;
-        for (float g : grip) if (g > maxGrip) maxGrip = g;
-        // braking limit: the front axle (the rear reads 1.0 whenever the car is slow or standing still); needs speed
-        float frontGrip = grip[0] > grip[1] ? grip[0] : grip[1], frontSpeed = (speed[0] + speed[1]) * 0.5f;
-        float front = fabsf(force[0]) + fabsf(force[1]), rear = fabsf(force[2]) + fabsf(force[3]);
-        float drivenGrip = maxGrip;                                 // both axles within 10%: all four
-        if (fabsf(front - rear) > 0.1f * (front > rear ? front : rear))
-            drivenGrip = front > rear ? (grip[0] > grip[1] ? grip[0] : grip[1]) : (grip[2] > grip[3] ? grip[2] : grip[3]);
-        bool braking = HoldUpdate(brakeHold[k], !airborne && lt > 40 && frontGrip >= 0.98f && frontSpeed > 15.0f, now);
-        bool spinning = HoldUpdate(spinHold[k], !airborne && rt > 40 && drivenGrip >= 0.98f, now);
+        bool airborne = ts.airborne;
+        bool braking = HoldUpdate(brakeHold[k], !airborne && lt > 40 && ts.brake >= 0.06f, now);
+        bool spinning = HoldUpdate(spinHold[k], !airborne && rt > 40 && ts.drive >= 0.06f, now);
         if (nitrous && !nosWas[k]) nosStart[k] = now;
         nosWas[k] = nitrous;
         TrigFeedback(left, 2, 3);
