@@ -51,6 +51,7 @@ options of whoever paused.
 ## To do
 - [ ] More than 4 Xbox pads (Windows.Gaming.Input backend)
 - [ ] DualSense speaker over USB
+- [ ] DualShock 4 without DS4Windows: input, rumble, player-coloured lightbar
 - [ ] Session results: standings across back-to-back races
 - [ ] Replays of split-screen races
 - [ ] Rear-view mirror in the bumper and hood cameras, like single player
