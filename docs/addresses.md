@@ -15,7 +15,7 @@ find an address, grep `docs/` (and the source's comment blocks) for it.
 | 0x8654A4 | game state (3-5 loading, 6 racing) |
 | 0x83AAB4 | quick race type index; 0x83AAC4 + type*0x14 = per-type settings (byte +0 = local player count) |
 | 0x83A9E0 + i*0xAB4C | per-player block (name +0, quick race garage +0x3B0); only 2 blocks exist |
-| 0x83AA64 + i*0x28 | per-player settings (camera +0x10, HUD options); 2 entries, race data follows at 0x83AAB4 |
+| 0x83AA64 + i*0x28 | per-player settings (camera +0x10, HUD options, Transmission +0x15, Stability Control +0x16 (0 = on)); 2 entries, race data follows at 0x83AAB4 |
 | 0x83AAB8[2] | selected car per player |
 | 0x7F4454[2] | FE port per FE player (mask 1/2/4/8); 0x85AD28 = current FE player |
 | 0x8900AC[2] / 0x8900B4[2] / 0x8900BC | local players byIndex / inOrder / count (relocated, [players](players.md)) |

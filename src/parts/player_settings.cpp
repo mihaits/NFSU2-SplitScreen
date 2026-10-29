@@ -6,20 +6,22 @@
 // use a 4-entry mirror instead: entries 0/1 synced both ways with the game's table every frame (options/pause menus
 // write the table, the in-race camera change 0x5F2FA0 writes the mirror), entries 2/3 are players 3/4's own (seat
 // store; the first race without any copies P1's / P2's).
-// The pause menu's player options edit the pausing player's entry (0x4A7AE0: index of the pausing player among
-// players 1/2, 0 for anyone else). While player 3/4 owns the pause, their entry is swapped into the game's table
-// (entry owner & 1, which 0x4A7AE0 then returns), so the menus show and change their settings.
+// The pause menu's player options edit the pausing player's entry. Most of them (0x4C31D0..0x4C4700) pick it by
+// comparing the pausing port [0x8900D8]+0x20 with players 1/2's ports, so any other port gets entry 0; the camera
+// options use 0x4A7AE0 (index of the pausing player among players 1/2, 0 for anyone else). While a player 3..6 owns
+// the pause, their entry is swapped into the game's table at entry 0 (which 0x4A7AE0 then returns), so the menus show
+// and change their settings.
 #define PLAYER_SETTINGS    0x83AA64
 #define PLAYER_FEEDBACK    4             // settings +4: Feedback (rumble) option
 #define FN_PAUSING_PLAYER  0x4A7AE0      // int __cdecl (): 5 bytes stolen (mov eax, [0x8900D8])
 static uint8_t g_settings[MAX_LOCAL_PLAYERS][PLAYER_SETTING_SIZE];
 static uint8_t g_settingsSeen[MAX_LOCAL_PLAYERS][PLAYER_SETTING_SIZE];   // the mirror as last synced
-static int g_settingsSwap = -1;          // player 3/4 whose entry sits in the game's table (entry & 1)
+static int g_settingsSwap = -1;          // player 3..6 whose entry sits in the game's table (entry 0)
 static const uintptr_t kSettingsReaders[] = {
     0x41E23E, 0x41E245, 0x41E28D, 0x497D59, 0x4DA0F1, 0x4DA8DA, 0x5EA7DD, 0x5EA8C7, 0x5EB406, 0x5EB426, 0x5F17E9,
     0x5F17F2, 0x5F2A93, 0x5F2FB6, 0x5F2FC8, 0x5F325F, 0x5F32AA, 0x5F33CE, 0x5F33DD, 0x5F3402, 0x5F345E, 0x5F3A33,
     0x5F6388, 0x5FFE31, 0x6001FB, 0x600497, 0x60353D};
-static int SettingsSeat(int entry) { return g_settingsSwap >= 0 && entry == (g_settingsSwap & 1) ? g_settingsSwap : entry; }
+static int SettingsSeat(int entry) { return g_settingsSwap >= 0 && entry == 0 ? g_settingsSwap : entry; }
 
 // The keyboard player's own pause menus show Feedback greyed and off (FfCapable; display only: the game's entry has it
 // cleared while they are open, the player's setting is kept).
@@ -46,14 +48,10 @@ static void SyncPlayerSettings(bool newRace) {
     }
     int swap = SplitRacing() && g_pauseOwner >= 2 ? g_pauseOwner : -1;
     if (swap != g_settingsSwap) {
-        int entries[2] = {g_settingsSwap & 1, swap & 1};
         g_settingsSwap = swap;
-        for (int e : entries) {
-            if (e < 0) continue;
-            int seat = SettingsSeat(e);
-            memcpy(game + e * PLAYER_SETTING_SIZE, g_settings[seat], PLAYER_SETTING_SIZE);
-            memcpy(g_settingsSeen[seat], g_settings[seat], PLAYER_SETTING_SIZE);
-        }
+        int seat = SettingsSeat(0);
+        memcpy(game, g_settings[seat], PLAYER_SETTING_SIZE);
+        memcpy(g_settingsSeen[seat], g_settings[seat], PLAYER_SETTING_SIZE);
         Log("player settings: %s", swap >= 0 ? "pause menu edits the pausing player 3..6" : "game table back to players 1/2");
     }
     for (int k = 2; k < MAX_LOCAL_PLAYERS; ++k) {
@@ -70,7 +68,7 @@ static void SyncPlayerSettings(bool newRace) {
         SaveSeatStore(k - 2);
     }
     if (KeyboardPlayerOptions()) {
-        g_kbFeedbackEntry = g_keyboardSeat & 1;
+        g_kbFeedbackEntry = g_settingsSwap >= 0 ? 0 : g_keyboardSeat;
         g_kbFeedbackValue = game[g_kbFeedbackEntry * PLAYER_SETTING_SIZE + PLAYER_FEEDBACK];
         game[g_kbFeedbackEntry * PLAYER_SETTING_SIZE + PLAYER_FEEDBACK] = 0;
     }
@@ -102,8 +100,37 @@ static uint64_t __fastcall HudStateOf(uint8_t* player) {
 
 static void* g_origPausingPlayer;
 static int __cdecl PausingPlayer() {
-    if (g_settingsSwap >= 0) return g_settingsSwap & 1;
+    if (g_settingsSwap >= 0) return 0;
     return reinterpret_cast<int(__cdecl*)()>(g_origPausingPlayer)();
+}
+
+// The Transmission and Stability Control pause options also apply the change to the car at once: message 0x578EF0
+// (type 1 / 2, player index, value) -> 0x4A7B30 sets player +0x20 / +0x21 and the car's gearbox / car +0x464 on
+// byIndex[index]. The index is the same port comparison (eax at 0x4C32B3 / 0x4C3D53), 0 for players 3..6: their
+// change went to player 1's car. Hooked on `mov ecx, [0x8650B8]` (6 bytes) before the pushes.
+#define AT_PAUSE_STABILITY_MSG 0x4C32B3
+#define AT_PAUSE_GEARBOX_MSG   0x4C3D53
+static __declspec(naked) void PauseStabilityMsgHook() {
+    __asm {
+        cmp g_settingsSwap, 0
+        jl keep
+        mov eax, g_settingsSwap          // the pausing player 3..6's own car
+    keep:
+        mov ecx, dword ptr ds:[0x8650B8]
+        push AT_PAUSE_STABILITY_MSG + 6
+        ret
+    }
+}
+static __declspec(naked) void PauseGearboxMsgHook() {
+    __asm {
+        cmp g_settingsSwap, 0
+        jl keep
+        mov eax, g_settingsSwap
+    keep:
+        mov ecx, dword ptr ds:[0x8650B8]
+        push AT_PAUSE_GEARBOX_MSG + 6
+        ret
+    }
 }
 
 static int RedirectPlayerSettings() {

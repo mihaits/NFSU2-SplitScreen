@@ -39,10 +39,16 @@ each seat's choice and `RestoreSeat` puts P1/P2's back. The player ctor copies e
 forced to 1 in drag; +0x21 to car +0x464). P3/P4 were built as P1/P2, so `CreatePlayers` writes their own
 (`g_settings[idx]`, which takes the seat's pick) before the attach.
 
-**Pause menu settings.** The pause menu's player options edit the entry of 0x4A7AE0, the pausing player's index among
-P1/P2 (0 for anyone else). While P3/P4 owns the pause (`g_pauseOwner`), `SyncPlayerSettings` swaps their entry into the
-game's table at entry owner & 1, and `PausingPlayer` (jump at 0x4A7AE0) returns that entry. The menus then show and
-change the pausing player's own settings; the table goes back to P1/P2 when the pause menus close.
+**Pause menu settings.** Most pause player options (handler pairs 0x4C31D0..0x4C4700: HUD options +0..+5, +0x10,
++0x14, Transmission +0x15, Stability Control +0x16 (0 = on)) pick the entry by comparing the pausing port
+[0x8900D8]+0x20 with P1/P2's ports, so any other port gets entry 0; the camera options use 0x4A7AE0 (the pausing
+player's index among P1/P2, 0 for anyone else). While P3..P6 owns the pause (`g_pauseOwner`), `SyncPlayerSettings`
+swaps their entry into the game's table at entry 0, and `PausingPlayer` (jump at 0x4A7AE0) returns 0. The menus then
+show and change the pausing player's own settings; the table goes back to P1/P2 when the pause menus close.
+Transmission and Stability Control also apply the change to the car at once (message 0x578EF0 type 1 / 2 →
+0x4A7B30: player +0x20 / +0x21, car gearbox / car +0x464, on byIndex[index]); the index is the same port comparison,
+so `PauseGearboxMsgHook` / `PauseStabilityMsgHook` (0x4C3D53 / 0x4C32B3) put the pausing P3..P6's own index there.
+The frontend Options screen's copies (0x4B75E0..) always edit entry 0 (0x836364, only ever set to 0).
 
 **Seat store (players 3..6's own data).** The game keeps per-player data for 2 players only. P3/P4's settings entry,
 joypad bindings (record tables + axis setup, [input](input.md)) and last car are kept in `g_seatStore` and saved to

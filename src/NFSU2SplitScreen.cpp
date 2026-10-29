@@ -312,6 +312,8 @@ static void Install(HMODULE self) {
     WriteCall(AT_PAUSE_MASK_CALL, &PauseInputMask);
     g_origPausingPlayer = MakeTrampoline(FN_PAUSING_PLAYER, 5);
     WriteJump(FN_PAUSING_PLAYER, &PausingPlayer, 5);
+    WriteJump(AT_PAUSE_STABILITY_MSG, &PauseStabilityMsgHook, 6);
+    WriteJump(AT_PAUSE_GEARBOX_MSG, &PauseGearboxMsgHook, 6);
     InitializeCriticalSection(&g_soundFsLock);
     {
         g_soundFsOpen = *reinterpret_cast<uintptr_t*>(SOUND_FS_VT_OPEN);
