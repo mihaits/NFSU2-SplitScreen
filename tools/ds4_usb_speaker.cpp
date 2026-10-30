@@ -8,6 +8,8 @@
 //   ds4_usb_speaker sine [seconds]         the factory sine (feature report A0: 01 01, then 01 00), reads A4 after each.
 //                                          Only this subcommand: others in A0 write flash or brick the USB mode.
 //   ds4_usb_speaker sinevol                the factory sine at speaker volume 0x4F, 0, 0x20 (3 s each, report 0x05)
+//   ds4_usb_speaker chipcheck              does A0 05 reach the chip? The sine, then volume 0x130, amp off, amp on
+//   ds4_usb_speaker spkon [offset=value ..] audio chip writes (A0 05) that turn the speaker on, a tone, then off again
 //   ds4_usb_speaker mix [offset=value ...] 2 s factory sine, 2 s sine + a 1500 Hz tone on the endpoint, 3 s tone alone:
 //                                          does the test mode route the USB stream to the speaker?
 //   ds4_usb_speaker topology               the endpoint's audio parts: terminals, volumes, mutes, selectors; read only
@@ -153,6 +155,22 @@ static bool TestCommand(HANDLE dev, BYTE device, BYTE action) {
     return true;
 }
 
+static BYTE g_chipAction = 0;
+static bool ChipWrite(HANDLE dev, BYTE reg, WORD value) {
+    BYTE f[7] = {0xA0, 0x05, g_chipAction, reg, static_cast<BYTE>(value >> 8), static_cast<BYTE>(value)};
+    bool ok = HidD_SetFeature(dev, f, sizeof(f)) != 0;
+    printf("chip reg %02X = %03X: %s\n", reg, value, ok ? "sent" : "failed");
+    if (!ok) printf("  error %lu\n", GetLastError());
+    Sleep(30);
+    BYTE r[65] = {0xA4};
+    if (HidD_GetFeature(dev, r, sizeof(r))) {
+        printf("  A4:");
+        for (int i = 1; i < 12; ++i) printf(" %02X", r[i]);
+        puts("");
+    } else printf("  A4 read failed, error %lu\n", GetLastError());
+    return ok;
+}
+
 static void WalkPart(IPart* part, int depth) {
     static UINT seen[256];
     static int seenCount;
@@ -255,6 +273,21 @@ int main(int argc, char** argv) {
     if (vol) { vol->GetMasterVolumeLevelScalar(&level); vol->GetMute(&muted); }
     printf("endpoint volume %.0f %%, muted %d\n", level * 100, muted);
     ListReports(dev);
+    if (argc > 1 && !strcmp(argv[1], "chipstatus")) {
+        g_chipAction = argc > 2 ? static_cast<BYTE>(atoi(argv[2])) : 0;
+        ChipWrite(dev, 0x29, 0x16F);
+        return 0;
+    }
+    if (argc > 1 && !strcmp(argv[1], "chipcheck")) {
+        if (TestCommand(dev, 1, 1)) {
+            puts("2 s: sine"); Sleep(2000);
+            ChipWrite(dev, 0x29, 0x130); puts("2 s: should be quieter"); Sleep(2000);
+            ChipWrite(dev, 0x31, 0); puts("2 s: should be silent"); Sleep(2000);
+            ChipWrite(dev, 0x31, 0x80); ChipWrite(dev, 0x29, 0x16F); puts("2 s: should be back"); Sleep(2000);
+        }
+        TestCommand(dev, 1, 0);
+        return 0;
+    }
     if (argc > 1 && !strcmp(argv[1], "sinevol")) {
         auto volume = [&](BYTE v) {
             BYTE r[32] = {0x05, 0x80};
@@ -312,6 +345,11 @@ int main(int argc, char** argv) {
     for (int i = 0; i < 32; ++i) if (r[i]) printf(" [%d]=%02X", i, r[i]);
     puts("");
     bool mix = argc > 1 && !strcmp(argv[1], "mix"), sineOn = false;
+    bool spkon = argc > 1 && !strcmp(argv[1], "spkon");
+    if (spkon) {
+        if (!ChipWrite(dev, 0x1A, 0x1E8) || !ChipWrite(dev, 0x31, 0x80) || !ChipWrite(dev, 0x29, 0x160) || !ChipWrite(dev, 0x05, 0))
+            spkon = false;
+    }
     double hz = mix ? 1500 : 440;
     if (mix) {
         sineOn = TestCommand(dev, 1, 1);
@@ -363,6 +401,11 @@ int main(int argc, char** argv) {
     }
     client->Stop();
     if (sineOn) TestCommand(dev, 1, 0);
+    if (argc > 1 && !strcmp(argv[1], "spkon")) {
+        ChipWrite(dev, 0x31, 0);
+        ChipWrite(dev, 0x29, 0x100);
+        ChipWrite(dev, 0x1A, 0x1E0);
+    }
     if (sweep) {
         memset(r + 1, 0, sizeof(r) - 1);
         r[1] = 0x07;                      // back to plain motors off, lightbar off
