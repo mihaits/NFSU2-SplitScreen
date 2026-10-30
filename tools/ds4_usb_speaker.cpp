@@ -7,6 +7,7 @@
 //   ds4_usb_speaker features               reads the feature reports (not the pad's address and pairing ones)
 //   ds4_usb_speaker sine [seconds]         the factory sine (feature report A0: 01 01, then 01 00), reads A4 after each.
 //                                          Only this subcommand: others in A0 write flash or brick the USB mode.
+//   ds4_usb_speaker sinevol                the factory sine at speaker volume 0x4F, 0, 0x20 (3 s each, report 0x05)
 //   ds4_usb_speaker mix [offset=value ...] 2 s factory sine, 2 s sine + a 1500 Hz tone on the endpoint, 3 s tone alone:
 //                                          does the test mode route the USB stream to the speaker?
 //   ds4_usb_speaker topology               the endpoint's audio parts: terminals, volumes, mutes, selectors; read only
@@ -254,6 +255,21 @@ int main(int argc, char** argv) {
     if (vol) { vol->GetMasterVolumeLevelScalar(&level); vol->GetMute(&muted); }
     printf("endpoint volume %.0f %%, muted %d\n", level * 100, muted);
     ListReports(dev);
+    if (argc > 1 && !strcmp(argv[1], "sinevol")) {
+        auto volume = [&](BYTE v) {
+            BYTE r[32] = {0x05, 0x80};
+            r[22] = v;
+            r[23] = 0x85;
+            DWORD n;
+            WriteFile(dev, r, sizeof(r), &n, nullptr);
+            printf("speaker volume 0x%02X\n", v);
+        };
+        volume(0x4F);
+        if (TestCommand(dev, 1, 1)) { Sleep(3000); volume(0); Sleep(3000); volume(0x20); Sleep(3000); }
+        TestCommand(dev, 1, 0);
+        volume(0x4F);
+        return 0;
+    }
     if (argc > 1 && !strcmp(argv[1], "sine")) {
         int seconds = argc > 2 ? atoi(argv[2]) : 4;
         bool ok = TestCommand(dev, 1, 1);
