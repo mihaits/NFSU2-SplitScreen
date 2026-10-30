@@ -11,6 +11,7 @@
 //   ds4_usb_speaker chipcheck              does A0 05 reach the chip? The sine, then volume 0x130, amp off, amp on
 //   ds4_usb_speaker spkon [offset=value ..] audio chip writes (A0 05) that turn the speaker on, a tone, then off again
 //   ds4_usb_speaker after [offset=value ..] 1 s factory sine, sine off, then a 1000 Hz tone on the endpoint
+//   ds4_usb_speaker buzz                   a fake rev: the factory sine pulsed through the speaker volume, 15 to 90 Hz in 10 s
 //   ds4_usb_speaker mix [offset=value ...] 2 s factory sine, 2 s sine + a 1500 Hz tone on the endpoint, 3 s tone alone:
 //                                          does the test mode route the USB stream to the speaker?
 //   ds4_usb_speaker topology               the endpoint's audio parts: terminals, volumes, mutes, selectors; read only
@@ -287,6 +288,39 @@ int main(int argc, char** argv) {
             ChipWrite(dev, 0x31, 0x80); ChipWrite(dev, 0x29, 0x16F); puts("2 s: should be back"); Sleep(2000);
         }
         TestCommand(dev, 1, 0);
+        return 0;
+    }
+    if (argc > 1 && !strcmp(argv[1], "buzz")) {
+        auto volume = [&](BYTE v) {
+            BYTE r[32] = {0x05, 0x80};
+            r[22] = v;
+            r[23] = 0x85;
+            DWORD n;
+            WriteFile(dev, r, sizeof(r), &n, nullptr);
+        };
+        constexpr int kLow = 0x08, kHigh = 0x38;   // volume of a pulse: sawtooth from high to low
+        volume(kHigh);
+        LARGE_INTEGER freq, start, now;
+        QueryPerformanceFrequency(&freq);
+        if (TestCommand(dev, 1, 1)) {
+            QueryPerformanceCounter(&start);
+            double phase = 0, last = 0;
+            int reports = 0, lastVol = -1;
+            for (;;) {
+                QueryPerformanceCounter(&now);
+                double t = static_cast<double>(now.QuadPart - start.QuadPart) / freq.QuadPart;
+                if (t >= 10) break;
+                phase += (15 + 75 * t / 10) * (t - last);
+                last = t;
+                phase -= floor(phase);
+                int v = kLow + static_cast<int>((kHigh - kLow) * (1 - phase));
+                if (v != lastVol) { volume(static_cast<BYTE>(v)); lastVol = v; ++reports; }
+                Sleep(1);
+            }
+            printf("%d volume reports in 10 s\n", reports);
+        }
+        TestCommand(dev, 1, 0);
+        volume(0x4F);
         return 0;
     }
     if (argc > 1 && !strcmp(argv[1], "sinevol")) {
