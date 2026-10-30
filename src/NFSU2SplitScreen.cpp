@@ -40,6 +40,7 @@
 #include "parts/hud_split.cpp"
 #include "parts/debug_tools.cpp"
 #include "parts/seats.cpp"
+#include "parts/crash.cpp"
 #include "parts/input.cpp"
 #include "parts/render_core.cpp"
 #include "parts/render_passes.cpp"
@@ -142,6 +143,7 @@ static void Install(HMODULE self) {
     }
     LoadConfig(self);
     g_mainThreadId = GetCurrentThreadId();
+    InstallCrashHandler(self);
     if (g_debug) {
         char path[MAX_PATH], key[16], val[32];
         GetModuleFileNameA(self, path, MAX_PATH);

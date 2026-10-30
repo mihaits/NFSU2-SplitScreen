@@ -62,7 +62,8 @@ options of whoever paused.
 
 This is beta 0.11.0, so expect the odd bug; known ones are in [open issues](docs/open-issues.md). If you hit one, please
 [open an issue](https://github.com/mihaits/NFSU2-SplitScreen/issues): fill in the [bug report template](docs/bug-report.md)
-and attach `scripts\NFSU2SplitScreen.log` (set `Debug = 1` in the ini to write it).
+and attach `scripts\NFSU2SplitScreen.log` (set `Debug = 1` in the ini to write it). After a crash, also attach
+`scripts\NFSU2SplitScreen_crash.txt` and the newest `scripts\NFSU2SplitScreen_crash_*.dmp`.
 
 ## Settings
 `NFSU2SplitScreen.ini` explains every option (rumble and trigger strength, lightbar, gauges, ...). The ones you

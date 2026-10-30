@@ -47,7 +47,9 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
   - `threadstacks.py [bytes]` prints every game thread's EIP and the return addresses on its stack (module+offset),
     each thread suspended while read: for a hung game (sample twice to see what doesn't move).
   - `minidump.py <dmp>` shows the exception, registers and code addresses on the stack (dumps land in
-    `%LOCALAPPDATA%\CrashDumps`).
+    `%LOCALAPPDATA%\CrashDumps`, and the plugin's own in `scripts\NFSU2SplitScreen_crash_*.dmp` with
+    `NFSU2SplitScreen_crash.txt`: registers, memory at each register, stack, EBP chain, game state).
+    `dumpmem.py <dmp> addr..` prints 64 bytes at each address if the dump has them.
   - `ds_bt_speaker.py [--list] [--pad n] [--file f | --freq hz --seconds s] [--gain g]` plays a sound on a Bluetooth
     DualSense's speaker (no game needed): Opus frames from ffmpeg/libopus in HID output report 0x39, after a 0x31
     speaker route. The report layout is in the script's docstring. Experiment for per-player audio.

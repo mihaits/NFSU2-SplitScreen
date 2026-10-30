@@ -243,6 +243,7 @@ static void __cdecl LayoutApplyHook() {
     LogCarselInput();
     UpdatePadLights();
     RunMailbox();
+    ClaimCrashFilter();
     UpdateModeTransitions();
     UpdateVenueBarriers();
     ApplySplitLayout();

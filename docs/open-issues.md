@@ -1,6 +1,8 @@
 # Open issues and leads
 
 - **Light streaks without overbright** in split views ([rendering](rendering.md)).
+- **Crash in the track streamer's pool** (0x5DEEE1), once, 6P circuit after a few laps
+  ([handoff](bugs/streamer-pool-crash.md)).
 
 Closed 2026-10-27, not seen since their fixes:
 - Results ambient sound stutter (3P, ~2 Hz gate) and the black results background: both came from the post-race scene
