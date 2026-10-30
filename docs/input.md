@@ -156,10 +156,12 @@ false for them and `XPadIsDs4` true, so they get no player LEDs, trigger row or 
   SNR through ffmpeg's decoder (`tools/sbc_test.cpp`, `tools/sbc_check.py`). The queue is `SpkTake` at 32 kHz. The pad's
   own mute button is missing, so the touchpad click toggles the speaker in split races (`PadSpeakerToggle`); the car moving
   between the pad and the PC is the only feedback.
-- **No speaker over USB:** a second-model pad (09CC) shows a 2-channel 32 kHz "Headset Earphone" endpoint, and a tone on it
-  with the speaker volume set in report 0x05 (`tools/ds4_usb_speaker.cpp`) stayed silent on the speaker (2026-10-31). PadForge
-  reports the same: a cable reaches only the jack, and the first model has no USB audio. `spkNoDevice` stays set, so the car
-  stays on the PC.
+- **No speaker found over USB:** a second-model pad (09CC) shows a 2-channel 32 kHz "Headset Earphone" endpoint. A tone on it
+  stayed silent on the speaker with these report 0x05 settings (`tools/ds4_usb_speaker.cpp`, 2026-10-31): flags 0xB0 and speaker
+  0x4F; Chromium's Bluetooth audio bytes at USB offsets (1=0xF0 2=0x04 19=20=0x43 22=0x4D 23=0x85); the same with speaker 0xFF;
+  and with both headphone volumes 0. The report is 32 bytes, so the Bluetooth audio reports don't fit. PadForge reports the same:
+  a cable reaches only the jack, and the first model has no USB audio. Not proven impossible: other 0x05 bytes are undocumented.
+  `spkNoDevice` stays set, so the car stays on the PC. A pad connected over Bluetooth stays there with a cable in.
 
 **Xbox impulse triggers (`XboxWgi.cpp`).**
 - XInput can't drive the trigger motors of Xbox One / Series pads; Windows.Gaming.Input (`Gamepad.Vibration`) can.

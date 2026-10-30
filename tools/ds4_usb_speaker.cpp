@@ -2,7 +2,7 @@
 // (054C:09CC) only: the first has no USB audio. Report 0x05 carries the volumes: flags at 1 (0x10, 0x20 headphones,
 // 0x80 speaker), headphones at 19 and 20, speaker at 22 (as report 0x11 on Bluetooth, 2 bytes earlier). Expected,
 // from PadForge's docs: only the jack plays.
-//   ds4_usb_speaker [speaker volume, default 0x4F] [headphone volume, default 0]
+//   ds4_usb_speaker [offset=value ...]     report bytes over the defaults: 1=0xB0 22=0x4F
 //
 // Build (32-bit VS prompt): cl /nologo /O2 /EHsc /Fo:build\ /Fe:build\ds4_usb_speaker.exe tools\ds4_usb_speaker.cpp
 #include <initguid.h>
@@ -87,7 +87,6 @@ static IMMDevice* FindEndpoint(IMMDeviceEnumerator* en, const GUID& container) {
 }
 
 int main(int argc, char** argv) {
-    int speaker = argc > 1 ? strtol(argv[1], nullptr, 0) : 0x4F, headphones = argc > 2 ? strtol(argv[2], nullptr, 0) : 0;
     setvbuf(stdout, nullptr, _IONBF, 0);
     CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     GUID container;
@@ -114,11 +113,17 @@ int main(int argc, char** argv) {
     BYTE r[32] = {};
     r[0] = 0x05;
     r[1] = 0x10 | 0x20 | 0x80;
-    r[19] = r[20] = static_cast<BYTE>(headphones);
-    r[22] = static_cast<BYTE>(speaker);
+    r[22] = 0x4F;
+    for (int i = 1; i < argc; ++i) {      // offset=value
+        char* eq = strchr(argv[i], '=');
+        int at = eq ? strtol(argv[i], nullptr, 0) : 0;
+        if (at > 0 && at < 32) r[at] = static_cast<BYTE>(strtol(eq + 1, nullptr, 0));
+    }
     DWORD written;
     if (!WriteFile(dev, r, sizeof(r), &written, nullptr)) { printf("FAIL: report, error %lu\n", GetLastError()); return 1; }
-    printf("volumes sent: speaker 0x%02X, headphones 0x%02X\n", speaker, headphones);
+    printf("report:");
+    for (int i = 0; i < 32; ++i) if (r[i]) printf(" [%d]=%02X", i, r[i]);
+    puts("");
     client->Start();
     puts("tone (4 s)");
     double phase = 0;
