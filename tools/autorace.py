@@ -1,6 +1,7 @@
 """Let the game's AI drive the local players' cars (the game's own autopilot) and follow the race to the end.
-python -I autorace.py [--players 1,3] [--timeout 600] [--stall 20] [--shots DIR] [--shot-every 0] [--every 0]
-python -I autorace.py off                     give every local player's car back to its pad
+python -I autorace.py [--players 1,3] [--timeout 600] [--stall 20] [--shots DIR] [--shot-every 0] [--every 0] [--stagger 0]
+--stagger s releases the selected cars one by one, s seconds apart, to spread them around the track.
+python -I autorace.py off                    give every local player's car back to its pad
 
 Run it once a split race is loading or running (e.g. after go_race_nointro.sh). Stages, one timestamped line each:
 wait for racing, autopilot on (start screenshot), a status line each time the leader starts a lap (--every s: also
@@ -66,7 +67,7 @@ if sys.argv[1:2] == ['off']:
 
 timeout = float(opt('--timeout', 600)); stall = float(opt('--stall', 20)); wait_race = float(opt('--wait-race', 45))
 shots = opt('--shots', os.path.join(tempfile.gettempdir(), 'nfsu2_autorace')); shot_every = float(opt('--shot-every', 0))
-every = float(opt('--every', 0))
+every = float(opt('--every', 0)); stagger = float(opt('--stagger', 0))
 os.makedirs(shots, exist_ok=True)
 
 # 1. racing
@@ -82,32 +83,39 @@ sel = [k for k in sel if 0 <= k < len(ps)]
 say(f'racing, {len(ps)} local players; autopilot for ' + ' '.join(f'P{k + 1}' for k in sel))
 
 # 2. autopilot on, checked on the car's controller
-for k in sel: g.w32(ps[k] + 0x230, MODE_AUTO_PILOT)
+active = {k: time.time() for k in (sel[:1] if stagger else sel)}   # released car -> when
+waiting = [k for k in sel if k not in active]
+for k in active: g.w32(ps[k] + 0x230, MODE_AUTO_PILOT)
 end = time.time() + 3
-while any(car_state(ps[k])['controller'] != 3 for k in sel):
+while any(car_state(ps[k])['controller'] != 3 for k in active):
     if time.time() > end:
-        bad = [f'P{k + 1} controller {car_state(ps[k])["controller"]}' for k in sel if car_state(ps[k])['controller'] != 3]
+        bad = [f'P{k + 1} controller {car_state(ps[k])["controller"]}' for k in active if car_state(ps[k])['controller'] != 3]
         give_back(ps, sel); sys.exit('FAIL: not taken over: ' + ', '.join(bad))
     time.sleep(0.05)
-say('autopilot on (AI controllers on every selected car)')
+say('autopilot on: ' + ' '.join(f'P{k + 1}' for k in active))
 
 # 3. drive to the finish
 deadline = time.time() + timeout
 moved = {k: (car_state(ps[k])['progress'], time.time()) for k in range(len(ps))}
 next_line = next_shot = time.time(); last_lap = 0
 finished = set()
+next_release = time.time() + stagger
 try:
     while True:
         now = time.time()
         if stage() == -1: sys.exit('FAIL: left the race before everyone finished')
+        if waiting and now >= next_release:
+            k = waiting.pop(0); g.w32(ps[k] + 0x230, MODE_AUTO_PILOT); active[k] = now
+            moved[k] = (car_state(ps[k])['progress'], now); next_release = now + stagger
+            say(f'autopilot on: P{k + 1}')
         st = [car_state(p) for p in ps]
         for k, c in enumerate(st):
             if c['done'] and k not in finished:
                 finished.add(k); say(f'P{k + 1} finished, position {c["pos"]}')
-            if k in sel and k not in finished and c['controller'] != 3:   # drag: 0x5F3AB2 rewrites +0x230 per frame
+            if k in active and now - active[k] > 3 and k not in finished and c['controller'] != 3:   # drag: 0x5F3AB2 rewrites +0x230 per frame
                 sys.exit(f'FAIL: the game took P{k + 1} back (controller {c["controller"]}, '
                          f'mode {g.u32(ps[k] + 0x230)}); drag is not supported')
-            if c['progress'] > moved[k][0] + 0.0005 or k in finished or k not in sel: moved[k] = (c['progress'], now)
+            if c['progress'] > moved[k][0] + 0.0005 or k in finished or k not in active: moved[k] = (c['progress'], now)
             elif now - moved[k][1] > stall:
                 shot(shots, f'stuck_p{k + 1}.png')
                 sys.exit(f'FAIL: P{k + 1} stuck for {stall:.0f} s (progress {c["progress"]:.3f}, '

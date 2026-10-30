@@ -267,7 +267,7 @@ static void UpdateMinimapOwner() {          // per frame
     auto* pkg = at<int>(0x8654A4) == 6 ? static_cast<const uint8_t*>(HudPackageOf(0)) : nullptr;
     uint8_t* map = pkg && g_mmFixedHash[0] ? FindFeObject(pkg, g_mmFixedHash[0]) : nullptr;
     bool same = map && map == g_mmOwnerMap;  // the kept objects still belong to the live HUD
-    if (!racing || (g_extraPlayers <= 0 && !g_mm2p) || !map) {
+    if (!racing || (g_extraPlayers <= 0 && !g_mm2p && !g_quadHud) || !map) {
         // hidden again: the post-race view draws P1's HUD as it is (user: a big minimap stayed on screen)
         if (g_mmOwnerHidden && same && !SplitRacing())
             for (int i = 0; i < g_mmVisibleCount; ++i) *reinterpret_cast<uint32_t*>(g_mmVisible[i] + 0x1C) |= 1u;
@@ -303,7 +303,7 @@ static void UpdateMinimaps2P() {
     static int s_frames = 0;
     // by the race's players, not g_screenViews: that is still 2 from the loading screens in a 3+ player race's first
     // frame, whose minimap update then drew 3+ players before P3's car entity existed (crash 0x4AC2B3)
-    const void* pkg = SplitRacing() && !g_quadTest && g_extraPlayers <= 0 ? HudPackageOf(0) : nullptr;
+    const void* pkg = SplitRacing() && !g_quadTest && g_extraPlayers <= 0 && !QuadHud2P() ? HudPackageOf(0) : nullptr;
     if (pkg != s_pkg || ++s_frames >= 30) {   // HUD elements add markers at runtime; a restart rebuilds the HUD
         s_frames = 0;
         if (pkg != s_pkg) g_mmOwnerHidden = false, g_mmVisibleCount = 0;
@@ -321,7 +321,7 @@ static void UpdateQuadHud() {
         memset(g_mmExtraIcon, 0, sizeof(g_mmExtraIcon));   // (help bar buttons matched these and were skipped)
         memset(g_mmMarker, 0, sizeof(g_mmMarker));
     }
-    if (!SplitRacing() || g_screenViews < 3) {
+    if (!SplitRacing() || (g_screenViews < 3 && !QuadHud2P())) {
         UpdateMinimaps2P();
         UpdateMinimapOwner();
         // the next race's HUD can be rebuilt at the same addresses: map it afresh (stale minimap objects -> crash on
@@ -378,17 +378,19 @@ static float CellFit(int n, int k) {
     return sw < sh ? sw : sh;
 }
 // Size of player k's fixed-size elements (gauges, minimap) relative to quadrants: 1 up to 4 players, smaller in
-// the narrower 5/6P cells.
+// the narrower 5/6P cells, larger only in views taller than a quadrant (left / right on a wide span).
 static float HudCellScale(int k) {
-    float f = CellFit(g_screenViews, k) / CellFit(4, 0);
-    return f < 1.0f ? f : 1.0f;
+    FeRect r = LayoutFeRect(g_screenViews, k);
+    float f = CellFit(g_screenViews, k) / CellFit(4, 0), cap = (r.bottom - r.top) / 240.0f;
+    return f < cap ? f : cap;
 }
 
 // Player k's minimap sits in the free left corner of the quadrant: bottom-left with P1's top-half layout (P1, P3),
 // top-left with P2's bottom-half layout (P2, P4; its drift score panel takes the lower left). (x, y) relative to the
 // minimap centre.
 static void MinimapPlace(float* copy, int k, float x, float y) {
-    float f = g_screenViews == 2 ? 0.8f / 0.55f : HudCellScale(k), ms = 0.55f * f;   // 2P: the halves' HUD is full size
+    // 2P: the halves' HUD is full size
+    float f = g_screenViews == 2 && !QuadHud2P() ? 0.8f / 0.55f : HudCellScale(k), ms = 0.55f * f;
     FeRect r = LayoutFeRect(g_screenViews, k);   // all players use the top-half layout: bottom-left corner
     copy[7] = r.left + 52.0f * f + x * ms;
     copy[8] = r.bottom - 48.0f * f + y * ms;
@@ -421,6 +423,7 @@ static bool QuadTransform(float* copy, int slot) {
     copy[8] = dstCy + (copy[8] - srcCy) * s;
     if (fabsf(copy[8] - dstCy) > 160.0f) copy[8] += copy[8] > dstCy ? 2000.0f : -2000.0f;   // parked off-screen
                                                                                              // (icon pools)
+    if (g_verticalSplit && g_screenViews == 2) copy[8] -= cellH / 2 - 120.0f * s;   // a tall view: the layout at its top
     copy[0xE] *= s;
     copy[0xF] *= s;
     copy[4] *= s;                        // rotation pivot
@@ -442,15 +445,16 @@ static void GaugeTransform(float* copy, int k) {
     float left = r.left, right = r.right, bottom = r.bottom;
     float f = HudCellScale(k), s = g_gaugeScale * f;
     if (g_gaugeDrag) {
-        // the 1P drag HUD spans the screen (tach arc along the left edge, speed top right): the whole layout fits
-        // the view's height, side elements kept at the view's sides (as on a wide screen)
-        s = 0.5f * f;
+        // the 1P drag HUD spans the screen (tach arc along the left edge, speed top right): the whole 640x480 layout
+        // fits the view, centred on it, side elements kept at the view's sides (as on a wide screen)
+        float fitW = (right - left) / 640.0f, fitH = (bottom - r.top) / 480.0f, cy = (r.top + bottom) / 2;
+        s = fitW < fitH ? fitW : fitH;
         float x = copy[7];
         copy[7] = x < -HUD_SIDE_MIN_X ? left + (x + 320.0f) * s : x > HUD_SIDE_MIN_X ? right + (x - 320.0f) * s
                                                                               : (left + right) / 2 + x * s;
-        copy[8] = bottom - 240.0f * s + copy[8] * s;
-        if (x > HUD_SIDE_MIN_X && copy[8] < bottom - 180.0f * f)
-            copy[7] -= 10.0f * f, copy[8] += 40.0f * f;   // the speed, below the 2P HUD's position box
+        copy[8] = cy + copy[8] * s;
+        if (x > HUD_SIDE_MIN_X && copy[8] < cy - 120.0f * s)
+            copy[7] -= 20.0f * s, copy[8] += 80.0f * s;   // the speed, below the 2P HUD's position box
     } else {
         copy[7] = right + (copy[7] - 320.0f) * s;
         copy[8] = bottom + (copy[8] - 240.0f) * s;

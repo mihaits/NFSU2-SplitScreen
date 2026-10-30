@@ -128,6 +128,25 @@ static void EnlargeAudioPool() {
 #define TRACK_POOL_KB_1P   0x79DC54      // int[3] KB: normal, 2 players, special
 #define SECOND_POOL_KB_1P  0x7FA9D4
 static bool SplitPools() { return SplitMode() && at<int>(NUM_PLAYERS) == 2; }
+// The pool object (streamer +0x6A4) has 192 block records: one per used block and one per free gap, in a fixed array
+// at +0x1C, free list at +0xC, block list at +0x14. The allocator 0x5DA4A0 doesn't check for an empty free list: it
+// takes the list's sentinel as a record, which puts a block address on the head of the block list and the next walk
+// (0x5DEED0) crashes in section data. 5-6 far-apart players want about 150 sections plus about 45 gaps. The records
+// are only reached through links, and the pool's dtor 0x5E4D70 empties both lists first, so extra ones can live here.
+struct PoolRecord { PoolRecord* next; PoolRecord* prev; int addr, size; uint8_t used; };
+#define POOL_RECORDS 192
+static PoolRecord g_extraPoolRecords[320];
+static void AddPoolRecords(uint8_t* streamer) {
+    auto* pool = *reinterpret_cast<uint8_t**>(streamer + 0x6A4);
+    if (!pool) return;
+    auto* list = reinterpret_cast<PoolRecord*>(pool + 0xC);
+    for (PoolRecord& r : g_extraPoolRecords) {
+        r.prev = list->prev;
+        r.next = list;
+        list->prev->next = &r;
+        list->prev = &r;
+    }
+}
 static void __fastcall CreateTrackStreamingPool(void* streamer, void*, int bytes) {
     if (SplitPools()) {
         int players = 2 + g_extraPlayers;
@@ -136,6 +155,7 @@ static void __fastcall CreateTrackStreamingPool(void* streamer, void*, int bytes
     }
     Log("track streaming pool: %d KB", bytes / 1024);
     reinterpret_cast<void(__thiscall*)(void*, int)>(FN_TRACK_POOL_CREATE)(streamer, bytes);
+    if (SplitPools()) AddPoolRecords(static_cast<uint8_t*>(streamer));
 }
 // The second pool is the car loader's (0x8A3288): car models and textures. When it runs short, the loader evicts the
 // textures of car types no racer holds (0x63A1B0 -> 0x639F20; the AI's types are not held) and those cars draw

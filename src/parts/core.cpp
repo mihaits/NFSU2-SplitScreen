@@ -124,11 +124,12 @@ static int g_screenViews = 2;            // player views drawn this frame (2, or
 
 // The split layout: player view k's screen rect in pixels with n views on a w x h screen. The only place that knows the
 // layout (viewports, HUD, minimaps, gauges and the bars around a short bottom row all read it).
-//   2: top / bottom halves   3: quadrants, P3 centred in the bottom half   4: quadrants
+//   2: top / bottom halves (VerticalSplit: left / right)   3: quadrants, P3 centred in the bottom half   4: quadrants
 //   5: 3 on top, 2 centred below   6: 3 x 2 grid (5/6 not reachable yet)
 struct Cell { int x, y, w, h; };
+static bool g_verticalSplit = false;     // ini: 2 players left / right
 static Cell LayoutCell(int n, int k, int w, int h) {
-    if (n <= 2) return {0, k * (h / 2), w, h / 2};
+    if (n <= 2) return g_verticalSplit ? Cell{k * (w / 2), 0, w / 2, h} : Cell{0, k * (h / 2), w, h / 2};
     if (n <= 4) {
         Cell c = {(k & 1) * (w / 2), (k >> 1) * (h / 2), w / 2, h / 2};
         if (n == 3 && k == 2) c.x = w / 4;
@@ -148,6 +149,20 @@ static FeRect LayoutFeRect(int n, int k) {
     auto fx = [&](int px) { return (2.0f * px / w - 1.0f) * halfW; };
     auto fy = [&](int py) { return (2.0f * py / h - 1.0f) * 240.0f; };
     return {fx(c.x), fy(c.y), fx(c.x + c.w), fy(c.y + c.h)};
+}
+// 2P with the quadrants' HUD: left / right views, or a top/bottom half that can't hold the 640-wide 2P layout (a screen
+// narrower than 4:3, like two monitors stacked into one span: each half is shaped like a 16:9 quadrant).
+static bool QuadHud2P() {
+    FeRect r = LayoutFeRect(2, 0);
+    return g_verticalSplit || r.right - r.left < 640.0f;
+}
+// debug: [DEBUG] ForceScreenW/H replace the size the game creates its device with (any size in a WidescreenFix window,
+// e.g. a span's shape on one monitor; the game's own list only has the driver's modes)
+#define FN_SET_PRESENT     0x5B9A60    // (cdecl; width, height): fills the present parameters
+static int g_forceScreenW = 0, g_forceScreenH = 0;
+static void(__cdecl* g_origSetPresent)(int, int);
+static void __cdecl SetPresentHook(int w, int h) {
+    g_origSetPresent(g_forceScreenW, g_forceScreenH);
 }
 static bool g_viewTintInit[4];           // views 5..8 have their own screen tint entries (see TintUpdateWrapper)
 static bool g_quadTest = false;          // debug: 2P race drawn in quadrants, views 5/6 reuse P1/P2's cameras

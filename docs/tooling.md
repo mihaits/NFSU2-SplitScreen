@@ -23,6 +23,14 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
     `gen_shaders.sh` regenerates `src/parts/headlight_shaders.h` from `src/shaders/*.asm`.
 - **Live process**:
   - `trainer.py` reads/writes memory and takes window screenshots.
+  - `[DEBUG] ForceScreenW/H` (any size, with WidescreenFix `WindowedMode = 1`) forces the device size at 0x5B9A60, for
+    shapes the driver doesn't list.
+    WidescreenFix isn't told about the forced size, so FE units stay 16:9 and the HUD is squeezed into the
+    centre; use it for the 3D view and the HUD's layout within a cell, not the HUD's position on screen.
+  - `set_resolution.sh W H` sets the game's resolution for the next boot (closes the game). WidescreenFix keeps it in
+    `HKCU\Software\EA Games\...`, `g_RacingResolution = (0x8000 | W) << 16 | H`, and the mode must be one the driver
+    lists (a custom NVIDIA 960x1080 is the faithful test of a tall span). It writes through explorer: `reg` from a
+    shell inside the Claude app changes a private view of HKCU that the game never reads.
   - `plugin.py` (for tools): the loaded plugin's base, map symbols and `LocalPlayers` (its local player array; the
     size comes from `MAX_LOCAL_PLAYERS` in the checkout's source, 4 on main, 6 on 6p-support). When the installed asi
     isn't build/'s (an A/B test with an older build), the map doesn't fit: `LocalPlayers` then reads the players from
@@ -34,6 +42,9 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
     shift-light rpm, gear, nitrous, grip used per wheel, wheels in the air, position, finished, pedals, ground and
     wheel speed, wheel radius, slip ratio); read-only, needs the plugin loaded. The values the DualSense lights and the
     DualSense / Xbox triggers use.
+  - `steer_log.py [--players 4,5] [--speed 20] [--top 200] [--need 200] [--csv path]` compares players' steering live
+    (stick, filter output, speed, pedals, velocity) and writes every sample to a csv; read-only. Compare with matched
+    throttle: the output depends on it.
   - `drcheck.py [--clear]` lists game threads that still have hardware breakpoints armed (e.g. after a `hwwatch.py`
     run); `--clear` zeroes DR0-3/6/7 on them.
   - `packages.py` lists the FE package cache.
@@ -84,6 +95,7 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
 - **Automation**:
   - `restart.sh` kills the game (waits until it is gone), installs build/NFSU2SplitScreen.asi and launches the game.
   - `boot.py` gets to the main menu (re-focusing the game and retrying while it loads).
+    `PROFILE=n` picks the profile n rows down the list (also through `go_race_nointro.sh`).
     `restart.sh` gives it 20 s (a boot takes about 8 s). A boot that hangs on the startup loading screen (main thread
     waiting in d3d9) is WidescreenFix in exclusive fullscreen, also without this plugin: use its `WindowedMode = 4`.
   - `go_freerun.sh [start]` restarts the game and starts a split-screen Free Run from the Start row's entry `start`
@@ -92,7 +104,7 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
     timeout each), and waits for the logged start spots. `VIRTUAL=n` joins players 1..n and stops at the next Press
     START for real pads. `go_race_nointro.sh` doesn't fit Free Run's screens (no track list).
   - `go_race_nointro.sh <mode>` starts a split race without the intro, joining players on virtual pads. Optional
-    `POKES="addr=value"`; `INTRO=1` keeps the intro.
+    `POKES="addr=value"`; `INTRO=1` keeps the intro; `TRACK=id` picks that track in the list.
   - Fewer real pads than players: set `[DEBUG] ExtraPlayers` for the player count (read at boot), then
     `VIRTUAL=2 go_race_nointro.sh <mode>` joins P1/P2 on virtual pads and stops at P3's Press START; the user joins
     the rest on real pads. P1/P2 idle at the start line, so a real player finishing starts the Hurry timer and the
@@ -100,8 +112,9 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
   - `go_1p.sh <mode>` starts a single-player race (a reference for comparisons).
   - `autorace.py` lets the game's AI drive every local player's car (the game's autopilot: player +0x230 = 4, see
     [addresses](addresses.md)) and follows the race to the results: a progress line every 5 s, screenshots, fails on
-    a stuck car or timeout. `--players 1,3` only those (drive the rest on real pads); `autorace.py off` gives the cars
-    back. A full automated race: `go_race_nointro.sh <mode>`, then `python -I autorace.py`. Keep test races short:
+    a stuck car or timeout. `--players 1,3` only those (drive the rest on real pads); `--stagger s` releases the cars
+    s seconds apart to spread them around the track (a parked car can get hit: use a long `--stall`); `autorace.py off`
+    gives the cars back. A full automated race: `go_race_nointro.sh <mode>`, then `python -I autorace.py`. Keep test races short:
     the lap count is byte +0xA of the race type's quick race settings (0x83AAC4 + type × 0x14 + 0xA): circuit
     `POKES="83AACE=1"` (1 lap about 80 s), Street X (mode 4 = type 10) `POKES="83AB96=2"` (2 laps about 45 s),
     drift `POKES="83AB0A=1"` (about 20 s). Works in circuit, Street X and drift; not in drag, where 0x5F3AB2 rewrites

@@ -100,8 +100,17 @@ speakers" block of `parts/sound.cpp`; the pad side is `DsSpeakerWrite` in `DualS
   bytes a second). With 5 at once on one adapter (+ an Xbox pad) the writes ran up to 100 ms late, failed with error
   31 now and then, and pads' input froze for seconds without being reported lost. Race setup (`CreateHumanRacers` in
   racers.cpp → `PadSpeakerDefaults`) sets every seat off when more than `kSpeakerDualSenseMax` (2) seats have a
-  DualSense, on otherwise; only when that count changes, so the mute button toggles stay for the next races. To do:
-  a lower Opus bitrate (fewer or smaller 0x39 reports) so more pads can stream.
+  DualSense, on otherwise; only when that count changes, so the mute button toggles stay for the next races. A
+  temporary fix until the bitrate adapts (below).
+- **To do: adaptive bitrate** (needs planning before code). The Opus bitrate is fixed at 160 kbit/s
+  (`OPUS_SET_BITRATE` in DualSense.cpp, `kSpkOpusBytes`). Ideas to discuss:
+  - Pick it from the number of pads streaming (160 kbit/s for 1-2, lower for 3-6).
+  - Lower it per pad when its writes run late or fail (error 31), and raise it again once they recover; the
+    speaker thread already measures how late each write is.
+  - Open questions: how to send less (smaller Opus packets in the same 47 reports/s, or fewer reports), the lowest
+    bitrate that still sounds acceptable on the pad's speaker, and whether the input stalls seen with 5 pads came
+    from the output load at all (they also happened at the menu with no speakers). Once it works, drop the
+    more-than-2 default.
 - **Sending.** 0x7292BC is wrapped at its call 0x7295DD (`RenderChunk`): the player buffers are cleared, the chunk is
   rendered, then (L + R) / 2 × PadSpeakerGain / 32768 goes to `XPadSpeakerWrite` at the mixer rate (word 0x8B44C6,
   44100).

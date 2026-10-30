@@ -282,6 +282,29 @@ static __declspec(naked) void JoySlotPresent() {
     }
 }
 
+// "Steering wheel on this slot" (0x5C1000: 0x86FFB4[slot] != 0 && 0x86E5BC[slot] != 0, 2 slots) picks the steering
+// filter (0x41DFC0, slot = player index): wheel 0x4061C0 (no speed-sensitive steering) or pad 0x416BB0. Index 4 read
+// slot 0's joystick buttons (0x86FFC4) and the low byte of 0x86E5C0 (both non-zero): player 5 steered like a wheel.
+#define FN_JOY_SLOT_WHEEL  0x5C1000          // bool __cdecl (slot)
+static __declspec(naked) void JoySlotWheel() {
+    __asm {
+        mov eax, dword ptr [esp + 4]
+        cmp eax, 2
+        jae none
+        mov ecx, dword ptr [eax * 4 + 0x86FFB4]
+        test ecx, ecx
+        je none
+        mov cl, byte ptr [eax + 0x86E5BC]
+        test cl, cl
+        je none
+        mov al, 1
+        ret
+    none:
+        xor al, al
+        ret
+    }
+}
+
 // Action 1's handler 0x571A20 keeps per-port state in arrays of 4: bytes [port + 0x864788] / [port + 0x8647A0]
 // (0x86478C is another variable) and the frontend's per-port flags 0x50C5D0(port): [0x7F91D4 + row * 0x1C + port * 4],
 // 21 rows of 4 port columns + 3 other dwords. Ports 4/5 with action 1 zeroed those other dwords: no pad worked in the

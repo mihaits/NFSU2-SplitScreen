@@ -237,6 +237,12 @@ there rather than tuned by feel:
   players >= 2). `JoySlotPresent` (0x5BFD70: slot >= 2 → false) guards the driving force feedback 0x406460, which read
   past the 2-slot array.
 
+**Steering wheel check.** The steering filter 0x41DFC0 (slot = player index) picks the wheel routine 0x4061C0 (no
+speed-sensitive steering) when 0x5C1000 says the slot has a wheel (0x86FFB4[slot] != 0 && byte 0x86E5BC[slot] != 0,
+2 slots), else the pad routine 0x416BB0. Index 4 read slot 0's joystick buttons (0x86FFC4) and the low byte of
+0x86E5C0, both non-zero, so player 5's pad was treated as a wheel. `JoySlotWheel` (jump at 0x5C1000) returns false
+for slots >= 2. Whether index 4 reads true depends on what slot 0 holds; forced true, P5's full-lock output at speed is about double ([details](bugs/p5-steering-sharp.md)).
+
 **More than 4 Xbox pads (not done).** XInput stops at 4. Other games get past that with SDL (merges XInput, Raw Input,
 Windows.Gaming.Input and HIDAPI; matches each Raw Input device to its XInput twin by input activity),
 Windows.Gaming.Input (no documented cap, 8 Xbox pads reported; WinRT but callable from Win32; `Gamepad` reads only
