@@ -55,7 +55,7 @@ options of whoever paused.
 
 ## To do
 - [ ] More than 4 Xbox pads (Windows.Gaming.Input backend)
-- [ ] DualSense speaker with an adaptive bitrate, so 3-6 pads can stream at once over Bluetooth
+- [ ] Pad speakers (DualSense and DualShock 4) with an adaptive bitrate, so 3-6 pads can stream at once over Bluetooth
 - [ ] Session results: standings across back-to-back races
 - [ ] Replays of split-screen races
 - [ ] Rear-view mirror in the bumper and hood cameras, like single player

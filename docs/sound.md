@@ -96,15 +96,17 @@ speakers" block of `parts/sound.cpp`; the pad side is `DsSpeakerWrite` in `DualS
 - **Mute button.** A player's mute button toggles their pad speaker during split races (`g_speakerOn[k]`, per seat
   until the game closes); off, the player counts as having no speaker pad, so their car goes back to
   the PC mix at once and the pad stream stops after 1 s. The mute LED is lit while it's off.
-- **Off with more than 2 Bluetooth DualSense players (USB pads don't count).** Each stream is ~200 kbit/s of Bluetooth output (47 reports of 547
-  bytes a second). With 5 at once on one adapter (+ an Xbox pad) the writes ran up to 100 ms late, failed with error
+- **Off with more than 2 Bluetooth speaker players (DualSense and DS4; USB pads don't count).** Each DualSense stream is ~200 kbit/s of Bluetooth output (47 reports of 547
+  bytes a second), a DS4 stream ~230 kbit/s (62.5 reports of 462 bytes). With 5 DualSense pads at once on one adapter (+ an Xbox pad) the writes ran up to 100 ms late, failed with error
   31 now and then, and pads' input froze for seconds without being reported lost. Race setup (`CreateHumanRacers` in
   racers.cpp → `PadSpeakerDefaults`) sets every seat off when more than `kSpeakerDualSenseMax` (2) seats have a
   Bluetooth DualSense, on otherwise; only when that count changes, so the mute button toggles stay for the next races. A
   temporary fix until the bitrate adapts (below).
-- **To do: adaptive bitrate** (needs planning before code). The Opus bitrate is fixed at 160 kbit/s
-  (`OPUS_SET_BITRATE` in DualSense.cpp, `kSpkOpusBytes`). Ideas to discuss:
-  - Pick it from the number of pads streaming (160 kbit/s for 1-2, lower for 3-6).
+- **To do: adaptive bitrate** (needs planning before code). It has to cover both pad types, since their streams share
+  one adapter. The DualSense's Opus bitrate is fixed at 160 kbit/s (`OPUS_SET_BITRATE` in DualSense.cpp, `kSpkOpusBytes`);
+  the DS4's SBC at 216 kbit/s (bitpool 48 in `SbcEncoder.h`, 4 frames in report 0x17). A lower bitpool still needs the
+  pad to accept smaller frames, and how much air time it saves depends on the report size. Ideas to discuss:
+  - Pick it from the number of pads streaming, of either type (160 kbit/s for 1-2, lower for 3-6).
   - Lower it per pad when its writes run late or fail (error 31), and raise it again once they recover; the
     speaker thread already measures how late each write is.
   - Open questions: how to send less (smaller Opus packets in the same 47 reports/s, or fewer reports), the lowest
