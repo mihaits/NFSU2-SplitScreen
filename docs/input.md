@@ -155,8 +155,11 @@ false for them and `XPadIsDs4` true, so they get no player LEDs, trigger row or 
   spec: 32 kHz, 16 blocks, 8 subbands, stereo, SNR allocation, bitpool 48, 108-byte frames, mono in both channels; 51.5 dB
   SNR through ffmpeg's decoder (`tools/sbc_test.cpp`, `tools/sbc_check.py`). The queue is `SpkTake` at 32 kHz. The pad's
   own mute button is missing, so the touchpad click toggles the speaker in split races (`PadSpeakerToggle`); the car moving
-  between the pad and the PC is the only feedback. Over USB PadForge's docs report a headset that only reaches the
-  jack (and no audio at all on the first model); not tried here, so `spkNoDevice` stays set and the car stays on the PC.
+  between the pad and the PC is the only feedback.
+- **No speaker over USB:** a second-model pad (09CC) shows a 2-channel 32 kHz "Headset Earphone" endpoint, and a tone on it
+  with the speaker volume set in report 0x05 (`tools/ds4_usb_speaker.cpp`) stayed silent on the speaker (2026-10-31). PadForge
+  reports the same: a cable reaches only the jack, and the first model has no USB audio. `spkNoDevice` stays set, so the car
+  stays on the PC.
 
 **Xbox impulse triggers (`XboxWgi.cpp`).**
 - XInput can't drive the trigger motors of Xbox One / Series pads; Windows.Gaming.Input (`Gamepad.Vibration`) can.

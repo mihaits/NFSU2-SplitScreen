@@ -64,6 +64,7 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
   - `ds_usb_speaker.cpp`: `build\ds_usb_speaker.exe n` plays test n (1-4, one per run, build line in the file) on a USB
     DualSense's speaker through its audio endpoint, to check the output path and channels by ear.
   - `ds4_bt_speaker.py [--list] [--pad n] [--report 0x14|0x17] [--path 0x02|0x24]`: the same for a Bluetooth DS4 (SBC from ffmpeg).
+  - `ds4_usb_speaker.cpp`: `build\ds4_usb_speaker.exe [speaker] [headphones]` plays a tone on a USB DS4's endpoint with those volumes (build line in the file).
   - `sbc_test.cpp` + `sbc_check.py`: encode test tones with `src/SbcEncoder.h`, decode with ffmpeg, print the SNR.
   - `ds_bt_speaker.py [--list] [--pad n] [--file f | --freq hz --seconds s] [--gain g]` plays a sound on a Bluetooth
     DualSense's speaker (no game needed): Opus frames from ffmpeg/libopus in HID output report 0x39, after a 0x31
