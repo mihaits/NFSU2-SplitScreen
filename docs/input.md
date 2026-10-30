@@ -83,6 +83,8 @@ controllers are hidden. Pads 0..3 are the real XInput pads, 4..9 debug pads driv
   end of a stream puts it back on the jack. If the game dies mid-stream the route stays until the pad reconnects.
   `tools/ds_usb_speaker.cpp` checks this one test per run (right channel, left channel, rumble, jack path).
   - Endpoint: the active render device whose PKEY_Device_ContainerId is the HID device's `DEVPKEY_Device_ContainerId`.
+    The pads have no USB serial; Windows generated a different time-based id for a DualSense and a DS4 on USB, so
+    identical pads shouldn't collide. If they ever do: match the endpoint's `MI_00` to the HID `MI_03` by their parent.
     After a plug it shows up about 10 s after the HID interface, so a USB slot starts with `spkNoDevice` set and the
     hotplug thread (`CheckUsbEndpoints`, every 2 s) clears it once the endpoint is there. Until then `DsSpeakerWrite`
     returns false and the car stays on the PC. sound.cpp takes the car back as soon as `XPadSpeakerReady` says so.

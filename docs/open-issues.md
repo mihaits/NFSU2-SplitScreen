@@ -24,6 +24,8 @@ P5/P6 player LEDs and lightbar colours, pause menus by P5/P6, the post-race scen
   of 2 GB measured); the post-race scene with 6 humans (`FollowCameraForSceneCars`); 5P with 1 AI opponent.
 - Controls pages P5/P6 (rebind, saved to `[Player5]`/`[Player6]`); Customize from seats 5/6.
 - Frame rate on a display faster than 75 Hz.
+- USB speaker with 2 or more DualSense pads on USB: each should hear only their own car, and 3-6 on one USB 2.0 hub may
+  run out of isochronous bandwidth (the stream then fails and the car stays on the PC).
 
 **Podium lightbar** (user, 2026-10-24/25). The 3P logs of 2026-10-25 ruled out the colour going at the results screen
 (it stays until state 7) and a missing finish for P3. Found: in drift the place was the order on track (P1 crossed 5th,
@@ -32,6 +34,8 @@ finishes, racer +0xA reads 1 for one frame (Street X: every finisher logged "pla
 left as is.
 
 **Known bugs and limitations:**
+- After a USB replug mid-race, the pad's speaker stream restarted with peak 0.00 for up to 10 s more before the car
+  was heard (2026-10-30, seen once, cause unknown; the reconnect itself works).
 - **More than 4 Xbox pads** don't work (XInput limit); see [input](input.md).
 - A **stray white line** across P3's minimap was seen once in a 5-view debug layout (`CloneViews`); not seen in real
   5P/6P races.
