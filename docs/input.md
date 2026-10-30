@@ -160,10 +160,11 @@ false for them and `XPadIsDs4` true, so they get no player LEDs, trigger row or 
   stayed silent on the speaker with these report 0x05 settings (`tools/ds4_usb_speaker.cpp`, 2026-10-31): flags 0xB0 and speaker
   0x4F; Chromium's Bluetooth audio bytes at USB offsets (1=0xF0 2=0x04 19=20=0x43 22=0x4D 23=0x85); the same with speaker 0xFF;
   and with both headphone volumes 0. A sweep of bytes 2, 3 and 9..31 through 10 values each, one byte at a time (`sweep`), was silent
-  too, with the endpoint at 100 % and not muted. The same tone plays on headphones in the jack, so the stream reaches the pad. 0x05
+  too, with the endpoint at 100 % and not muted. Volumes reportedly stop at 0x4F (DS4-Sound-Link: higher ones overflow), so both were redone with its
+  speaker-only arming, 1=0xF3 19=20=0 22=0x4F 23=0x85: silent, headphones out. The same tone plays on headphones in the jack, so the stream reaches the pad. 0x05
   is the only output report on USB. Readable feature reports show nothing audio-like (`features`; `E0` doesn't answer a read);
   feature reports were not written, they hold calibration and pairing. The report is 32 bytes, so the Bluetooth audio reports don't fit. PadForge reports the same:
-  a cable reaches only the jack, and the first model has no USB audio; psdevwiki and the eleccelerator wiki (first model) say audio doesn't carry over USB. On Bluetooth each audio report picks the speaker or the jack, and the USB stream has no such byte. Not proven impossible: other 0x05 bytes are undocumented.
+  a cable reaches only the jack, and the first model has no USB audio; psdevwiki and the eleccelerator wiki (first model) say audio doesn't carry over USB. PadForge, DS4-Sound-Link and DS4AudioStreamer all drive the speaker over Bluetooth only. On Bluetooth each audio report picks the speaker or the jack, and the USB stream has no such byte. Not proven impossible: other 0x05 bytes are undocumented.
   `spkNoDevice` stays set, so the car stays on the PC. A pad connected over Bluetooth stays there with a cable in.
 
 **Xbox impulse triggers (`XboxWgi.cpp`).**
