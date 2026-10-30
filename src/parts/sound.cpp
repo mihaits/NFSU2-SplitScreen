@@ -442,7 +442,7 @@ static bool PadSpeakerOff(int k) { return g_padSpeakers && k >= 0 && k < MAX_LOC
 // Each speaker stream is ~200 kbit/s of Bluetooth output (47 reports of 547 bytes a second): with 5 at once the radio
 // fell behind (writes up to 100 ms late, error 31) and pads froze. So with more than kSpeakerDualSenseMax DualSense
 // players the speakers start off (the mute button still turns one on). Set at race setup (racers.cpp) when that count
-// changes, so the players' own toggles stay for the next races with the same pads. TODO: lower bitrate per stream.
+// changes, so the players' own toggles stay for the next races with the same pads. TODO: adaptive bitrate.
 constexpr int kSpeakerDualSenseMax = 2;
 static int g_speakerDefaultFor = -1;     // DualSense players the defaults were last set for
 static void PadSpeakerDefaults(int players) {
