@@ -7,6 +7,8 @@
 #include <hidsdi.h>
 #include <hidpi.h>
 #include <tlhelp32.h>
+#include <mmdeviceapi.h>
+#include <audioclient.h>
 #include <cstdarg>
 #include <cstdint>
 #include <cstdio>
@@ -57,13 +59,16 @@ struct Slot {
     DsPadState st;
     DsExtra ex;
     DsOutput want;
-    // speaker (Bluetooth): DsSpeakerWrite queues mono samples, SpeakerThread streams them
+    // speaker: DsSpeakerWrite queues mono samples, SpeakerThread (Bluetooth) or UsbSpeakerThread streams them
     CRITICAL_SECTION spkCs;
     float spkBuf[16384];                  // ring, at spkRate
     int spkHead, spkCount, spkRate;
     DWORD spkLastWrite;
     HANDLE spkThread;
     volatile LONG spkStop;
+    // USB: no usable audio endpoint. With spkWaitEndpoint the hotplug thread clears it once the endpoint shows up,
+    // which is some seconds after the HID interface when a pad is plugged in; otherwise it stays until a reconnect.
+    volatile bool spkNoDevice, spkWaitEndpoint;
 };
 
 Slot g_slot[kDsMax];
@@ -265,7 +270,7 @@ DWORD WINAPI IoThread(LPVOID param) {
         bool urgent = !haveSent || rumbling != (sent.smallMotor || sent.largeMotor) ||
                       memcmp(want.trigR, sent.trigR, 11) || memcmp(want.trigL, sent.trigL, 11);
         // after a failed write, wait kRetryMs before the next try (each try can block for 100 ms and stall the reads)
-        bool speaker = s->spkThread != nullptr;
+        bool speaker = s->spkThread != nullptr && !s->usb;
         DWORD gap = failing ? kRetryMs : speaker ? (urgent ? kMinGapSpeakerUrgentMs : kMinGapSpeakerMs) : kMinGapBtMs;
         bool gapOk = failing || speaker ? now - lastSend >= gap : s->usb || urgent || now - lastSend >= kMinGapBtMs;
         bool due = (changed && gapOk) ||
@@ -337,17 +342,128 @@ constexpr int kSpkRing = 16384;           // queued input samples (at the input 
 constexpr int kSpkReport = 547, kSpkOpusBytes = 200, kSpkOut = 960;   // 960 output samples (45 kHz) per report
 constexpr int kSpkTarget = 2048, kSpkMaxQueue = 8820;   // input samples: ~46 ms to start, 200 ms max
 constexpr int kSpkLowTarget = 768;        // what's left after a report, at its lowest per half second (~17 ms)
+constexpr int kSpkWindow = 24 * kSpkOut;  // output samples per rate correction
 
-void SpeakerRoute(uint8_t* r, int seq) {  // r[78]
-    memset(r, 0, 78);
-    r[0] = 0x31; r[1] = static_cast<uint8_t>((seq & 0x0F) << 4); r[2] = 0x10;
-    uint8_t* c = r + 3;
+int SpeakerRoute(const Slot* s, uint8_t* r, int seq, int path) {  // path 3: speaker, 0: jack (USB only)
+    memset(r, 0, s->outLen);
+    uint8_t* c;
+    if (s->usb) { r[0] = 0x02; c = r + 1; }
+    else { r[0] = 0x31; r[1] = static_cast<uint8_t>((seq & 0x0F) << 4); r[2] = 0x10; c = r + 3; }
     c[0] = 0x80 | 0x20;                   // valid: audio control, speaker volume
     c[1] = 0x80;                          // valid: audio control 2
     c[5] = 0x64;                          // speaker volume (max)
-    c[7] = 0x30;                          // audio control: output path speaker
+    c[7] = static_cast<uint8_t>(path << 4);   // audio control: output path
     c[37] = 0x02;                         // audio control 2: speaker preamp gain
-    BtSign(r);
+    if (!s->usb) BtSign(r);
+    return s->outLen;
+}
+
+// The speaker thread's side of the queue (spkBuf), for both transports.
+struct SpkQueue {
+    double frac = 0;                      // resampler position past the queue head, in input samples
+    double drift = 0, trim = 0;           // rate correction (clock drift, see below): integral part, total
+    int winMin = 1 << 30, winMax = 0, winSamples = 0, statMin = 1 << 30, statMax = 0;
+    float env = 0;                        // limiter envelope
+    bool started = false, refill = false;
+    int underruns = 0, dropped = 0;
+    float peak = 0;
+};
+
+void SpkStatsReset(SpkQueue& q) {
+    q.statMin = 1 << 30;
+    q.statMax = 0;
+    q.underruns = q.dropped = 0;
+    q.peak = 0;
+}
+
+// Writes n (at most kSpkOut) limited mono samples at outRate, silence when the queue has none. False: idle for 1 s,
+// the stream should end.
+bool SpkTake(Slot* s, SpkQueue& q, float* out, int n, double outRate) {
+    static float lin[kDsMax][1100];
+    int idx = static_cast<int>(s - g_slot);
+    // input for n output samples at positions frac + i * step (linear interpolation)
+    bool have = false;
+    double step = 1;
+    EnterCriticalSection(&s->spkCs);
+    if (GetTickCount() - s->spkLastWrite > 1000) {                       // idle: end the stream
+        s->spkCount = 0;                                                  // (a few leftover samples never drain)
+        LeaveCriticalSection(&s->spkCs);
+        return false;
+    }
+    // The game's sound card and the pad's clock drift apart: read up to 1 % faster or slower so the queue neither
+    // runs dry (a gap) nor fills up (dropped samples). The game fills its sound buffer in bursts (up to ~65 ms at
+    // once), so the queue is a sawtooth: what has to stay above 0 is its lowest point after a take, held near
+    // kSpkLowTarget per half second (proportional + integral); a gap slows it down at once.
+    step = s->spkRate / outRate * (1 + q.trim);
+    int need = static_cast<int>(q.frac + (n - 1) * step) + 2;
+    if (q.started) {
+        if (s->spkCount - need < q.winMin) q.winMin = s->spkCount - need;
+        if (s->spkCount > q.winMax) q.winMax = s->spkCount;
+        q.winSamples += n;
+        if (q.winSamples >= kSpkWindow) {
+            double err = static_cast<double>(q.winMin - kSpkLowTarget) / kSpkTarget;
+            q.drift += err * 0.001;
+            if (q.drift > 0.005) q.drift = 0.005;
+            if (q.drift < -0.005) q.drift = -0.005;
+            q.trim = q.drift + err * 0.003;
+            if (q.trim > 0.01) q.trim = 0.01;
+            if (q.trim < -0.01) q.trim = -0.01;
+            if (q.winMin < q.statMin) q.statMin = q.winMin;
+            if (q.winMax > q.statMax) q.statMax = q.winMax;
+            q.winMin = 1 << 30;
+            q.winMax = q.winSamples = 0;
+        }
+    }
+    if (s->spkCount > kSpkMaxQueue) {                                    // fell behind: keep the newest
+        int drop = s->spkCount - kSpkTarget;
+        s->spkHead = (s->spkHead + drop) % kSpkRing;
+        s->spkCount -= drop;
+        q.dropped += drop;
+    }
+    // first start: a full kSpkTarget; after a gap only a take plus the reserve, so the windows that follow
+    // don't see a refill-sized reserve and speed up again
+    if (!q.started && s->spkCount >= (q.refill ? need + kSpkLowTarget : kSpkTarget)) q.started = true;
+    if (q.started && s->spkCount >= need && need <= 1100) {
+        for (int i = 0; i < need; ++i) lin[idx][i] = s->spkBuf[(s->spkHead + i) % kSpkRing];
+        have = true;
+        int used = static_cast<int>(q.frac + n * step);
+        s->spkHead = (s->spkHead + used) % kSpkRing;
+        s->spkCount -= used;
+    } else if (q.started) {
+        q.started = false;
+        q.refill = true;
+        ++q.underruns;
+        q.drift -= 0.0005;
+        if (q.drift < -0.005) q.drift = -0.005;
+        q.trim = q.drift;
+        q.winMin = 1 << 30;
+        q.winMax = q.winSamples = 0;
+    }
+    LeaveCriticalSection(&s->spkCs);
+    for (int i = 0; i < n; ++i) {
+        float v = 0;
+        if (have) {
+            double x = q.frac + i * step;
+            int j = static_cast<int>(x);
+            float t = static_cast<float>(x - j);
+            v = lin[idx][j] + (lin[idx][j + 1] - lin[idx][j]) * t;
+            float a = v < 0 ? -v : v;   // limiter: instant attack, ~50 ms release, ceiling 0.9 (no hard clipping)
+            if (a > q.peak) q.peak = a;
+            q.env = a > q.env ? a : q.env * 0.9995f;
+            if (q.env > 0.9f) v *= 0.9f / q.env;
+        }
+        out[i] = v;
+    }
+    if (have) q.frac = q.frac + n * step - static_cast<int>(q.frac + n * step);
+    return true;
+}
+
+// Last step of a speaker thread: while the handle is set no new stream starts (the USB route restore can't land after
+// a new stream's route). A lost pad's I/O thread has already taken the handle.
+void SpkFinish(Slot* s) {
+    EnterCriticalSection(&s->spkCs);
+    if (s->spkThread) { CloseHandle(s->spkThread); s->spkThread = nullptr; }
+    LeaveCriticalSection(&s->spkCs);
 }
 
 DWORD WINAPI SpeakerThread(LPVOID param) {
@@ -362,10 +478,9 @@ DWORD WINAPI SpeakerThread(LPVOID param) {
     }
     HANDLE ev = CreateEventA(nullptr, TRUE, FALSE, nullptr);
     static uint8_t reports[kDsMax][kSpkReport];
-    static float lin[kDsMax][1100], pcm[kDsMax][kSpkOut * 2];
+    static float mono[kDsMax][kSpkOut], pcm[kDsMax][kSpkOut * 2];
     uint8_t* rep = reports[idx];
-    SpeakerRoute(rep, 0);
-    bool ok = enc && WriteReport(s, ev, rep, 78);
+    bool ok = enc && WriteReport(s, ev, rep, SpeakerRoute(s, rep, 0, 3));
     Log("DualSense %d: speaker stream %s", idx, ok ? "started" : enc ? "route report failed" : "no Opus encoder");
     timeBeginPeriod(1);
     LARGE_INTEGER freq, now;
@@ -373,92 +488,16 @@ DWORD WINAPI SpeakerThread(LPVOID param) {
     QueryPerformanceCounter(&now);
     const double period = 64.0 / 3000;
     double next = static_cast<double>(now.QuadPart) / freq.QuadPart;
-    double frac = 0;                      // resampler position past the queue head, in input samples
-    double drift = 0, trim = 0;           // rate correction (clock drift, see below): integral part, total
-    int winMin = 1 << 30, winMax = 0, winReports = 0, statMin = 1 << 30, statMax = 0;
-    float env = 0;                        // limiter envelope
-    bool started = false, refill = false, failing = false;
+    SpkQueue q;
+    bool failing = false;
     uint8_t seq = 1, counter = 0;
-    int sent = 0, underruns = 0, dropped = 0, shortPackets = 0;
+    int sent = 0, shortPackets = 0;
     double lateMax = 0;
-    float peak = 0;
     DWORD statsAt = GetTickCount();
     while (ok && !s->spkStop) {
-        // input for 960 output samples at positions frac + i * step (linear interpolation)
-        bool have = false;
-        double step = 1;
-        EnterCriticalSection(&s->spkCs);
-        if (GetTickCount() - s->spkLastWrite > 1000) {                  // idle: end the stream
-            s->spkCount = 0;                                             // (a few leftover samples never drain)
-            if (s->spkThread) { CloseHandle(s->spkThread); s->spkThread = nullptr; }
-            LeaveCriticalSection(&s->spkCs);
-            break;
-        }
-        // The game's sound card and this timer drift apart: read up to 1 % faster or slower so the queue neither
-        // runs dry (a gap) nor fills up (dropped samples). The game fills its sound buffer in bursts (up to ~65 ms at
-        // once), so the queue is a sawtooth: what has to stay above 0 is its lowest point after a report's samples are
-        // taken, held near kSpkLowTarget per half second (proportional + integral); a gap slows it down at once.
-        step = s->spkRate / 45000.0 * (1 + trim);
-        int need = static_cast<int>(frac + (kSpkOut - 1) * step) + 2;
-        if (started) {
-            if (s->spkCount - need < winMin) winMin = s->spkCount - need;
-            if (s->spkCount > winMax) winMax = s->spkCount;
-            if (++winReports == 24) {
-                double err = static_cast<double>(winMin - kSpkLowTarget) / kSpkTarget;
-                drift += err * 0.001;
-                if (drift > 0.005) drift = 0.005;
-                if (drift < -0.005) drift = -0.005;
-                trim = drift + err * 0.003;
-                if (trim > 0.01) trim = 0.01;
-                if (trim < -0.01) trim = -0.01;
-                if (winMin < statMin) statMin = winMin;
-                if (winMax > statMax) statMax = winMax;
-                winMin = 1 << 30;
-                winMax = winReports = 0;
-            }
-        }
-        if (s->spkCount > kSpkMaxQueue) {                                // fell behind: keep the newest
-            int drop = s->spkCount - kSpkTarget;
-            s->spkHead = (s->spkHead + drop) % kSpkRing;
-            s->spkCount -= drop;
-            dropped += drop;
-        }
-        // first start: a full kSpkTarget; after a gap only a report plus the reserve, so the windows that follow
-        // don't see a refill-sized reserve and speed up again
-        if (!started && s->spkCount >= (refill ? need + kSpkLowTarget : kSpkTarget)) started = true;
-        if (started && s->spkCount >= need && need <= 1100) {
-            for (int i = 0; i < need; ++i) lin[idx][i] = s->spkBuf[(s->spkHead + i) % kSpkRing];
-            have = true;
-            int used = static_cast<int>(frac + kSpkOut * step);
-            s->spkHead = (s->spkHead + used) % kSpkRing;
-            s->spkCount -= used;
-        } else if (started) {
-            started = false;
-            refill = true;
-            ++underruns;
-            drift -= 0.0005;
-            if (drift < -0.005) drift = -0.005;
-            trim = drift;
-            winMin = 1 << 30;
-            winMax = winReports = 0;
-        }
-        LeaveCriticalSection(&s->spkCs);
+        if (!SpkTake(s, q, mono[idx], kSpkOut, 45000.0)) break;
         float* out = pcm[idx];
-        for (int i = 0; i < kSpkOut; ++i) {
-            float v = 0;
-            if (have) {
-                double x = frac + i * step;
-                int j = static_cast<int>(x);
-                float t = static_cast<float>(x - j);
-                v = lin[idx][j] + (lin[idx][j + 1] - lin[idx][j]) * t;
-                float a = v < 0 ? -v : v;   // limiter: instant attack, ~50 ms release, ceiling 0.9 (no hard clipping)
-                if (a > peak) peak = a;
-                env = a > env ? a : env * 0.9995f;
-                if (env > 0.9f) v *= 0.9f / env;
-            }
-            out[2 * i] = out[2 * i + 1] = v;
-        }
-        if (have) frac = frac + kSpkOut * step - static_cast<int>(frac + kSpkOut * step);
+        for (int i = 0; i < kSpkOut; ++i) out[2 * i] = out[2 * i + 1] = mono[idx][i];
         memset(rep, 0, kSpkReport);
         rep[0] = 0x39; rep[1] = static_cast<uint8_t>(seq++ << 4);
         rep[2] = 0x91; rep[3] = 6; rep[4] = 0x7E; rep[5] = rep[6] = rep[7] = rep[8] = 48;
@@ -488,13 +527,12 @@ DWORD WINAPI SpeakerThread(LPVOID param) {
         DWORD t = GetTickCount();
         if (t - statsAt >= 5000) {
             Log("DualSense %d: speaker %d reports, %d underruns, %d samples dropped, peak %.2f (limited above 0.90), "
-                "left %d, queue max %d, %d short Opus packets, max late %.1f ms, rate %+.3f %%", idx, sent, underruns, dropped,
-                peak, statMin == 1 << 30 ? 0 : statMin, statMax, shortPackets, lateMax * 1000, trim * 100);
-            statMin = 1 << 30;
-            statMax = 0;
-            sent = underruns = dropped = shortPackets = 0;
+                "left %d, queue max %d, %d short Opus packets, max late %.1f ms, rate %+.3f %%", idx, sent, q.underruns,
+                q.dropped, q.peak, q.statMin == 1 << 30 ? 0 : q.statMin, q.statMax, shortPackets, lateMax * 1000,
+                q.trim * 100);
+            SpkStatsReset(q);
+            sent = shortPackets = 0;
             lateMax = 0;
-            peak = 0;
             statsAt = t;
         }
         next += period;
@@ -509,6 +547,151 @@ DWORD WINAPI SpeakerThread(LPVOID param) {
     if (enc) opus_encoder_destroy(enc);
     CloseHandle(ev);
     Log("DualSense %d: speaker stream stopped", idx);
+    SpkFinish(s);
+    return 0;
+}
+
+// ---------------------------------------------------------------- speaker (USB)
+// Over USB the pad is also a Windows audio device: a render endpoint of 4 channels at 48 kHz (speaker tap L/R, haptics
+// L/R), which plays on the jack unless output path 3 is set (SpeakerRoute): that mutes the jack and plays channel 2 on
+// the speaker. Channels 3-4 stay zero. The endpoint is the render device with the pad's container id.
+const PROPERTYKEY kPkeyContainerId = {{0x8C7ED206, 0x3F8A, 0x4827, {0xB3, 0xAB, 0xAE, 0x9E, 0x1F, 0xAE, 0xFC, 0x6C}}, 2};
+const DEVPROPKEY kDevpkeyContainerId = {{0x8C7ED206, 0x3F8A, 0x4827, {0xB3, 0xAB, 0xAE, 0x9E, 0x1F, 0xAE, 0xFC, 0x6C}}, 2};
+const DEVPROPKEY kDevpkeyInstanceId = {{0x78C34FC8, 0x104A, 0x4ACA, {0x9E, 0xA4, 0x52, 0x4D, 0x52, 0x99, 0x6E, 0x57}}, 256};
+constexpr REFERENCE_TIME kUsbSpkBuffer = 300000;   // 30 ms
+
+template <class T> void ComRelease(T*& p) { if (p) { p->Release(); p = nullptr; } }
+
+bool PadContainerId(const Slot* s, GUID* id) {
+    WCHAR path[MAX_PATH], inst[256];
+    MultiByteToWideChar(CP_ACP, 0, s->path, -1, path, MAX_PATH);
+    DEVPROPTYPE type;
+    ULONG size = sizeof(inst), idSize = sizeof(GUID);
+    DEVINST node;
+    return CM_Get_Device_Interface_PropertyW(path, &kDevpkeyInstanceId, &type, reinterpret_cast<PBYTE>(inst), &size, 0) ==
+               CR_SUCCESS &&
+           CM_Locate_DevNodeW(&node, inst, CM_LOCATE_DEVNODE_NORMAL) == CR_SUCCESS &&
+           CM_Get_DevNode_PropertyW(node, &kDevpkeyContainerId, &type, reinterpret_cast<PBYTE>(id), &idSize, 0) ==
+               CR_SUCCESS;
+}
+
+IMMDevice* FindPadEndpoint(const GUID& container, int warnIdx = -1) {   // warnIdx: slot to log the default output for
+    IMMDeviceEnumerator* en = nullptr;
+    IMMDeviceCollection* list = nullptr;
+    IMMDevice* found = nullptr;
+    if (SUCCEEDED(CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, IID_PPV_ARGS(&en))) &&
+        SUCCEEDED(en->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &list))) {
+        UINT n = 0;
+        list->GetCount(&n);
+        for (UINT i = 0; i < n && !found; ++i) {
+            IMMDevice* d = nullptr;
+            IPropertyStore* ps = nullptr;
+            if (FAILED(list->Item(i, &d))) continue;
+            if (SUCCEEDED(d->OpenPropertyStore(STGM_READ, &ps))) {
+                PROPVARIANT v;
+                PropVariantInit(&v);
+                if (SUCCEEDED(ps->GetValue(kPkeyContainerId, &v)) && v.vt == VT_CLSID && IsEqualGUID(*v.puuid, container))
+                    found = d;
+                PropVariantClear(&v);
+                ps->Release();
+            }
+            if (!found) d->Release();
+        }
+        IMMDevice* def = nullptr;
+        LPWSTR a = nullptr, b = nullptr;
+        if (found && warnIdx >= 0 && SUCCEEDED(en->GetDefaultAudioEndpoint(eRender, eConsole, &def)) &&
+            SUCCEEDED(found->GetId(&a)) && SUCCEEDED(def->GetId(&b)) && !wcscmp(a, b))
+            Log("DualSense %d: this pad is the Windows default output, so the PC mix plays on its speaker too", warnIdx);
+        CoTaskMemFree(a);
+        CoTaskMemFree(b);
+        ComRelease(def);
+    }
+    ComRelease(list);
+    ComRelease(en);
+    return found;
+}
+
+DWORD WINAPI UsbSpeakerThread(LPVOID param) {
+    Slot* s = static_cast<Slot*>(param);
+    int idx = static_cast<int>(s - g_slot);
+    HRESULT com = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    HANDLE ev = CreateEventA(nullptr, FALSE, FALSE, nullptr), writeEv = CreateEventA(nullptr, TRUE, FALSE, nullptr);
+    IMMDevice* dev = nullptr;
+    IAudioClient* client = nullptr;
+    IAudioRenderClient* render = nullptr;
+    WAVEFORMATEX* fmt = nullptr;
+    UINT32 frames = 0;
+    uint8_t rep[128];
+    GUID container;
+    const char* why = nullptr;            // what failed
+    if (FAILED(com)) why = "COM";
+    else if (!PadContainerId(s, &container)) why = "no container id";
+    else if (!(dev = FindPadEndpoint(container))) why = "no active audio endpoint";
+    else if (FAILED(dev->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr, reinterpret_cast<void**>(&client))) ||
+             FAILED(client->GetMixFormat(&fmt))) why = "no audio client";
+    else {
+        auto* ext = reinterpret_cast<WAVEFORMATEXTENSIBLE*>(fmt);
+        bool isFloat = fmt->wBitsPerSample == 32 && (fmt->wFormatTag == WAVE_FORMAT_IEEE_FLOAT ||
+                       (fmt->wFormatTag == WAVE_FORMAT_EXTENSIBLE && ext->SubFormat.Data1 == WAVE_FORMAT_IEEE_FLOAT));
+        if (!isFloat || fmt->nChannels < 2) why = "unexpected mix format";
+        else if (FAILED(client->Initialize(AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_EVENTCALLBACK, kUsbSpkBuffer, 0,
+                                           fmt, nullptr)) ||
+                 FAILED(client->SetEventHandle(ev)) || FAILED(client->GetBufferSize(&frames)) ||
+                 FAILED(client->GetService(IID_PPV_ARGS(&render)))) why = "audio client setup failed";
+        else if (!WriteReport(s, writeEv, rep, SpeakerRoute(s, rep, 0, 3))) why = "route report failed";
+        else if (FAILED(client->Start())) why = "audio client didn't start";
+    }
+    Log("DualSense %d: USB speaker stream %s%s", idx, why ? "failed: " : "started", why ? why : "");
+    SpkQueue q;
+    int channels = fmt ? fmt->nChannels : 0;
+    double rate = fmt ? fmt->nSamplesPerSec : 0;
+    int sent = 0;
+    DWORD statsAt = GetTickCount();
+    static float mono[kDsMax][kSpkOut];
+    bool idle = false;
+    while (!why && !idle && !s->spkStop) {
+        if (WaitForSingleObject(ev, 500) != WAIT_OBJECT_0) { why = "no audio event"; break; }
+        UINT32 pad = 0;
+        BYTE* data;
+        if (FAILED(client->GetCurrentPadding(&pad))) { why = "endpoint gone"; break; }   // the pad dropped
+        UINT32 n = frames - pad;
+        if (!n) continue;
+        if (FAILED(render->GetBuffer(n, &data))) { why = "endpoint gone"; break; }
+        float* f = reinterpret_cast<float*>(data);
+        memset(f, 0, n * channels * sizeof(float));
+        for (UINT32 done = 0; done < n && !idle;) {
+            int chunk = n - done > kSpkOut ? kSpkOut : static_cast<int>(n - done);
+            if (!SpkTake(s, q, mono[idx], chunk, rate)) { idle = true; break; }
+            for (int i = 0; i < chunk; ++i) f[(done + i) * channels + 1] = mono[idx][i];
+            done += chunk;
+        }
+        render->ReleaseBuffer(n, 0);
+        sent += n;
+        DWORD t = GetTickCount();
+        if (t - statsAt >= 5000) {
+            Log("DualSense %d: USB speaker %d frames, %d underruns, %d samples dropped, peak %.2f (limited above 0.90), "
+                "left %d, queue max %d, rate %+.3f %%", idx, sent, q.underruns, q.dropped, q.peak,
+                q.statMin == 1 << 30 ? 0 : q.statMin, q.statMax, q.trim * 100);
+            SpkStatsReset(q);
+            sent = 0;
+            statsAt = t;
+        }
+    }
+    if (client) client->Stop();
+    if (!s->spkStop) WriteReport(s, writeEv, rep, SpeakerRoute(s, rep, 0, 0));   // back on the jack
+    if (why) {
+        Log("DualSense %d: USB speaker stopped: %s; engine stays on the PC", idx, why);
+        s->spkWaitEndpoint = !dev || !strcmp(why, "endpoint gone");
+        s->spkNoDevice = true;
+    } else Log("DualSense %d: speaker stream stopped", idx);
+    ComRelease(render);
+    ComRelease(client);
+    ComRelease(dev);
+    CoTaskMemFree(fmt);
+    CloseHandle(ev);
+    CloseHandle(writeEv);
+    if (SUCCEEDED(com)) CoUninitialize();
+    SpkFinish(s);
     return 0;
 }
 
@@ -660,6 +843,7 @@ void OpenPad(const char* path, bool edge) {
     EnterCriticalSection(&s->spkCs);
     s->spkCount = 0;
     s->spkStop = 0;
+    s->spkNoDevice = s->spkWaitEndpoint = s->usb;
     LeaveCriticalSection(&s->spkCs);
     s->alive = 1;
     s->thread = CreateThread(nullptr, 0, IoThread, s, 0, nullptr);
@@ -695,7 +879,21 @@ void Rescan() {
     SetupDiDestroyDeviceInfoList(set);
 }
 
+void CheckUsbEndpoints() {
+    for (auto& s : g_slot) {
+        if (!s.alive || !s.usb || !s.spkNoDevice || !s.spkWaitEndpoint) continue;
+        GUID container;
+        IMMDevice* d = PadContainerId(&s, &container) ? FindPadEndpoint(container, static_cast<int>(&s - g_slot)) : nullptr;
+        if (!d) continue;
+        d->Release();
+        Log("DualSense %d: USB audio endpoint ready", static_cast<int>(&s - g_slot));
+        s.spkWaitEndpoint = false;
+        s.spkNoDevice = false;
+    }
+}
+
 DWORD WINAPI HotplugThread(LPVOID) {
+    CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     for (;;) {
         int state = !Ds4WindowsRunning() ? 0 : ViGEmPadPresent() ? 2 : 1;
         bool ds4w = state == 2;
@@ -707,7 +905,7 @@ DWORD WINAPI HotplugThread(LPVOID) {
             Log("%s", msg[state]);
         }
         if (ds4w) ReapSlots(true);
-        else { ReapSlots(false); Rescan(); }
+        else { ReapSlots(false); Rescan(); CheckUsbEndpoints(); }
         Sleep(2000);
     }
 }
@@ -767,7 +965,7 @@ void DsSetOutput(int slot, const DsOutput& o) {
 bool DsSpeakerWrite(int slot, const float* mono, int frames, int rate) {
     if (!g_enabled || slot < 0 || slot >= kDsMax || frames <= 0 || rate <= 0) return false;
     Slot& s = g_slot[slot];
-    if (!s.alive || s.usb) return false;
+    if (!s.alive || s.spkNoDevice) return false;
     EnterCriticalSection(&s.spkCs);
     bool ok = !s.spkStop;
     if (ok) {
@@ -777,9 +975,15 @@ bool DsSpeakerWrite(int slot, const float* mono, int frames, int rate) {
             s.spkBuf[(s.spkHead + s.spkCount++) % kSpkRing] = mono[i];
         }
         s.spkLastWrite = GetTickCount();
-        if (!s.spkThread) s.spkThread = CreateThread(nullptr, 0, SpeakerThread, &s, 0, nullptr);
+        if (!s.spkThread) s.spkThread = CreateThread(nullptr, 0, s.usb ? UsbSpeakerThread : SpeakerThread, &s, 0, nullptr);
     }
     LeaveCriticalSection(&s.spkCs);
     return ok;
+}
+
+bool DsIsBluetooth(int slot) { return g_enabled && slot >= 0 && slot < kDsMax && g_slot[slot].alive && !g_slot[slot].usb; }
+
+bool DsSpeakerReady(int slot) {
+    return g_enabled && slot >= 0 && slot < kDsMax && g_slot[slot].alive && !g_slot[slot].spkNoDevice;
 }
 

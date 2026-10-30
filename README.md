@@ -47,12 +47,12 @@ options of whoever paused.
 **Controllers**
 - DualSense without DS4Windows: rumble, player LEDs, RPM / nitrous lightbar, adaptive triggers
 - Xbox One / Series impulse triggers, Forza Horizon style: they buzz with wheelspin and brake slip
-- Each player's car sounds on their own DualSense's speaker (Bluetooth), so the cars don't overlap on the PC
+- Each player's car sounds on their own DualSense's speaker (Bluetooth or USB), so the cars don't overlap on the PC.
+  Windows may switch its default output to a pad when you plug it in; switch it back in the Windows sound settings
 - A controller that turns off keeps its player; a spare one can take over
 
 ## To do
 - [ ] More than 4 Xbox pads (Windows.Gaming.Input backend)
-- [ ] DualSense speaker over USB
 - [ ] DualSense speaker with an adaptive bitrate, so 3-6 pads can stream at once over Bluetooth
 - [ ] DualShock 4 without DS4Windows: input, rumble, player-coloured lightbar
 - [ ] Session results: standings across back-to-back races

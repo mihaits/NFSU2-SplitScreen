@@ -428,7 +428,7 @@ static volatile DWORD g_engineVoiceSeen[64];
 static volatile LONG g_engineVoiceHandle[64];        // the channel handle it was claimed with (EA reuses voices)
 static volatile LONG g_speakerPad[MAX_LOCAL_PLAYERS] = {-1, -1, -1, -1, -1, -1};   // pad with a speaker, or -1
 static volatile DWORD g_speakerSeen[MAX_LOCAL_PLAYERS];
-static volatile LONG g_speakerFailed[MAX_LOCAL_PLAYERS];   // the pad took no samples (not Bluetooth): PC mix
+static volatile LONG g_speakerFailed[MAX_LOCAL_PLAYERS];   // the pad took no samples (no audio endpoint yet): PC mix
 static float g_speakerMix[MAX_LOCAL_PLAYERS][2][256];
 // The player's mute button turns their pad speaker off and on during split races (pad_lights.cpp; the mute LED is lit
 // while it's off); kept per seat until the game closes.
@@ -440,21 +440,22 @@ static void PadSpeakerToggle(int k) {
 }
 static bool PadSpeakerOff(int k) { return g_padSpeakers && k >= 0 && k < MAX_LOCAL_PLAYERS && !g_speakerOn[k]; }
 // Each speaker stream is ~200 kbit/s of Bluetooth output (47 reports of 547 bytes a second): with 5 at once the radio
-// fell behind (writes up to 100 ms late, error 31) and pads froze. So with more than kSpeakerDualSenseMax DualSense
-// players the speakers start off (the mute button still turns one on). Set at race setup (racers.cpp) when that count
-// changes, so the players' own toggles stay for the next races with the same pads. TODO: adaptive bitrate.
+// fell behind (writes up to 100 ms late, error 31) and pads froze. So with more than kSpeakerDualSenseMax Bluetooth
+// DualSense players the speakers start off (the mute button still turns one on); USB pads don't count, they use no
+// radio. Set at race setup (racers.cpp) when that count changes, so the players' own toggles stay for the next races
+// with the same pads. TODO: adaptive bitrate.
 constexpr int kSpeakerDualSenseMax = 2;
-static int g_speakerDefaultFor = -1;     // DualSense players the defaults were last set for
+static int g_speakerDefaultFor = -1;     // Bluetooth DualSense players the defaults were last set for
 static void PadSpeakerDefaults(int players) {
     if (!g_padSpeakers) return;
     int n = 0;
     for (int k = 0; k < players && k < MAX_LOCAL_PLAYERS; ++k)
-        if (g_assignedPad[k] != PAD_NONE && XPadIsDualSense(g_assignedPad[k])) ++n;
+        if (g_assignedPad[k] != PAD_NONE && XPadIsBluetoothDualSense(g_assignedPad[k])) ++n;
     if (n == g_speakerDefaultFor) return;
     g_speakerDefaultFor = n;
     bool on = n <= kSpeakerDualSenseMax;
     for (bool& s : g_speakerOn) s = on;
-    Log("pad speakers: %d DualSense players, speakers start %s", n, on ? "on" : "off (mute button turns one on)");
+    Log("pad speakers: %d Bluetooth DualSense players, speakers start %s", n, on ? "on" : "off (mute button turns one on)");
 }
 
 static void __fastcall EngineUpdateHook(uint8_t* obj, void* edx) {
@@ -475,6 +476,10 @@ static void __fastcall EngineUpdateHook(uint8_t* obj, void* edx) {
             Log("pad speaker: player %d -> pad %d (engine voice %d)", k + 1, pad, h & 0x3F);
             InterlockedExchange(&g_speakerFailed[k], 0);
             InterlockedExchange(&g_speakerPad[k], pad);
+        }
+        if (g_speakerFailed[k] && pad >= 0 && XPadSpeakerReady(pad)) {   // a USB pad's audio endpoint came back
+            Log("pad speaker: player %d's pad %d has its speaker back", k + 1, pad);
+            InterlockedExchange(&g_speakerFailed[k], 0);
         }
         g_speakerSeen[k] = GetTickCount();
         g_engineVoicePlayer[h & 0x3F] = k + 1;
@@ -764,7 +769,7 @@ static void __cdecl RenderChunk(void* channels, int frames) {
         for (int i = 0; i < frames; ++i) mono[i] = (g_speakerMix[k][0][i] + g_speakerMix[k][1][i]) * scale;
         if (!XPadSpeakerWrite(g_speakerPad[k], mono, frames, at<uint16_t>(EA_OUTPUT_RATE))) {
             InterlockedExchange(&g_speakerFailed[k], 1);
-            Log("pad speaker: player %d's pad %ld has no Bluetooth speaker; engine stays on the PC", k + 1,
+            Log("pad speaker: player %d's pad %ld has no speaker; engine stays on the PC", k + 1,
                 g_speakerPad[k]);
         }
     }

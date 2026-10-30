@@ -76,6 +76,24 @@ controllers are hidden. Pads 0..3 are the real XInput pads, 4..9 debug pads driv
     ms): at 40 lightbar reports/s on the same link the speaker dropped out now and then. A state sub-packet (0x90,
     the 0x31 settings block) in place of the haptics one, to carry the lightbar inside the audio reports, silenced the
     speaker.
+- **Speaker (USB; `UsbSpeakerThread`).** The pad is also a Windows audio device: a render endpoint of 4 channels at 48
+  kHz (shared-mode mix format 32-bit float; speaker tap L/R, haptics L/R). It plays on the jack, plugged or not, until
+  output path 3 is set: the same route report as Bluetooth, as report 0x02 (`SpeakerRoute`), mutes the jack and plays
+  channel 2 on the speaker; channels 1, 3 and 4 stay zero. Normal output reports don't undo the route. Path 0 at the
+  end of a stream puts it back on the jack. If the game dies mid-stream the route stays until the pad reconnects.
+  `tools/ds_usb_speaker.cpp` checks this one test per run (right channel, left channel, rumble, jack path).
+  - Endpoint: the active render device whose PKEY_Device_ContainerId is the HID device's `DEVPKEY_Device_ContainerId`.
+    After a plug it shows up about 10 s after the HID interface, so a USB slot starts with `spkNoDevice` set and the
+    hotplug thread (`CheckUsbEndpoints`, every 2 s) clears it once the endpoint is there. Until then `DsSpeakerWrite`
+    returns false and the car stays on the PC. sound.cpp takes the car back as soon as `XPadSpeakerReady` says so.
+  - Queue, rate trim and limiter are shared with Bluetooth (`SpkTake`, at 48 kHz here). Event driven, 30 ms buffer. No
+    limit on other output reports while streaming. A stream that fails logs why; "no active audio endpoint" and
+    "endpoint gone" wait for the endpoint again, anything else stays off until the pad reconnects.
+  - Windows may make the pad the default output when it connects. The PC mix then plays on the pad too (logged), and
+    on the jack, so silent, after the stream ends. Left to the user: the only way to change it is the undocumented
+    `IPolicyConfig`, and the default output is the user's setting.
+  - The pad's Bluetooth address (report 0x09) is the same on both connections, so a pad moved from USB to Bluetooth
+    keeps its slot and player.
 - **Player LEDs (`parts/pad_lights.cpp`, `UpdatePadLights` from `LayoutApplyHook`, `[LIGHTS] PlayerLeds`):** from the
   car-select join until the race is left, a pad a player joined with shows that player's number (1 `--x--`, 2 `-x-x-`,
   3 `x-x-x`, 4 `xx-xx`); the session counts as on in the split car select and in game states 4..6 of a split game (state 3 is the frontend,

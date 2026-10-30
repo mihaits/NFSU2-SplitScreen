@@ -55,7 +55,7 @@
     events are listed at player +0x144 ({+0 next, +0xC handle}, 0x727A12); player 0's event owns the music voice.
 
 ## Car sounds on the pad speakers (`[AUDIO] PadSpeakers`, `PadSpeakerGain`, `PadSpeakerSounds`)
-In split racing each player's own car sounds play on the speaker of their Bluetooth DualSense instead of the PC mix;
+In split racing each player's own car sounds play on the speaker of their DualSense (Bluetooth or USB) instead of the PC mix;
 every other sound stays on the PC, and a player on another pad keeps their car there. Code: the "engines on the pad
 speakers" block of `parts/sound.cpp`; the pad side is `DsSpeakerWrite` in `DualSense.cpp` (docs/input.md).
 - **Which voice is whose** (main thread; voice → local player + 1 in `g_engineVoicePlayer`, with the channel handle
@@ -96,11 +96,11 @@ speakers" block of `parts/sound.cpp`; the pad side is `DsSpeakerWrite` in `DualS
 - **Mute button.** A player's mute button toggles their pad speaker during split races (`g_speakerOn[k]`, per seat
   until the game closes); off, the player counts as having no speaker pad, so their car goes back to
   the PC mix at once and the pad stream stops after 1 s. The mute LED is lit while it's off.
-- **Off with more than 2 DualSense players.** Each stream is ~200 kbit/s of Bluetooth output (47 reports of 547
+- **Off with more than 2 Bluetooth DualSense players (USB pads don't count).** Each stream is ~200 kbit/s of Bluetooth output (47 reports of 547
   bytes a second). With 5 at once on one adapter (+ an Xbox pad) the writes ran up to 100 ms late, failed with error
   31 now and then, and pads' input froze for seconds without being reported lost. Race setup (`CreateHumanRacers` in
   racers.cpp → `PadSpeakerDefaults`) sets every seat off when more than `kSpeakerDualSenseMax` (2) seats have a
-  DualSense, on otherwise; only when that count changes, so the mute button toggles stay for the next races. A
+  Bluetooth DualSense, on otherwise; only when that count changes, so the mute button toggles stay for the next races. A
   temporary fix until the bitrate adapts (below).
 - **To do: adaptive bitrate** (needs planning before code). The Opus bitrate is fixed at 160 kbit/s
   (`OPUS_SET_BITRATE` in DualSense.cpp, `kSpkOpusBytes`). Ideas to discuss:

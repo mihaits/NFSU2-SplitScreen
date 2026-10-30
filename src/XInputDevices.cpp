@@ -571,6 +571,9 @@ void XPadSetImpulseTriggers(int pad, float left, float right) {
 
 bool XPadIsDualSense(int pad) { return pad >= kDsFirst && pad < kMaxPads && g_dsConnected[pad - kDsFirst]; }
 
+bool XPadIsBluetoothDualSense(int pad) { return XPadIsDualSense(pad) && DsIsBluetooth(pad - kDsFirst); }
+bool XPadSpeakerReady(int pad) { return XPadIsDualSense(pad) && DsSpeakerReady(pad - kDsFirst); }
+
 bool XPadSpeakerWrite(int pad, const float* mono, int frames, int rate) {
     return pad >= kDsFirst && pad < kMaxPads && DsSpeakerWrite(pad - kDsFirst, mono, frames, rate);
 }
