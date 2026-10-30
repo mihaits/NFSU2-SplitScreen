@@ -42,6 +42,9 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
     shift-light rpm, gear, nitrous, grip used per wheel, wheels in the air, position, finished, pedals, ground and
     wheel speed, wheel radius, slip ratio); read-only, needs the plugin loaded. The values the DualSense lights and the
     DualSense / Xbox triggers use.
+  - `steer_log.py [--players 4,5] [--speed 20] [--top 200] [--need 200] [--csv path]` compares players' steering live
+    (stick, filter output, speed, pedals, velocity) and writes every sample to a csv; read-only. Compare with matched
+    throttle: the output depends on it.
   - `drcheck.py [--clear]` lists game threads that still have hardware breakpoints armed (e.g. after a `hwwatch.py`
     run); `--clear` zeroes DR0-3/6/7 on them.
   - `packages.py` lists the FE package cache.
@@ -92,6 +95,7 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
 - **Automation**:
   - `restart.sh` kills the game (waits until it is gone), installs build/NFSU2SplitScreen.asi and launches the game.
   - `boot.py` gets to the main menu (re-focusing the game and retrying while it loads).
+    `PROFILE=n` picks the profile n rows down the list (also through `go_race_nointro.sh`).
     `restart.sh` gives it 20 s (a boot takes about 8 s). A boot that hangs on the startup loading screen (main thread
     waiting in d3d9) is WidescreenFix in exclusive fullscreen, also without this plugin: use its `WindowedMode = 4`.
   - `go_freerun.sh [start]` restarts the game and starts a split-screen Free Run from the Start row's entry `start`

@@ -235,7 +235,7 @@ there rather than tuned by feel:
 speed-sensitive steering) when 0x5C1000 says the slot has a wheel (0x86FFB4[slot] != 0 && byte 0x86E5BC[slot] != 0,
 2 slots), else the pad routine 0x416BB0. Index 4 read slot 0's joystick buttons (0x86FFC4) and the low byte of
 0x86E5C0, both non-zero, so player 5's pad was treated as a wheel. `JoySlotWheel` (jump at 0x5C1000) returns false
-for slots >= 2. P5's steering is still too sharp at speed with it (open, [handoff](bugs/p5-steering-sharp.md)).
+for slots >= 2. Whether index 4 reads true depends on what slot 0 holds; forced true, P5's full-lock output at speed is about double ([details](bugs/p5-steering-sharp.md)).
 
 **More than 4 Xbox pads (not done).** XInput stops at 4. Other games get past that with SDL (merges XInput, Raw Input,
 Windows.Gaming.Input and HIDAPI; matches each Raw Input device to its XInput twin by input activity),
