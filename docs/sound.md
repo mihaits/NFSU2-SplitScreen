@@ -105,7 +105,9 @@ speakers" block of `parts/sound.cpp`; the pad side is `DsSpeakerWrite` in `DualS
 - **To do: adaptive bitrate** (needs planning before code). It has to cover both pad types, since their streams share
   one adapter. The DualSense's Opus bitrate is fixed at 160 kbit/s (`OPUS_SET_BITRATE` in DualSense.cpp, `kSpkOpusBytes`);
   the DS4's SBC at 216 kbit/s (bitpool 48 in `SbcEncoder.h`, 4 frames in report 0x17). A lower bitpool still needs the
-  pad to accept smaller frames, and how much air time it saves depends on the report size. Ideas to discuss:
+  pad to accept smaller frames, and how much air time it saves depends on the report size. The console does this itself:
+  psdevwiki says a PS4 streams 32 kHz to 1-2 pads and 16 kHz to 3 or more, and its sample 0x14 report has SBC header `9c 75 19`
+  (32 kHz, 16 blocks, dual channel, bitpool 25), far below our bitpool 48, so low-bitpool frames should play. Ideas to discuss:
   - Pick it from the number of pads streaming, of either type (160 kbit/s for 1-2, lower for 3-6).
   - Lower it per pad when its writes run late or fail (error 31), and raise it again once they recover; the
     speaker thread already measures how late each write is.
