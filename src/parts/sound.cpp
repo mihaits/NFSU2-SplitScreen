@@ -439,6 +439,23 @@ static void PadSpeakerToggle(int k) {
     Log("pad speaker: player %d turned it %s (mute button)", k + 1, g_speakerOn[k] ? "on" : "off");
 }
 static bool PadSpeakerOff(int k) { return g_padSpeakers && k >= 0 && k < MAX_LOCAL_PLAYERS && !g_speakerOn[k]; }
+// Each speaker stream is ~200 kbit/s of Bluetooth output (47 reports of 547 bytes a second): with 5 at once the radio
+// fell behind (writes up to 100 ms late, error 31) and pads froze. So with more than kSpeakerDualSenseMax DualSense
+// players the speakers start off (the mute button still turns one on). Set at race setup (racers.cpp) when that count
+// changes, so the players' own toggles stay for the next races with the same pads. TODO: lower bitrate per stream.
+constexpr int kSpeakerDualSenseMax = 2;
+static int g_speakerDefaultFor = -1;     // DualSense players the defaults were last set for
+static void PadSpeakerDefaults(int players) {
+    if (!g_padSpeakers) return;
+    int n = 0;
+    for (int k = 0; k < players && k < MAX_LOCAL_PLAYERS; ++k)
+        if (g_assignedPad[k] != PAD_NONE && XPadIsDualSense(g_assignedPad[k])) ++n;
+    if (n == g_speakerDefaultFor) return;
+    g_speakerDefaultFor = n;
+    bool on = n <= kSpeakerDualSenseMax;
+    for (bool& s : g_speakerOn) s = on;
+    Log("pad speakers: %d DualSense players, speakers start %s", n, on ? "on" : "off (mute button turns one on)");
+}
 
 static void __fastcall EngineUpdateHook(uint8_t* obj, void* edx) {
     reinterpret_cast<void(__fastcall*)(void*, void*)>(g_origEngineUpdate)(obj, edx);

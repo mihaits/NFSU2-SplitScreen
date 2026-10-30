@@ -94,8 +94,14 @@ speakers" block of `parts/sound.cpp`; the pad side is `DsSpeakerWrite` in `DualS
   - The stubs keep ecx and edx: EA's code reads edx after the aux ramp (0x728C16) and crashed in the intro when a C
     function changed it.
 - **Mute button.** A player's mute button toggles their pad speaker during split races (`g_speakerOn[k]`, per seat
-  until the game closes, on at start); off, the player counts as having no speaker pad, so their car goes back to
+  until the game closes); off, the player counts as having no speaker pad, so their car goes back to
   the PC mix at once and the pad stream stops after 1 s. The mute LED is lit while it's off.
+- **Off with more than 2 DualSense players.** Each stream is ~200 kbit/s of Bluetooth output (47 reports of 547
+  bytes a second). With 5 at once on one adapter (+ an Xbox pad) the writes ran up to 100 ms late, failed with error
+  31 now and then, and pads' input froze for seconds without being reported lost. Race setup (`CreateHumanRacers` in
+  racers.cpp → `PadSpeakerDefaults`) sets every seat off when more than `kSpeakerDualSenseMax` (2) seats have a
+  DualSense, on otherwise; only when that count changes, so the mute button toggles stay for the next races. To do:
+  a lower Opus bitrate (fewer or smaller 0x39 reports) so more pads can stream.
 - **Sending.** 0x7292BC is wrapped at its call 0x7295DD (`RenderChunk`): the player buffers are cleared, the chunk is
   rendered, then (L + R) / 2 × PadSpeakerGain / 32768 goes to `XPadSpeakerWrite` at the mixer rate (word 0x8B44C6,
   44100).

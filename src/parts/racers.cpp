@@ -100,6 +100,7 @@ static void __cdecl CreateHumanRacers(int count, int p2, int p3) {
     }
     reinterpret_cast<Fn>(FN_CREATE_HUMAN_RACERS)(count, p2, p3);
     int extra = g_extraPlayers < MAX_EXTRA_PLAYERS ? g_extraPlayers : MAX_EXTRA_PLAYERS;
+    if (count == 2 && SplitMode()) PadSpeakerDefaults(2 + (extra > 0 ? extra : 0));
     if (count != 2 || extra <= 0) return;
     // more passes over players 0..1, one per pair, with the spec's player index shifted by 2 (players 3/4) or 4
     // (players 5/6) (RacerSpecIndexShift): same profile, car and port as players 1/2

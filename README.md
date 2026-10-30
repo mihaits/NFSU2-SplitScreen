@@ -28,6 +28,7 @@ options of whoever paused.
 
 **Handy buttons:**
 - **Mute** (DualSense): moves your car's sound from your pad's speaker back to the PC, and again to switch back.
+  With more than 2 DualSense players the speakers start off (too much for one Bluetooth adapter); Mute turns yours on.
 - **Y / Space** on player 1's Press START: rematch with the same cars and controllers.
 - **START** on a spare pad: take over a player whose controller turned off.
 
@@ -51,6 +52,7 @@ options of whoever paused.
 ## To do
 - [ ] More than 4 Xbox pads (Windows.Gaming.Input backend)
 - [ ] DualSense speaker over USB
+- [ ] DualSense speaker at a lower bitrate, so 3-6 pads can stream at once over Bluetooth
 - [ ] DualShock 4 without DS4Windows: input, rumble, player-coloured lightbar
 - [ ] Session results: standings across back-to-back races
 - [ ] Replays of split-screen races
