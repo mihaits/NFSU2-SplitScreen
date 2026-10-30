@@ -159,7 +159,10 @@ false for them and `XPadIsDs4` true, so they get no player LEDs, trigger row or 
 - **No speaker found over USB:** a second-model pad (09CC) shows a 2-channel 32 kHz "Headset Earphone" endpoint. A tone on it
   stayed silent on the speaker with these report 0x05 settings (`tools/ds4_usb_speaker.cpp`, 2026-10-31): flags 0xB0 and speaker
   0x4F; Chromium's Bluetooth audio bytes at USB offsets (1=0xF0 2=0x04 19=20=0x43 22=0x4D 23=0x85); the same with speaker 0xFF;
-  and with both headphone volumes 0. The report is 32 bytes, so the Bluetooth audio reports don't fit. PadForge reports the same:
+  and with both headphone volumes 0. A sweep of bytes 2, 3 and 9..31 through 10 values each, one byte at a time (`sweep`), was silent
+  too, with the endpoint at 100 % and not muted; that the audio reaches the pad was not checked (no headphones on the jack). 0x05
+  is the only output report on USB. Readable feature reports show nothing audio-like (`features`; `E0` doesn't answer a read);
+  feature reports were not written, they hold calibration and pairing. The report is 32 bytes, so the Bluetooth audio reports don't fit. PadForge reports the same:
   a cable reaches only the jack, and the first model has no USB audio. Not proven impossible: other 0x05 bytes are undocumented.
   `spkNoDevice` stays set, so the car stays on the PC. A pad connected over Bluetooth stays there with a cable in.
 
