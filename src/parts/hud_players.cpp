@@ -100,7 +100,7 @@ static void* __fastcall PlayerHudCtor(void* hud, void* edx, const char* fng, int
     int who = g_hudCloneFor >= 2 ? g_hudCloneFor : index;
     // quadrants / grid (3-6 players): every player gets the top-half layout, so P2/P4/P6 build theirs from a copy of
     // P1's "2PHudTop..." instead of the bottom-half "2PHudBot..." (same variant); P3/P5 from a copy of P1's as before
-    bool quad = (g_extraPlayers > 0 || NarrowHalves()) && (who & 1);
+    bool quad = (g_extraPlayers > 0 || QuadHud2P()) && (who & 1);
     if (((who >= 2 && who == g_hudCloneFor) || quad) && who < MAX_LOCAL_PLAYERS && fng) {
         char src[64];
         strncpy_s(src, fng, _TRUNCATE);

@@ -34,10 +34,10 @@ options of whoever paused.
 
 ## Features
 **Split screen**
-- 2 to 6 players in every race mode (Outrun 2, drag up to 4): halves, quadrants, 3 + 2, 3 × 2
+- 2 to 6 players in every race mode (Outrun 2, drag up to 4): halves (top / bottom, or left / right with `VerticalSplit`), quadrants, 3 + 2, 3 × 2
 - Each player has their own view, HUD, gauges, minimap, camera, controls, options and last car
 - Full graphics in every view: reflections, rain, headlights, blur, light streaks, overbright, anti-aliasing
-- Two monitors stacked into one span (NVIDIA Surround): each player gets a full view and HUD on their monitor
+- Two monitors in one span (NVIDIA Surround): each player gets a full view and HUD on their monitor (side by side: `VerticalSplit = 1`)
 
 **Racing**
 - AI opponents with difficulty (up to 6 racers in all), catch-up between players, traffic around every player

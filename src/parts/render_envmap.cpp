@@ -244,7 +244,7 @@ static void __cdecl AdjustProjection(View* v, float* plat) {
     float half = fov * (kPi / 65536.0f);                          // half of the camera's (4:3) horizontal FOV
     float screenAspect = static_cast<float>(at<int>(SCREEN_W)) / at<int>(SCREEN_H);
     float viewAspect = static_cast<float>(shape->width) / shape->height;
-    if (NarrowHalves()) screenAspect = 16.0f / 9.0f;
+    if (QuadHud2P() && !g_verticalSplit) screenAspect = 16.0f / 9.0f;
     float p00 = (1.0f / tanf(half)) * (4.0f / 3.0f) / (viewAspect < screenAspect ? viewAspect : screenAspect);
     plat[0x40 / 4] = p00;
     plat[0x54 / 4] = -p00 * viewAspect;

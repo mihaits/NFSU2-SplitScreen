@@ -54,8 +54,9 @@ UI_PauseOptions, UI_PauseOptionsMain or UI_PC_Customize_Options is active (`g_hu
 - `SendFeMessage` (trampoline on 0x55DDA0) forwards messages sent to a source package to its copies.
 - Package lookup is by name with 0x51BB70 (cache; name) → entry, active package at +0x18.
 
-**Quad HUD (3-4 players, and 2P when `NarrowHalves`).** A half of a screen narrower than 4:3 can't hold the 640-wide 2P
-layout, so 2P there uses this HUD too (P2 gets a copy of the Top variant). `UpdateQuadHud` maps every object (and its data pointer) of each player's package to that
+**Quad HUD (3-4 players, and 2P when `QuadHud2P`).** A half of a screen narrower than 4:3 can't hold the 640-wide 2P
+layout, and left / right views (`VerticalSplit`) aren't halves of it, so 2P there uses this HUD too (P2 gets a copy of
+the Top variant). In a left / right view the layout goes to the top of the view instead of its centre. `UpdateQuadHud` maps every object (and its data pointer) of each player's package to that
 player, rebuilt every 30 frames. `QuadTransform` scales the top-half 2P layout uniformly about its centre (0,-120) into the
 player's cell (`LayoutFeRect`), centred on it, by min(cell width / 640, cell height / 240) (= halfW/640 in quadrants). Objects pushed more than 160 from the centre (icon pools
 parked off-screen) are moved 2000 further out. Pivots are scaled too.
@@ -127,10 +128,10 @@ the split race HUDs they are null, so `OutrunElementUpdate` (call 0x4EC69A) skip
 - `GaugeTransform`:
   - Normal races: the 1P layout's bottom-right corner goes on the view's (cell's) bottom-right corner, scaled by
     GaugeScalePercent.
-  - Drag: the whole layout is fitted to the view height (×0.5), and side elements stay at the view sides. The top-right
+  - Drag: the whole layout is fitted to the view (min(view width / 640, view height / 480), centred), and side elements stay at the view sides. The top-right
     speed moves below the 2P position box.
   - Both are also scaled by `HudCellScale(k)` (as are the minimap and its corner offsets): the cell's 640x240 layout
-    fit relative to quadrants, capped at 1. 1 up to 4 players, about 0.67 in the narrower 5/6P cells.
+    fit relative to quadrants, capped at view height / 240. 1 up to 4 players, about 0.67 in the narrower 5/6P cells.
 - Messages to a player's 2P HUD package are forwarded to their copy (drag shift messages).
 - Custom gauge textures (`HudTexLoadHook`):
   - The race load step 0x577F60 (call 0x57F3D8) loads `GLOBAL\HUD_CustomTextures_<HUDINDEX>.bin` for P1's car only and

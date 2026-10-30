@@ -92,6 +92,7 @@ static void LoadConfig(HMODULE self) {
     if (!n || !dot) return;
     strcpy_s(dot, MAX_PATH - (dot - path), ".ini");
     g_debug = GetPrivateProfileIntA("MAIN", "Debug", 0, path) != 0;
+    g_verticalSplit = GetPrivateProfileIntA("MAIN", "VerticalSplit", 0, path) != 0;
     g_quadTest = GetPrivateProfileIntA("DEBUG", "QuadTest", 0, path) != 0;
     g_extraPlayers = GetPrivateProfileIntA("DEBUG", "ExtraPlayers", 0, path);
     if (g_extraPlayers < 0) g_extraPlayers = 0;

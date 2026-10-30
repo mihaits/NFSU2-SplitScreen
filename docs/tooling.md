@@ -24,10 +24,13 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
 - **Live process**:
   - `trainer.py` reads/writes memory and takes window screenshots.
   - `[DEBUG] ForceScreenW/H` (any size, with WidescreenFix `WindowedMode = 1`) forces the device size at 0x5B9A60, for
-    shapes the driver doesn't list. Writing the registry values or switching the desktop mode from a script didn't
-    change the game's resolution. The faithful test of a tall span: a custom NVIDIA resolution (960x1080), picked in
-    the game's own display options. WidescreenFix isn't told about the forced size, so FE units stay 16:9 and the HUD is squeezed into the
+    shapes the driver doesn't list.
+    WidescreenFix isn't told about the forced size, so FE units stay 16:9 and the HUD is squeezed into the
     centre; use it for the 3D view and the HUD's layout within a cell, not the HUD's position on screen.
+  - `set_resolution.sh W H` sets the game's resolution for the next boot (closes the game). WidescreenFix keeps it in
+    `HKCU\Software\EA Games\...`, `g_RacingResolution = (0x8000 | W) << 16 | H`, and the mode must be one the driver
+    lists (a custom NVIDIA 960x1080 is the faithful test of a tall span). It writes through explorer: `reg` from a
+    shell inside the Claude app changes a private view of HKCU that the game never reads.
   - `plugin.py` (for tools): the loaded plugin's base, map symbols and `LocalPlayers` (its local player array; the
     size comes from `MAX_LOCAL_PLAYERS` in the checkout's source, 4 on main, 6 on 6p-support). When the installed asi
     isn't build/'s (an A/B test with an older build), the map doesn't fit: `LocalPlayers` then reads the players from
