@@ -32,6 +32,10 @@ constexpr DWORD kMinGapBtMs = 25;         // BT: at most 40 reports/s per pad (t
 // rumble start/stop and trigger changes after 50 ms (with the lightbar at 40/s the speaker dropped out now and then)
 constexpr DWORD kMinGapSpeakerMs = 125, kMinGapSpeakerUrgentMs = 50;
 constexpr DWORD kRetryMs = 250;           // after a failed output report
+// A pad streams full input reports every few ms. When they stop without an error (the Bluetooth link stalls; with 5
+// pads on one adapter, one pad dropping froze every pad's input for ~19 s and cars spun on held steering), the
+// game gets neutral input for it after kStallMs until reports come back. Logged with the gap length.
+constexpr DWORD kStallMs = 250;
 
 struct Slot {
     volatile LONG alive;                  // I/O thread running
@@ -47,6 +51,8 @@ struct Slot {
     USHORT inLen, outLen;
     CRITICAL_SECTION cs;
     bool have;
+    DWORD inAt;                           // tick of the last full input report
+    bool stalled;                         // I/O thread only: no input report for kStallMs, logged
     DsPadState st;
     DsExtra ex;
     DsOutput want;
@@ -138,11 +144,17 @@ void ParseInput(Slot* s, const uint8_t* buf, DWORD n) {
     ex.ps = b[10] & 0x01; ex.touchClick = b[10] & 0x02; ex.mute = b[10] & 0x04;
     ex.battery = n > 53 ? b[53] & 0x0F : 0;
     ex.usb = s->usb;
+    DWORD now = GetTickCount();
+    if (s->stalled) {
+        s->stalled = false;
+        Log("DualSense %d: input again after %lu ms", static_cast<int>(s - g_slot), now - s->inAt);
+    }
     EnterCriticalSection(&s->cs);
     st.packet = s->st.packet + 1;
     s->st = st;
     s->ex = ex;
     s->have = true;
+    s->inAt = now;
     LeaveCriticalSection(&s->cs);
 }
 
@@ -283,6 +295,11 @@ DWORD WINAPI IoThread(LPVOID param) {
             pending = false;
             if (!GetOverlappedResult(s->dev, &ro, &n, FALSE)) break;
             ParseInput(s, in, n);
+        }
+        if (s->have && !s->stalled && GetTickCount() - s->inAt >= kStallMs) {
+            s->stalled = true;
+            Log("DualSense %d: no input for %lu ms, sending neutral input until it comes back", idx,
+                GetTickCount() - s->inAt);
         }
     }
     if (pending) {
@@ -638,6 +655,7 @@ void OpenPad(const char* path, bool edge) {
     s->want.smallMotor = s->want.largeMotor = 0;   // no stale rumble from before an unplug
     memset(&s->st, 0, sizeof(s->st));
     s->have = false;
+    s->stalled = false;
     LeaveCriticalSection(&s->cs);
     EnterCriticalSection(&s->spkCs);
     s->spkCount = 0;
@@ -726,6 +744,12 @@ bool DsState(int slot, DsPadState* out, DsExtra* extra) {
     if (have) {
         *out = s.st;
         if (extra) *extra = s.ex;
+        if (GetTickCount() - s.inAt >= kStallMs) {   // stalled: release held buttons, sticks and triggers
+            uint32_t packet = out->packet;
+            *out = {};
+            out->packet = packet;
+            if (extra) extra->ps = extra->touchClick = extra->mute = false;
+        }
     }
     LeaveCriticalSection(&s.cs);
     return have;
