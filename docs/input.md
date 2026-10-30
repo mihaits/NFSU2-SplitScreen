@@ -165,7 +165,8 @@ false for them and `XPadIsDs4` true, so they get no player LEDs, trigger row or 
   is the only output report on USB. Readable feature reports show nothing audio-like (`features`; `E0` doesn't answer a read);
   feature reports were not written, they hold calibration and pairing. The report is 32 bytes, so the Bluetooth audio reports don't fit. PadForge reports the same:
   a cable reaches only the jack, and the first model has no USB audio; psdevwiki and the eleccelerator wiki (first model) say audio doesn't carry over USB. PadForge, DS4-Sound-Link and DS4AudioStreamer all drive the speaker over Bluetooth only. On Bluetooth each audio report picks the speaker or the jack, and the USB stream has no such byte. Not proven impossible: other 0x05 bytes are undocumented.
-  `spkNoDevice` stays set, so the car stays on the PC. A pad connected over Bluetooth stays there with a cable in.
+  Windows' topology of the endpoint (`topology`) has one output path, volume, mute, DAC, "Headset Earphone" terminal: no selector and no speaker output. Reports 04, 08, 14, 80, 82, 88, 90, A0..A2, A7, AA, B3, D0 and E0 stall on a read (error 31; B0, B4, B5: error 121), so they're write-only or need a state; what they do is unknown.
+  `spkNoDevice` stays set, so the car stays on the PC. A pad connected over Bluetooth stays there with a cable in and keeps its speaker (tested with sound, 2026-10-31): that is how to charge and use the speaker.
 
 **Xbox impulse triggers (`XboxWgi.cpp`).**
 - XInput can't drive the trigger motors of Xbox One / Series pads; Windows.Gaming.Input (`Gamepad.Vibration`) can.

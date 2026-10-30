@@ -5,6 +5,7 @@
 //   ds4_usb_speaker [offset=value ...]     report bytes over the defaults: 1=0xB0 22=0x4F
 //   ds4_usb_speaker list                   the pad's report ids, the endpoint's volume and mute; no sound
 //   ds4_usb_speaker features               reads the feature reports (not the pad's address and pairing ones)
+//   ds4_usb_speaker topology               the endpoint's audio parts: terminals, volumes, mutes, selectors; read only
 //   ds4_usb_speaker sweep [ms]             a tone while each report byte steps through bit values, 200 ms a step. The
 //                                          motors and the lightbar (4..8) stay out of it. Only output report 0x05 is
 //                                          written: never write feature reports, they hold calibration and pairing.
@@ -19,6 +20,7 @@
 #include <mmdeviceapi.h>
 #include <audioclient.h>
 #include <endpointvolume.h>
+#include <devicetopology.h>
 #include <hidpi.h>
 #include <propkey.h>
 #include <functiondiscoverykeys_devpkey.h>
@@ -120,11 +122,97 @@ static void ReadFeatures(HANDLE dev) {
     for (int id = 1; id < 256; ++id) {
         if (memchr(kSkip, id, sizeof(kSkip))) continue;
         BYTE f[65] = {static_cast<BYTE>(id)};
-        if (!HidD_GetFeature(dev, f, sizeof(f))) continue;
+        if (!HidD_GetFeature(dev, f, sizeof(f))) {
+            if (GetLastError() != ERROR_INVALID_PARAMETER) printf("%02X: read failed, error %lu\n", id, GetLastError());
+            continue;
+        }
         printf("%02X:", id);
         for (int i = 1; i < 24; ++i) printf(" %02X", f[i]);
         puts("");
     }
+}
+
+static void WalkPart(IPart* part, int depth) {
+    static UINT seen[256];
+    static int seenCount;
+    UINT id = 0;
+    part->GetLocalId(&id);
+    for (int i = 0; i < seenCount; ++i) if (seen[i] == id) return;
+    if (seenCount < 256) seen[seenCount++] = id;
+    LPWSTR name = nullptr;
+    part->GetName(&name);
+    PartType type;
+    part->GetPartType(&type);
+    GUID sub = {};
+    part->GetSubType(&sub);
+    UINT controls = 0;
+    part->GetControlInterfaceCount(&controls);
+    printf("%*s%s '%ls' id %08X subtype %08lX-%04X, %u controls\n", depth * 2, "", type == Connector ? "connector" : "subunit",
+           name ? name : L"", id, sub.Data1, sub.Data2, controls);
+    CoTaskMemFree(name);
+    for (UINT i = 0; i < controls; ++i) {
+        IControlInterface* c = nullptr;
+        if (FAILED(part->GetControlInterface(i, &c))) continue;
+        LPWSTR cn = nullptr;
+        IID iid = {};
+        c->GetName(&cn);
+        c->GetIID(&iid);
+        printf("%*scontrol '%ls' iid %08lX\n", depth * 2 + 2, "", cn ? cn : L"", iid.Data1);
+        CoTaskMemFree(cn);
+        c->Release();
+    }
+    for (int dir = 0; dir < 2; ++dir) {
+        IPartsList* list = nullptr;
+        if (FAILED(dir ? part->EnumPartsOutgoing(&list) : part->EnumPartsIncoming(&list)) || !list) continue;
+        UINT n = 0;
+        list->GetCount(&n);
+        for (UINT i = 0; i < n; ++i) {
+            IPart* q = nullptr;
+            if (SUCCEEDED(list->GetPart(i, &q))) { WalkPart(q, depth + 1); q->Release(); }
+        }
+        list->Release();
+    }
+}
+
+static void DumpTopology(IMMDevice* ep) {
+    IDeviceTopology* t = nullptr;
+    if (FAILED(ep->Activate(__uuidof(IDeviceTopology), CLSCTX_ALL, nullptr, reinterpret_cast<void**>(&t)))) { puts("no topology"); return; }
+    UINT n = 0;
+    t->GetConnectorCount(&n);
+    printf("endpoint connectors: %u\n", n);
+    for (UINT i = 0; i < n; ++i) {
+        IConnector* c = nullptr, *to = nullptr;
+        if (FAILED(t->GetConnector(i, &c))) continue;
+        ConnectorType ct = Unknown_Connector;
+        c->GetType(&ct);
+        printf("connector %u type %d\n", i, ct);
+        if (SUCCEEDED(c->GetConnectedTo(&to)) && to) {
+            IPart* part = nullptr;
+            if (SUCCEEDED(to->QueryInterface(IID_PPV_ARGS(&part)))) {
+                IDeviceTopology* dt = nullptr;
+                if (SUCCEEDED(part->GetTopologyObject(&dt))) {
+                    UINT sub = 0, cons = 0;
+                    dt->GetSubunitCount(&sub);
+                    dt->GetConnectorCount(&cons);
+                    printf("device topology: %u subunits, %u connectors\n", sub, cons);
+                    for (UINT k = 0; k < cons; ++k) {
+                        IConnector* dc = nullptr;
+                        IPart* dp = nullptr;
+                        if (SUCCEEDED(dt->GetConnector(k, &dc)) && SUCCEEDED(dc->QueryInterface(IID_PPV_ARGS(&dp)))) {
+                            WalkPart(dp, 0);
+                            dp->Release();
+                        }
+                        if (dc) dc->Release();
+                    }
+                    dt->Release();
+                }
+                part->Release();
+            }
+            to->Release();
+        }
+        c->Release();
+    }
+    t->Release();
 }
 
 int main(int argc, char** argv) {
@@ -147,6 +235,7 @@ int main(int argc, char** argv) {
     printf("endpoint volume %.0f %%, muted %d\n", level * 100, muted);
     ListReports(dev);
     if (argc > 1 && !strcmp(argv[1], "features")) { ReadFeatures(dev); return 0; }
+    if (argc > 1 && !strcmp(argv[1], "topology")) { DumpTopology(ep); return 0; }
     if (list) return 0;
     IAudioClient* client = nullptr;
     ep->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr, reinterpret_cast<void**>(&client));
