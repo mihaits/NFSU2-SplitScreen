@@ -10,6 +10,7 @@
 //   ds4_usb_speaker sinevol                the factory sine at speaker volume 0x4F, 0, 0x20 (3 s each, report 0x05)
 //   ds4_usb_speaker chipcheck              does A0 05 reach the chip? The sine, then volume 0x130, amp off, amp on
 //   ds4_usb_speaker spkon [offset=value ..] audio chip writes (A0 05) that turn the speaker on, a tone, then off again
+//   ds4_usb_speaker after [offset=value ..] 1 s factory sine, sine off, then a 1000 Hz tone on the endpoint
 //   ds4_usb_speaker mix [offset=value ...] 2 s factory sine, 2 s sine + a 1500 Hz tone on the endpoint, 3 s tone alone:
 //                                          does the test mode route the USB stream to the speaker?
 //   ds4_usb_speaker topology               the endpoint's audio parts: terminals, volumes, mutes, selectors; read only
@@ -351,6 +352,14 @@ int main(int argc, char** argv) {
             spkon = false;
     }
     double hz = mix ? 1500 : 440;
+    if (argc > 1 && !strcmp(argv[1], "after")) {
+        hz = 1000;
+        TestCommand(dev, 1, 1);
+        Sleep(1000);
+        TestCommand(dev, 1, 0);
+        Sleep(500);
+        WriteFile(dev, r, sizeof(r), &written, nullptr);
+    }
     if (mix) {
         sineOn = TestCommand(dev, 1, 1);
         puts("2 s: sine alone");
