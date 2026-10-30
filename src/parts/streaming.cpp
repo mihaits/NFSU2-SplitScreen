@@ -115,6 +115,40 @@ static void __fastcall StreamSectionsHook(void* streamer) {
 #define AT_STREAM_PRIORITY_CALL 0x5E7CFC  // call 0x5DF580 (thiscall streamer)
 #define FN_STREAM_PRIORITY      0x5DF580
 #define FN_SECTION_DISTANCE     0x5DF3A0  // int __thiscall (streamer; section, position block)
+// Debug: the track pool's block records (see AddPoolRecords).
+static void LogPoolRecords(uint8_t* streamer, int sections) {
+    static uint8_t* lowPool;
+    static int low;
+    static DWORD logged;
+    auto* pool = *reinterpret_cast<uint8_t**>(streamer + 0x6A4);
+    if (!pool) return;
+    const int total = POOL_RECORDS + sizeof(g_extraPoolRecords) / sizeof(PoolRecord);
+    if (pool != lowPool) { lowPool = pool; low = total; }
+    auto* table = pool + 0x1C;
+    auto inTable = [&](PoolRecord* r) {
+        auto* p = reinterpret_cast<uint8_t*>(r);
+        return (p >= table && p < table + POOL_RECORDS * sizeof(PoolRecord)) ||
+               (r >= g_extraPoolRecords && r < g_extraPoolRecords + total - POOL_RECORDS);
+    };
+    auto* freeList = reinterpret_cast<PoolRecord*>(pool + 0xC);
+    auto* blockList = reinterpret_cast<PoolRecord*>(pool + 0x14);
+    int free = 0;
+    for (PoolRecord* r = freeList->next; r != freeList && inTable(r) && free < total; r = r->next) ++free;
+    int blocks = 0, gaps = 0, gapKb = 0;
+    PoolRecord* r = blockList->next;
+    for (; r != blockList && inTable(r) && blocks + gaps < total; r = r->next) {
+        if (r->used) ++blocks;
+        else { ++gaps; gapKb += r->size / 1024; }
+    }
+    bool broken = r != blockList && !inTable(r);
+    bool newLow = free < low;
+    if (newLow) low = free;
+    if (newLow || broken || GetTickCount() - logged > 3000) {
+        logged = GetTickCount();
+        Log("pool: %d free records (low %d), %d blocks, %d gaps, %d KB in gaps, %d sections wanted%s", free, low, blocks,
+            gaps, gapKb, sections, broken ? ", BLOCK LIST BROKEN" : "");
+    }
+}
 static void __fastcall StreamPriorities(uint8_t* streamer) {
     if (g_extraPlayers <= 0 || !SplitRacing()) {
         reinterpret_cast<void(__thiscall*)(void*)>(FN_STREAM_PRIORITY)(streamer);
@@ -141,6 +175,7 @@ static void __fastcall StreamPriorities(uint8_t* streamer) {
         raised += best < own;
         *reinterpret_cast<int*>(section + 0x40) = best * 100000 + *reinterpret_cast<int*>(section + 0x20);
     }
+    if (g_debug) LogPoolRecords(streamer, count);
     static DWORD logged;
     if (g_debug && GetTickCount() - logged > 3000) {
         logged = GetTickCount();

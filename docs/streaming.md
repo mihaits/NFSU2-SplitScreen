@@ -18,6 +18,10 @@
   (0x63A1B0 → 0x639F20, after the memory check 0x48D420); AI racers' types are not held, so without the AI share an
   AI car drew untextured ("transparent"). The game's 6-car size is 16000 KB vs 11000 KB for 4 cars (≈2500 KB a car).
   The exe is not large-address-aware; a 4P race uses about 380 MB.
+- **Block records.** The track pool has 192 records in a fixed array, one per used block and one per free gap, and
+  the allocator 0x5DA4A0 doesn't check for none left (crash at 0x5DEEE1, [details](bugs/streamer-pool-crash.md)).
+  Spread-out 5-6P races use more (236 measured), so `AddPoolRecords` links 320 more into the free list. Debug
+  logs the free count ("pool:" lines).
 - Load priority (0x5DF580, called at 0x5E7CFC → `StreamPriorities`): per section (list +0x29C, count +0x298) the game
   takes the smallest 0x5DF3A0(section, position block) over the positions whose bit (+0xB) it has (0..0x63; uses the
   block's x/y +4/+8 and velocity +0xC/+0x10; a still position gives 0) and stores priority × 100000 + section+0x20 at

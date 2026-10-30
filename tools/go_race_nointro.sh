@@ -4,6 +4,7 @@
 # Players: the [DEBUG] ExtraPlayers default of the Players row (0 -> 2 players). P2..P6 join on virtual pads 2, 3, 0, 4, 5 (P1 = pad 1).
 # INTRO=1 keeps the race intro.
 # VIRTUAL=n joins only players 1..n on virtual pads and stops at the next Press START, for the rest on real pads.
+# TRACK=id presses right in the track list until that track is selected.
 # POKES="addr=value ..." (hex address, decimal value) are written right after boot, e.g. POKES="870CFC=1" (overbright).
 cd "$(dirname "$0")"
 sh restart.sh --noskip
@@ -19,7 +20,18 @@ import trainer as t, fe
 g = t.Game()
 for _ in range(int(sys.argv[1])): fe.press(g, 1, 'right'); time.sleep(0.35)
 # P1 picks the car (events 5..9); the gearbox dialog (event 10) only comes up in some modes (not drag): polled below
-subprocess.run([sys.executable, '-I', 'rec.py', 'play', 'start_to_split2p', '--from', '5', '--to', '10'], stdout=subprocess.DEVNULL)
+first_event = '5'
+if os.environ.get('TRACK'):
+    track = lambda: g.u32(0x83AAC4 + g.u32(0x83AAB4) * 0x14 + 8) & 0xffff
+    time.sleep(0.4); fe.press(g, 1, 'a'); time.sleep(1.5)
+    seen = []
+    while track() != int(os.environ['TRACK']):
+        seen.append(track())
+        if seen.count(seen[0]) > 1: sys.exit(f'FAIL: track {os.environ["TRACK"]} not in the list: {seen}')
+        fe.press(g, 1, 'right'); time.sleep(0.4)
+    print('track', track(), flush=True)
+    first_event = '6'
+subprocess.run([sys.executable, '-I', 'rec.py', 'play', 'start_to_split2p', '--from', first_event, '--to', '10'], stdout=subprocess.DEVNULL)
 def wait_top(pred, timeout):
     end = time.time() + timeout
     while time.time() < end:
