@@ -3,6 +3,7 @@
 - **Light streaks without overbright** in split views ([rendering](rendering.md)).
 - **Crash in the track streamer's pool** (0x5DEEE1), once, 6P circuit after a few laps
   ([handoff](bugs/streamer-pool-crash.md)).
+- **Player 5's steering too sharp at speed** (5P, any pad) ([handoff](bugs/p5-steering-sharp.md)).
 
 Closed 2026-10-27, not seen since their fixes:
 - Results ambient sound stutter (3P, ~2 Hz gate) and the black results background: both came from the post-race scene

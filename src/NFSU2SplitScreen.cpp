@@ -184,6 +184,7 @@ static void Install(HMODULE self) {
     if (g_rumble) WriteJump(FN_FF_CAPABLE, &FfCapable, 5);   // Feedback selectable (not for the keyboard player)
     WriteJump(FN_IMPACT_RUMBLE, &ImpactRumbleHook, 6);
     WriteJump(FN_JOY_SLOT_PRESENT, &JoySlotPresent, 5);
+    WriteJump(FN_JOY_SLOT_WHEEL, &JoySlotWheel, 5);
     int relocated = RelocateLocalPlayers();
     // the one indexed reference that is "inOrder - 4" (0x8900B0 = old byIndex[1]): the race teardown loop
     // `while (count) delete inOrder[count - 1]` (mov esi,[eax*4+0x8900B0]); relocated as byIndex+4 it read
