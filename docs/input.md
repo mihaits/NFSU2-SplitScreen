@@ -26,9 +26,10 @@ controllers are hidden. Pads 0..3 are the real XInput pads, 4..9 debug pads driv
   same pad on its other connection (a cable plugged into a Bluetooth pad) isn't opened while the first one is still
   open. Logged as "DualSense N: pad ..xxxx, back in its slot / new slot / takes a slot another pad had" (last 4
   digits only). `[INPUT] NativeDualSense = 0` turns the backend off.
-- **Input stalls:** a connected pad streams full input reports every few ms. When none arrives for 250 ms
-  (`kStallMs`), `DsState` returns neutral input (no buttons, sticks centred, triggers released) until reports come
-  back, and the I/O thread logs "DualSense N: no input for ... ms" / "input again after ... ms". Seen 2026-10-30
+- **Input stalls:** a connected pad streams full input reports every few ms. Through a gap the game keeps the last
+  input; after 1 s (`kStallMs`) `DsState` returns neutral input (no buttons, sticks centred, triggers released) until
+  reports come back. Gaps from 250 ms (`kStallLogMs`) are logged: "DualSense N: no input for ... ms" / "input again
+  after ... ms". Seen 2026-10-30
   (5 pads on one Bluetooth adapter): one pad dropping froze every pad's last input for ~19 s, until it reconnected,
   and cars spun on held steering and throttle. Windows logged no error for the other pads, so the plugin had no way
   to see it before.

@@ -34,8 +34,9 @@ constexpr DWORD kMinGapSpeakerMs = 125, kMinGapSpeakerUrgentMs = 50;
 constexpr DWORD kRetryMs = 250;           // after a failed output report
 // A pad streams full input reports every few ms. When they stop without an error (the Bluetooth link stalls; with 5
 // pads on one adapter, one pad dropping froze every pad's input for ~19 s and cars spun on held steering), the
-// game gets neutral input for it after kStallMs until reports come back. Logged with the gap length.
-constexpr DWORD kStallMs = 250;
+// game keeps the last input through short gaps and gets neutral input after kStallMs until reports come back. Gaps
+// from kStallLogMs are logged with their length.
+constexpr DWORD kStallLogMs = 250, kStallMs = 1000;
 
 struct Slot {
     volatile LONG alive;                  // I/O thread running
@@ -52,7 +53,7 @@ struct Slot {
     CRITICAL_SECTION cs;
     bool have;
     DWORD inAt;                           // tick of the last full input report
-    bool stalled;                         // I/O thread only: no input report for kStallMs, logged
+    bool stalled;                         // I/O thread only: no input report for kStallLogMs, logged
     DsPadState st;
     DsExtra ex;
     DsOutput want;
@@ -296,10 +297,9 @@ DWORD WINAPI IoThread(LPVOID param) {
             if (!GetOverlappedResult(s->dev, &ro, &n, FALSE)) break;
             ParseInput(s, in, n);
         }
-        if (s->have && !s->stalled && GetTickCount() - s->inAt >= kStallMs) {
+        if (s->have && !s->stalled && GetTickCount() - s->inAt >= kStallLogMs) {
             s->stalled = true;
-            Log("DualSense %d: no input for %lu ms, sending neutral input until it comes back", idx,
-                GetTickCount() - s->inAt);
+            Log("DualSense %d: no input for %lu ms", idx, GetTickCount() - s->inAt);
         }
     }
     if (pending) {
