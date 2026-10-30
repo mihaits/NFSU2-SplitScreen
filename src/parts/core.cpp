@@ -149,6 +149,20 @@ static FeRect LayoutFeRect(int n, int k) {
     auto fy = [&](int py) { return (2.0f * py / h - 1.0f) * 240.0f; };
     return {fx(c.x), fy(c.y), fx(c.x + c.w), fy(c.y + c.h)};
 }
+// A top/bottom half can't hold the 640-wide 2P layout: a screen narrower than 4:3, like two monitors stacked into one
+// span. Each half is then shaped like a 16:9 quadrant and gets the quadrants' HUD.
+static bool NarrowHalves() {
+    FeRect r = LayoutFeRect(2, 0);
+    return r.right - r.left < 640.0f;
+}
+// debug: [DEBUG] ForceScreenW/H replace the size the game creates its device with (any size in a WidescreenFix window,
+// e.g. a span's shape on one monitor; the game's own list only has the driver's modes)
+#define FN_SET_PRESENT     0x5B9A60    // (cdecl; width, height): fills the present parameters
+static int g_forceScreenW = 0, g_forceScreenH = 0;
+static void(__cdecl* g_origSetPresent)(int, int);
+static void __cdecl SetPresentHook(int w, int h) {
+    g_origSetPresent(g_forceScreenW, g_forceScreenH);
+}
 static bool g_viewTintInit[4];           // views 5..8 have their own screen tint entries (see TintUpdateWrapper)
 static bool g_quadTest = false;          // debug: 2P race drawn in quadrants, views 5/6 reuse P1/P2's cameras
 static int  g_extraPlayers = 0;          // debug: players 3.. added to 2P races (cloning P1/P2's car and profile)

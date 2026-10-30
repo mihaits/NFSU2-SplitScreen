@@ -267,7 +267,7 @@ static void UpdateMinimapOwner() {          // per frame
     auto* pkg = at<int>(0x8654A4) == 6 ? static_cast<const uint8_t*>(HudPackageOf(0)) : nullptr;
     uint8_t* map = pkg && g_mmFixedHash[0] ? FindFeObject(pkg, g_mmFixedHash[0]) : nullptr;
     bool same = map && map == g_mmOwnerMap;  // the kept objects still belong to the live HUD
-    if (!racing || (g_extraPlayers <= 0 && !g_mm2p) || !map) {
+    if (!racing || (g_extraPlayers <= 0 && !g_mm2p && !g_quadHud) || !map) {
         // hidden again: the post-race view draws P1's HUD as it is (user: a big minimap stayed on screen)
         if (g_mmOwnerHidden && same && !SplitRacing())
             for (int i = 0; i < g_mmVisibleCount; ++i) *reinterpret_cast<uint32_t*>(g_mmVisible[i] + 0x1C) |= 1u;
@@ -303,7 +303,7 @@ static void UpdateMinimaps2P() {
     static int s_frames = 0;
     // by the race's players, not g_screenViews: that is still 2 from the loading screens in a 3+ player race's first
     // frame, whose minimap update then drew 3+ players before P3's car entity existed (crash 0x4AC2B3)
-    const void* pkg = SplitRacing() && !g_quadTest && g_extraPlayers <= 0 ? HudPackageOf(0) : nullptr;
+    const void* pkg = SplitRacing() && !g_quadTest && g_extraPlayers <= 0 && !NarrowHalves() ? HudPackageOf(0) : nullptr;
     if (pkg != s_pkg || ++s_frames >= 30) {   // HUD elements add markers at runtime; a restart rebuilds the HUD
         s_frames = 0;
         if (pkg != s_pkg) g_mmOwnerHidden = false, g_mmVisibleCount = 0;
@@ -321,7 +321,7 @@ static void UpdateQuadHud() {
         memset(g_mmExtraIcon, 0, sizeof(g_mmExtraIcon));   // (help bar buttons matched these and were skipped)
         memset(g_mmMarker, 0, sizeof(g_mmMarker));
     }
-    if (!SplitRacing() || g_screenViews < 3) {
+    if (!SplitRacing() || (g_screenViews < 3 && !NarrowHalves())) {
         UpdateMinimaps2P();
         UpdateMinimapOwner();
         // the next race's HUD can be rebuilt at the same addresses: map it afresh (stale minimap objects -> crash on
@@ -388,7 +388,8 @@ static float HudCellScale(int k) {
 // top-left with P2's bottom-half layout (P2, P4; its drift score panel takes the lower left). (x, y) relative to the
 // minimap centre.
 static void MinimapPlace(float* copy, int k, float x, float y) {
-    float f = g_screenViews == 2 ? 0.8f / 0.55f : HudCellScale(k), ms = 0.55f * f;   // 2P: the halves' HUD is full size
+    // 2P: the halves' HUD is full size
+    float f = g_screenViews == 2 && !NarrowHalves() ? 0.8f / 0.55f : HudCellScale(k), ms = 0.55f * f;
     FeRect r = LayoutFeRect(g_screenViews, k);   // all players use the top-half layout: bottom-left corner
     copy[7] = r.left + 52.0f * f + x * ms;
     copy[8] = r.bottom - 48.0f * f + y * ms;

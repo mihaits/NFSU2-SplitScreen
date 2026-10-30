@@ -55,7 +55,9 @@ the extra player views, view 5's (the mirror is off in split, so it fits), and c
 width/height, then view-proj and the frustum. `ProjectionHook` at 0x5C80B0 (after P, before view-proj) corrects the
 aspect and FOV for the view's region (`AdjustProjection`; camera FOV ushort at camera+0xC4, the 4:3 horizontal FOV).
 Views wider than the screen (2P) keep the full-screen horizontal FOV; narrower ones (5/6P grid cells) keep the
-full-screen vertical FOV, so they aren't zoomed out. Quadrants have the screen's aspect and match full screen. View 4 (road reflection)
+full-screen vertical FOV, so they aren't zoomed out. On a screen narrower than 4:3 (`NarrowHalves`: two monitors stacked
+into one span) a 16:9 screen is the reference: each half then looks like a 1P view instead of inheriting the tall
+screen's narrow FOV. Quadrants have the screen's aspect and match full screen. View 4 (road reflection)
 uses the reflecting player's shape. WidescreenFix hooks 0x5C7F50 for view 1 and patches constants at 0x5C7FEA..0x5C8021.
 
 **3P (5P) side bars.** `ClearUnusedAreas` (after the view loop) ColorFills the two bars left and right of the short

@@ -100,6 +100,8 @@ static void LoadConfig(HMODULE self) {
     g_cloneViews = GetPrivateProfileIntA("DEBUG", "CloneViews", 0, path);
     if (g_cloneViews < 0) g_cloneViews = 0;
     if (g_cloneViews > 2) g_cloneViews = 2;
+    g_forceScreenW = GetPrivateProfileIntA("DEBUG", "ForceScreenW", 0, path);
+    g_forceScreenH = GetPrivateProfileIntA("DEBUG", "ForceScreenH", 0, path);
     g_splitOpponents = GetPrivateProfileIntA("DEBUG", "Opponents", 0, path);                   // debug default
     g_spGauges = GetPrivateProfileIntA("HUD", "SinglePlayerGauges", 1, path) != 0;
     g_gaugeScale = GetPrivateProfileIntA("HUD", "GaugeScalePercent", 60, path) / 100.0f;
@@ -264,6 +266,10 @@ static void Install(HMODULE self) {
     g_origPollPort = reinterpret_cast<PollPortFn>(MakeTrampoline(FN_POLL_PORT, 5));
     WriteJump(FN_POLL_PORT, &PollPortHook, 5);
 
+    if (g_forceScreenW > 0 && g_forceScreenH > 0) {
+        g_origSetPresent = reinterpret_cast<void(__cdecl*)(int, int)>(MakeTrampoline(FN_SET_PRESENT, 8));
+        WriteJump(FN_SET_PRESENT, &SetPresentHook, 8);
+    }
     g_origLayoutApply = reinterpret_cast<VoidFn>(MakeTrampoline(FN_LAYOUT_APPLY, 5));
     WriteJump(FN_LAYOUT_APPLY, &LayoutApplyHook, 5);
 

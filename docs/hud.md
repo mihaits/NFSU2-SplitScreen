@@ -54,7 +54,8 @@ UI_PauseOptions, UI_PauseOptionsMain or UI_PC_Customize_Options is active (`g_hu
 - `SendFeMessage` (trampoline on 0x55DDA0) forwards messages sent to a source package to its copies.
 - Package lookup is by name with 0x51BB70 (cache; name) → entry, active package at +0x18.
 
-**Quad HUD (3-4 players).** `UpdateQuadHud` maps every object (and its data pointer) of each player's package to that
+**Quad HUD (3-4 players, and 2P when `NarrowHalves`).** A half of a screen narrower than 4:3 can't hold the 640-wide 2P
+layout, so 2P there uses this HUD too (P2 gets a copy of the Top variant). `UpdateQuadHud` maps every object (and its data pointer) of each player's package to that
 player, rebuilt every 30 frames. `QuadTransform` scales the top-half 2P layout uniformly about its centre (0,-120) into the
 player's cell (`LayoutFeRect`), centred on it, by min(cell width / 640, cell height / 240) (= halfW/640 in quadrants). Objects pushed more than 160 from the centre (icon pools
 parked off-screen) are moved 2000 further out. Pivots are scaled too.

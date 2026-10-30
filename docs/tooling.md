@@ -23,6 +23,11 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
     `gen_shaders.sh` regenerates `src/parts/headlight_shaders.h` from `src/shaders/*.asm`.
 - **Live process**:
   - `trainer.py` reads/writes memory and takes window screenshots.
+  - `[DEBUG] ForceScreenW/H` (any size, with WidescreenFix `WindowedMode = 1`) forces the device size at 0x5B9A60, for
+    shapes the driver doesn't list. Writing the registry values or switching the desktop mode from a script didn't
+    change the game's resolution. The faithful test of a tall span: a custom NVIDIA resolution (960x1080), picked in
+    the game's own display options. WidescreenFix isn't told about the forced size, so FE units stay 16:9 and the HUD is squeezed into the
+    centre; use it for the 3D view and the HUD's layout within a cell, not the HUD's position on screen.
   - `plugin.py` (for tools): the loaded plugin's base, map symbols and `LocalPlayers` (its local player array; the
     size comes from `MAX_LOCAL_PLAYERS` in the checkout's source, 4 on main, 6 on 6p-support). When the installed asi
     isn't build/'s (an A/B test with an older build), the map doesn't fit: `LocalPlayers` then reads the players from
