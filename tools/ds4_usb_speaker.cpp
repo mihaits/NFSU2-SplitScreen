@@ -5,6 +5,10 @@
 //   ds4_usb_speaker [offset=value ...]     report bytes over the defaults: 1=0xB0 22=0x4F
 //   ds4_usb_speaker list                   the pad's report ids, the endpoint's volume and mute; no sound
 //   ds4_usb_speaker features               reads the feature reports (not the pad's address and pairing ones)
+//   ds4_usb_speaker sine [seconds]         the factory sine (feature report A0: 01 01, then 01 00), reads A4 after each.
+//                                          Only this subcommand: others in A0 write flash or brick the USB mode.
+//   ds4_usb_speaker mix [offset=value ...] 2 s factory sine, 2 s sine + a 1500 Hz tone on the endpoint, 3 s tone alone:
+//                                          does the test mode route the USB stream to the speaker?
 //   ds4_usb_speaker topology               the endpoint's audio parts: terminals, volumes, mutes, selectors; read only
 //   ds4_usb_speaker sweep [ms]             a tone while each report byte steps through bit values, 200 ms a step. The
 //                                          motors and the lightbar (4..8) stay out of it. Only output report 0x05 is
@@ -132,6 +136,22 @@ static void ReadFeatures(HANDLE dev) {
     }
 }
 
+static bool TestCommand(HANDLE dev, BYTE device, BYTE action) {
+    BYTE f[7] = {0xA0, device, action};
+    if (!HidD_SetFeature(dev, f, sizeof(f))) {
+        printf("SET A0 %02X %02X failed, error %lu\n", device, action, GetLastError());
+        return false;
+    }
+    Sleep(50);
+    BYTE r[65] = {0xA4};
+    if (HidD_GetFeature(dev, r, sizeof(r))) {
+        printf("SET A0 %02X %02X ok, A4:", device, action);
+        for (int i = 1; i < 9; ++i) printf(" %02X", r[i]);
+        puts("");
+    } else printf("SET A0 %02X %02X ok, A4 read failed, error %lu\n", device, action, GetLastError());
+    return true;
+}
+
 static void WalkPart(IPart* part, int depth) {
     static UINT seen[256];
     static int seenCount;
@@ -234,6 +254,15 @@ int main(int argc, char** argv) {
     if (vol) { vol->GetMasterVolumeLevelScalar(&level); vol->GetMute(&muted); }
     printf("endpoint volume %.0f %%, muted %d\n", level * 100, muted);
     ListReports(dev);
+    if (argc > 1 && !strcmp(argv[1], "sine")) {
+        int seconds = argc > 2 ? atoi(argv[2]) : 4;
+        bool ok = TestCommand(dev, 1, 1);
+        if (ok) puts("sine on");
+        Sleep(seconds * 1000);
+        TestCommand(dev, 1, 0);
+        puts("sine off");
+        return 0;
+    }
     if (argc > 1 && !strcmp(argv[1], "features")) { ReadFeatures(dev); return 0; }
     if (argc > 1 && !strcmp(argv[1], "topology")) { DumpTopology(ep); return 0; }
     if (list) return 0;
@@ -266,6 +295,14 @@ int main(int argc, char** argv) {
     printf("report:");
     for (int i = 0; i < 32; ++i) if (r[i]) printf(" [%d]=%02X", i, r[i]);
     puts("");
+    bool mix = argc > 1 && !strcmp(argv[1], "mix"), sineOn = false;
+    double hz = mix ? 1500 : 440;
+    if (mix) {
+        sineOn = TestCommand(dev, 1, 1);
+        puts("2 s: sine alone");
+        Sleep(2000);
+        puts("2 s: sine and tone");
+    }
     client->Start();
     static const BYTE kSteps[] = {0x00, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0xFF};
     int stepsTotal = 0, offset = 2, step = 0;
@@ -274,8 +311,13 @@ int main(int argc, char** argv) {
     BYTE base = r[offset];
     printf("%s\n", sweep ? "sweep" : "tone (4 s)");
     double phase = 0;
-    int total = 4 * fmt->nSamplesPerSec, done = 0;
+    int total = (mix ? 5 : 4) * fmt->nSamplesPerSec, done = 0;
     while (sweep ? step < stepsTotal : done < total) {
+        if (sineOn && done >= static_cast<int>(2 * fmt->nSamplesPerSec)) {
+            TestCommand(dev, 1, 0);
+            sineOn = false;
+            puts("3 s: tone alone");
+        }
         if (sweep && GetTickCount() >= nextStep) {
             nextStep += stepMs;
             r[offset] = base;
@@ -298,12 +340,13 @@ int main(int argc, char** argv) {
         for (UINT32 i = 0; i < n; ++i) {
             float v = static_cast<float>(0.4 * sin(phase));
             for (int c = 0; c < fmt->nChannels; ++c) f[i * fmt->nChannels + c] = v;
-            phase += 2 * 3.14159265358979 * 440 / fmt->nSamplesPerSec;
+            phase += 2 * 3.14159265358979 * hz / fmt->nSamplesPerSec;
         }
         render->ReleaseBuffer(n, 0);
         done += n;
     }
     client->Stop();
+    if (sineOn) TestCommand(dev, 1, 0);
     if (sweep) {
         memset(r + 1, 0, sizeof(r) - 1);
         r[1] = 0x07;                      // back to plain motors off, lightbar off
