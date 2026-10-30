@@ -450,12 +450,12 @@ static void PadSpeakerDefaults(int players) {
     if (!g_padSpeakers) return;
     int n = 0;
     for (int k = 0; k < players && k < MAX_LOCAL_PLAYERS; ++k)
-        if (g_assignedPad[k] != PAD_NONE && XPadIsBluetoothDualSense(g_assignedPad[k])) ++n;
+        if (g_assignedPad[k] != PAD_NONE && XPadIsBluetoothSpeakerPad(g_assignedPad[k])) ++n;
     if (n == g_speakerDefaultFor) return;
     g_speakerDefaultFor = n;
     bool on = n <= kSpeakerDualSenseMax;
     for (bool& s : g_speakerOn) s = on;
-    Log("pad speakers: %d Bluetooth DualSense players, speakers start %s", n, on ? "on" : "off (mute button turns one on)");
+    Log("pad speakers: %d Bluetooth players, speakers start %s", n, on ? "on" : "off (mute button or DS4 touchpad turns one on)");
 }
 
 static void __fastcall EngineUpdateHook(uint8_t* obj, void* edx) {
@@ -471,7 +471,7 @@ static void __fastcall EngineUpdateHook(uint8_t* obj, void* edx) {
         if (h < 0 || k < 0) return;
         int pad = SplitRacing() ? g_assignedPad[k] : PAD_NONE;
         if (k == 0 && g_speakerTestPad >= 0 && SplitRacing()) pad = g_speakerTestPad;
-        if (pad == PAD_NONE || !XPadIsDualSense(pad) || !g_speakerOn[k]) pad = -1;
+        if (pad == PAD_NONE || !XPadHasSpeaker(pad) || !g_speakerOn[k]) pad = -1;
         if (pad != g_speakerPad[k]) {
             Log("pad speaker: player %d -> pad %d (engine voice %d)", k + 1, pad, h & 0x3F);
             InterlockedExchange(&g_speakerFailed[k], 0);

@@ -501,6 +501,9 @@ static void UpdatePadLights() {
             bool cue = StartCue(countdown, racing, paused, tick, stageStart, greenUntil, full);
             Ds4Lightbar(k, pad == ctl, cue, full, racing, paused, flashOn, rgb);
             XPadSetLights(pad, rgb, 0);
+            // no mute button: the touchpad click turns the player's pad speaker off / on (sound.cpp)
+            if (k >= 0 && SplitMode() && (racing || countdown) && XPadHasSpeaker(pad) && XPadTouchClickPressed(pad))
+                PadSpeakerToggle(k);
             continue;
         }
         if (!XPadIsDualSense(pad)) continue;

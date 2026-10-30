@@ -38,11 +38,12 @@ int  DsCount();                                        // pads connected now
 bool DsState(int slot, DsPadState* out, DsExtra* extra);   // false if the slot is empty (extra may be null)
 void DsSetOutput(int slot, const DsOutput& o);         // whole wanted output; sent by the I/O thread on change
 
-// Speaker of a DualSense: mono samples in -1..1 at `rate` Hz are queued and streamed to the pad (Bluetooth: Opus in
-// output report 0x39; USB: its Windows audio endpoint, see docs/input.md), starting the stream if needed; it stops by
+// Speaker of a pad: mono samples in -1..1 at `rate` Hz are queued and streamed to it (DualSense on Bluetooth: Opus in
+// output report 0x39; on USB: its Windows audio endpoint; DS4 on Bluetooth: SBC in report 0x17, see docs/input.md),
+// starting the stream if needed; it stops by
 // itself after 1 s without samples. False (nothing queued) if the slot has no connected pad, or a USB pad's stream
 // failed (a thread reports that a moment after the first samples).
 bool DsSpeakerWrite(int slot, const float* mono, int frames, int rate);
-bool DsIsDs4(int slot);                                // a DualShock 4 (no player LEDs, triggers, mute; no speaker yet)
+bool DsIsDs4(int slot);                                // a DualShock 4 (no player LEDs, triggers, mute; speaker over Bluetooth only)
 bool DsIsBluetooth(int slot);                          // connected over Bluetooth
 bool DsSpeakerReady(int slot);                         // DsSpeakerWrite would take samples

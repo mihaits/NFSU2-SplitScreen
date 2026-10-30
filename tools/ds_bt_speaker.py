@@ -59,8 +59,8 @@ def log(msg):
     print(f'[{time.perf_counter() - T0:6.2f}] {msg}', flush=True)
 
 
-def bt_dualsenses():
-    """(path, serial) of every Bluetooth DualSense HID interface."""
+def bt_dualsenses(pids=('0ce6', '0df2')):
+    """(path, serial) of every Bluetooth DualSense HID interface (or other Sony pids)."""
     g = GUID()
     hid.HidD_GetHidGuid(C.byref(g))
     hdi = sa.SetupDiGetClassDevsW(C.byref(g), None, None, 0x12)
@@ -78,7 +78,7 @@ def bt_dualsenses():
         sa.SetupDiGetDeviceInterfaceDetailW(hdi, C.byref(d), buf, need, None, None)
         path = C.wstring_at(C.addressof(buf) + 4)
         low = path.lower()
-        if BT_HID in low and 'vid&0002054c' in low and ('pid&0ce6' in low or 'pid&0df2' in low):
+        if BT_HID in low and 'vid&0002054c' in low and any(f'pid&{p}' in low for p in pids):
             h = open_hid(path)
             if h:
                 s = C.create_unicode_buffer(64)

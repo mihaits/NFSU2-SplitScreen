@@ -27,7 +27,7 @@ Every player has their own controls page (Options → Controls) and their own pl
 options of whoever paused.
 
 **Handy buttons:**
-- **Mute** (DualSense): moves your car's sound from your pad's speaker back to the PC, and again to switch back.
+- **Mute** (DualSense), **touchpad click** (DualShock 4): moves your car's sound from your pad's speaker back to the PC, and again to switch back.
   With more than 2 DualSense players the speakers start off (too much for one Bluetooth adapter); Mute turns yours on.
 - **Y / Space** on player 1's Press START: rematch with the same cars and controllers.
 - **START** on a spare pad: take over a player whose controller turned off.
@@ -48,14 +48,14 @@ options of whoever paused.
 - DualSense without DS4Windows: rumble, player LEDs, RPM / nitrous lightbar, adaptive triggers
 - DualShock 4 without DS4Windows: rumble, lightbar in the player's colour with the start lights and podium colours
 - Xbox One / Series impulse triggers, Forza Horizon style: they buzz with wheelspin and brake slip
-- Each player's car sounds on their own DualSense's speaker (Bluetooth or USB), so the cars don't overlap on the PC.
+- Each player's car sounds on their own pad's speaker (DualSense: Bluetooth or USB; DualShock 4: Bluetooth), so the cars
+  don't overlap on the PC.
   Windows may switch its default output to a pad when you plug it in; switch it back in the Windows sound settings
 - A controller that turns off keeps its player; a spare one can take over
 
 ## To do
 - [ ] More than 4 Xbox pads (Windows.Gaming.Input backend)
 - [ ] DualSense speaker with an adaptive bitrate, so 3-6 pads can stream at once over Bluetooth
-- [ ] DualShock 4 speaker
 - [ ] Session results: standings across back-to-back races
 - [ ] Replays of split-screen races
 - [ ] Rear-view mirror in the bumper and hood cameras, like single player

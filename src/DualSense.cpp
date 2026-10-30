@@ -16,6 +16,7 @@
 #include <cwctype>
 
 #include "DualSense.h"
+#include "SbcEncoder.h"
 #include <opus.h>
 
 namespace {
@@ -119,7 +120,7 @@ void ParseInput(Slot* s, const uint8_t* buf, DWORD n) {
         if (n < 11 || buf[0] != 0x01) return;
         b = buf;
     } else if (s->ds4) {
-        if (n < 13 || buf[0] != 0x11) return;   // BT: ignore the short report (id 0x01)
+        if (n < 13 || buf[0] < 0x11 || buf[0] > 0x19) return;   // BT: ignore the short report (id 0x01)
         b = buf + 2;
     } else {
         if (n < 12 || buf[0] != 0x31) return;   // BT: ignore the short report (id 0x01)
@@ -181,7 +182,7 @@ DWORD BuildDs4Report(const Slot* s, const DsOutput& o, uint8_t* r) {
     memset(r, 0, s->outLen);
     uint8_t* c;
     if (s->usb) { r[0] = 0x05; r[1] = 0x07; c = r + 4; }
-    else { r[0] = 0x11; r[1] = 0xC0 | 0x04; r[3] = 0x03; c = r + 6; }
+    else { r[0] = 0x11; r[1] = 0xC0 | 0x04; r[2] = 0xA0; r[3] = 0x03; c = r + 6; }
     c[0] = o.smallMotor;
     c[1] = o.largeMotor;
     c[2] = o.rgb[0]; c[3] = o.rgb[1]; c[4] = o.rgb[2];
@@ -583,6 +584,88 @@ DWORD WINAPI SpeakerThread(LPVOID param) {
     return 0;
 }
 
+// ---------------------------------------------------------------- speaker (DS4, Bluetooth)
+// The speaker takes SBC in output report 0x17 (462 bytes, as PadForge documents it, checked by ear with
+// tools/ds4_bt_speaker.py): [1] 0x40, [2] 0xA0, [3..4] frame counter += 4, [5] 0x02 speaker, [6..] 4 frames, CRC32 seed 0xA2
+// at 458. Each frame is 128 samples at 32 kHz, so one report per 16 ms. Report 0x11 with flag 0x80 and the speaker
+// volume at 24 turns it on first. Queue, rate trim and limiter are shared (SpkTake, at 32 kHz here).
+constexpr int kDs4SpkReport = 462, kDs4SpkFrames = 4, kDs4SpkVolume = 0x4F;
+
+DWORD WINAPI Ds4SpeakerThread(LPVOID param) {
+    Slot* s = static_cast<Slot*>(param);
+    int idx = static_cast<int>(s - g_slot);
+    HANDLE ev = CreateEventA(nullptr, TRUE, FALSE, nullptr);
+    static uint8_t reports[kDsMax][kDs4SpkReport];
+    static float mono[kDsMax][kSbcFrameSamples * kDs4SpkFrames];
+    static SbcEncoder encoders[kDsMax];
+    SbcEncoder& enc = encoders[idx];
+    enc = SbcEncoder();
+    uint8_t* rep = reports[idx];
+    uint8_t on[78] = {0x11, 0xC0, 0xA0, 0x80};
+    on[24] = kDs4SpkVolume;
+    BtSign(on);
+    bool ok = WriteReport(s, ev, on, sizeof(on));
+    Log("DS4 %d: speaker stream %s", idx, ok ? "started" : "enable report failed");
+    timeBeginPeriod(1);
+    LARGE_INTEGER freq, now;
+    QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&now);
+    const double period = 16.0 / 1000;
+    double next = static_cast<double>(now.QuadPart) / freq.QuadPart;
+    SpkQueue q;
+    bool failing = false;
+    uint16_t counter = 0;
+    int sent = 0;
+    double lateMax = 0;
+    DWORD statsAt = GetTickCount();
+    while (ok && !s->spkStop) {
+        if (!SpkTake(s, q, mono[idx], kSbcFrameSamples * kDs4SpkFrames, 32000.0)) break;
+        memset(rep, 0, kDs4SpkReport);
+        rep[0] = 0x17; rep[1] = 0x40; rep[2] = 0xA0;
+        rep[3] = static_cast<uint8_t>(counter); rep[4] = static_cast<uint8_t>(counter >> 8);
+        rep[5] = 0x02;
+        counter += kDs4SpkFrames;
+        for (int k = 0; k < kDs4SpkFrames; ++k)
+            enc.Encode(mono[idx] + k * kSbcFrameSamples, rep + 6 + k * kSbcFrameBytes);
+        uint8_t seed = 0xA2;
+        uint32_t c = ~Crc32Update(Crc32Update(0xFFFFFFFFu, &seed, 1), rep, kDs4SpkReport - 4);
+        memcpy(rep + kDs4SpkReport - 4, &c, 4);
+        QueryPerformanceCounter(&now);
+        double late = static_cast<double>(now.QuadPart) / freq.QuadPart - next;
+        if (late > lateMax) lateMax = late;
+        if (WriteReport(s, ev, rep, kDs4SpkReport)) {
+            if (failing) Log("DS4 %d: speaker reports work again", idx);
+            failing = false;
+            ++sent;
+        } else if (!failing) {
+            Log("DS4 %d: speaker report failed (error %lu)", idx, GetLastError());
+            failing = true;
+        }
+        DWORD t = GetTickCount();
+        if (t - statsAt >= 5000) {
+            Log("DS4 %d: speaker %d reports, %d underruns, %d samples dropped, peak %.2f (limited above 0.90), left %d, "
+                "queue max %d, max late %.1f ms, rate %+.3f %%", idx, sent, q.underruns, q.dropped, q.peak,
+                q.statMin == 1 << 30 ? 0 : q.statMin, q.statMax, lateMax * 1000, q.trim * 100);
+            SpkStatsReset(q);
+            sent = 0;
+            lateMax = 0;
+            statsAt = t;
+        }
+        next += period;
+        for (;;) {
+            QueryPerformanceCounter(&now);
+            double d = next - static_cast<double>(now.QuadPart) / freq.QuadPart;
+            if (d <= 0) { if (d < -0.1) next -= d; break; }   // far behind (a stall): don't send a burst
+            if (d > 0.002) Sleep(1);
+        }
+    }
+    timeEndPeriod(1);
+    CloseHandle(ev);
+    Log("DS4 %d: speaker stream stopped", idx);
+    SpkFinish(s);
+    return 0;
+}
+
 // ---------------------------------------------------------------- speaker (USB)
 // Over USB the pad is also a Windows audio device: a render endpoint of 4 channels at 48 kHz (speaker tap L/R, haptics
 // L/R), which plays on the jack unless output path 3 is set (SpeakerRoute): that mutes the jack and plays channel 2 on
@@ -877,7 +960,7 @@ void OpenPad(const char* path, bool edge, bool ds4) {
     EnterCriticalSection(&s->spkCs);
     s->spkCount = 0;
     s->spkStop = 0;
-    s->spkNoDevice = s->usb || ds4;       // a DS4 has no speaker path yet
+    s->spkNoDevice = s->usb;              // a DS4 on a cable stays this way: only Bluetooth reaches its speaker
     s->spkWaitEndpoint = s->usb && !ds4;
     LeaveCriticalSection(&s->spkCs);
     s->alive = 1;
@@ -1012,7 +1095,8 @@ bool DsSpeakerWrite(int slot, const float* mono, int frames, int rate) {
             s.spkBuf[(s.spkHead + s.spkCount++) % kSpkRing] = mono[i];
         }
         s.spkLastWrite = GetTickCount();
-        if (!s.spkThread) s.spkThread = CreateThread(nullptr, 0, s.usb ? UsbSpeakerThread : SpeakerThread, &s, 0, nullptr);
+        LPTHREAD_START_ROUTINE fn = s.ds4 ? Ds4SpeakerThread : s.usb ? UsbSpeakerThread : SpeakerThread;
+        if (!s.spkThread) s.spkThread = CreateThread(nullptr, 0, fn, &s, 0, nullptr);
     }
     LeaveCriticalSection(&s.spkCs);
     return ok;

@@ -44,7 +44,8 @@ bool XPadTouchClickPressed(int pad);   // touchpad click went down since the pre
 bool XPadMutePressed(int pad);         // mute button went down since the previous XPadUpdate
 void XPadSetMuteLed(int pad, uint8_t mode);   // mute button LED: 0 off, 1 on, 2 pulsing
 bool XPadSpeakerWrite(int pad, const float* mono, int frames, int rate);   // DualSense speaker (DualSense.h)
-bool XPadIsBluetoothDualSense(int pad);
+bool XPadIsBluetoothSpeakerPad(int pad);   // DualSense or DS4 on Bluetooth
+bool XPadHasSpeaker(int pad);              // a DualSense, or a DS4 on Bluetooth
 bool XPadSpeakerReady(int pad);
 
 // A pad's state as virtual device 0 reports it to the game (DIJOYSTATE2, with the axis ranges the game set on that

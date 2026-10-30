@@ -134,7 +134,7 @@ controllers are hidden. Pads 0..3 are the real XInput pads, 4..9 debug pads driv
 
 **Native DualShock 4 (`DualSense.cpp`).** The DualSense backend also opens DS4 pads (054C:05C4, 054C:09CC; `Slot.ds4`),
 in the same slots, threads and hotplug, under `[INPUT] NativeDualSense` and the same DS4Windows rule. `XPadIsDualSense` is
-false for them and `XPadIsDs4` true, so they get no player LEDs, trigger row, mute or speaker.
+false for them and `XPadIsDs4` true, so they get no player LEDs, trigger row or mute button.
 - **Init:** feature 0x02 (calibration, read only); on Bluetooth it switches the pad to the full 0x11 input report, as
   any 0x11 output report does. Logged as "DS4 N: USB|Bluetooth, report sizes in .. out ..". Nothing else is needed.
 - **Address:** feature 0x12 (same layout as the DualSense's 0x09), else the HID serial string. A cable plugged into a
@@ -147,7 +147,16 @@ false for them and `XPadIsDs4` true, so they get no player LEDs, trigger row, mu
   driver and there are no player LEDs, so it shows who the pad is, never the rpm: the player's colour from the join on
   (`kPlayerColour`; 1P and the controlling pad: P1's), at 25% in the pause. The start animation is the DualSense's
   (`StartCue`). Finished: the podium colours, dim white (60, 60, 60) from 4th down, since off would look like a dead pad.
-  Any other pad flashes that dim white at 1 Hz, as the DualSense flashes its player LEDs. The touchpad click does nothing yet.
+  Any other pad flashes that dim white at 1 Hz, as the DualSense flashes its player LEDs.
+- **Speaker (Bluetooth; `Ds4SpeakerThread`, `SbcEncoder.h`):** SBC in output report 0x17 (462 bytes, layout from PadForge's
+  docs, checked by ear): [1] 0x40, [2] 0xA0, [3..4] frame counter += 4, [5] 0x02 speaker (0x24 jack), 4 SBC frames from
+  6, CRC32 seed 0xA2 at 458. A frame is 128 samples at 32 kHz, so one report per 16 ms (218 kbit/s with headers: as heavy as a DualSense stream).
+  Report 0x11 with flag 0x80 at 3 and the volume (0x4F) at 24 turns it on. `SbcEncoder.h` is our own, from the A2DP
+  spec: 32 kHz, 16 blocks, 8 subbands, stereo, SNR allocation, bitpool 48, 108-byte frames, mono in both channels; 51.5 dB
+  SNR through ffmpeg's decoder (`tools/sbc_test.cpp`, `tools/sbc_check.py`). The queue is `SpkTake` at 32 kHz. The pad's
+  own mute button is missing, so the touchpad click toggles the speaker in split races (`PadSpeakerToggle`); the car moving
+  between the pad and the PC is the only feedback. Over USB PadForge's docs report a headset that only reaches the
+  jack (and no audio at all on the first model); not tried here, so `spkNoDevice` stays set and the car stays on the PC.
 
 **Xbox impulse triggers (`XboxWgi.cpp`).**
 - XInput can't drive the trigger motors of Xbox One / Series pads; Windows.Gaming.Input (`Gamepad.Vibration`) can.
