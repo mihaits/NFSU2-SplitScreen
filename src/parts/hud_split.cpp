@@ -293,7 +293,13 @@ static void UpdateMinimapOwner() {          // per frame
         g_mmOwnerHidden = true;
         Log("minimap: player 1's HUD hidden (finished), %d minimap objects kept for the others", g_mmVisibleCount);
     }
-    for (int i = 0; i < g_mmVisibleCount; ++i) *reinterpret_cast<uint32_t*>(g_mmVisible[i] + 0x1C) &= ~1u;
+    // nobody left racing: the hide stands (user: the map stayed on the results screen)
+    bool allFinished = true;
+    for (int k = 0; k < 2 + g_extraPlayers; ++k) allFinished &= g_mmFinished[k];
+    for (int i = 0; i < g_mmVisibleCount; ++i) {
+        uint32_t& flags = *reinterpret_cast<uint32_t*>(g_mmVisible[i] + 0x1C);
+        flags = allFinished ? flags | 1u : flags & ~1u;
+    }
 }
 
 // 2P: the HUD packages keep their own layout; only P1's minimap objects are mapped, and drawn once per player, in the

@@ -93,7 +93,7 @@ parked off-screen) are moved 2000 further out. Pivots are scaled too.
   from. `UpdateMinimapOwner` (per frame, after the quad HUD / 2P minimap mapping) keeps the objects that were visible just before
   visible for the players still racing; a finished player's own map is skipped (`g_mmFinished[k]`, player
   +0x50; racer progress +0x14 counts laps). Only a hide with P1 finished and no menu over the HUD counts; during a pause the kept objects are hidden
-  too. The object list is rebuilt from P1's **live** package every frame: a restart rebuilds the HUD's objects,
+  too, and so they are once every local player has finished (the results screen). The object list is rebuilt from P1's **live** package every frame: a restart rebuilds the HUD's objects,
   sometimes at the same addresses, and a cached list crashed. `g_hudPackages` is cleared outside split racing and in
   `CreatePlayers`.
 
