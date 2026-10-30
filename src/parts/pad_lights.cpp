@@ -405,6 +405,42 @@ static void UpdatePadTriggers(int pad, int k) {
     XPadSetTriggers(pad, left, right);
 }
 
+static const uint8_t kPodium[3][3] = {{255, 180, 0}, {200, 200, 220}, {205, 100, 30}};   // gold, silver, bronze
+
+// The start animation: red, red, amber flashing with the 3-2-1 (stage 3), then green for 1 s from GO. False: no cue now.
+static bool StartCue(bool countdown, bool racing, bool paused, DWORD tick, DWORD stageStart, DWORD greenUntil, uint8_t full[3]) {
+    full[0] = full[1] = full[2] = 0;
+    if (countdown) {
+        int second = (tick - stageStart) / 1000;
+        if ((tick - stageStart) % 1000 < 600) { full[0] = 255; full[1] = second >= 2 ? 120 : 0; }   // flash per count
+        return true;
+    }
+    if (racing && !paused && static_cast<int>(greenUntil - tick) > 0) {
+        full[1] = 255;
+        return true;
+    }
+    return false;
+}
+
+// DS4: no player LEDs and a lightbar that faces away from the player, so the bar says who the pad is: the player's
+// colour (25% in the pause), the start animation, the podium colours, a solid dim white outside the podium (off would
+// look like a dead pad). A pad without a player flashes dim white at 1 Hz, as the DualSense flashes its player LEDs.
+static void Ds4Lightbar(int k, bool controlling, bool cue, const uint8_t full[3], bool racing, bool paused, bool flashOn, uint8_t rgb[3]) {
+    static const uint8_t kDim[3] = {60, 60, 60};
+    const uint8_t* colour = nullptr;
+    int percent = g_lightbarBrightness;
+    int place = k >= 0 && racing && !paused ? FinishedPosition(GetLocalPlayer(k)) : 0;
+    if (!g_lightbar) {
+    } else if (k >= 0 && cue) colour = full;
+    else if (place) colour = place <= 3 ? kPodium[place - 1] : kDim;
+    else if (k >= 0) {
+        colour = kPlayerColour[k];
+        if (paused) percent /= 4;
+    } else if (controlling) colour = kPlayerColour[0];
+    else if (flashOn) colour = kDim;
+    for (int c = 0; c < 3; ++c) rgb[c] = colour ? static_cast<uint8_t>(colour[c] * percent / 100) : 0;
+}
+
 static void UpdatePadLights() {
     int state = at<int>(GAME_STATE);
     // Game state 3 is the frontend (menus before and after a race), 4/5 loading, 6 racing and results, 7/1 the way back.
@@ -457,8 +493,14 @@ static void UpdatePadLights() {
             continue;
         }
         if (XPadIsDs4(pad)) {
-            static const uint8_t kDs4Idle[3] = {0, 0, 64};
-            XPadSetLights(pad, kDs4Idle, 0);
+            int k = -1;                    // the player of this pad
+            for (int q = 0; sessionOn && q < seatLimit; ++q)
+                if (g_assignedPad[q] == pad) k = q;
+            if (!SplitMode() && pad == ctl) k = 0;
+            uint8_t full[3], rgb[3];
+            bool cue = StartCue(countdown, racing, paused, tick, stageStart, greenUntil, full);
+            Ds4Lightbar(k, pad == ctl, cue, full, racing, paused, flashOn, rgb);
+            XPadSetLights(pad, rgb, 0);
             continue;
         }
         if (!XPadIsDualSense(pad)) continue;
@@ -484,24 +526,16 @@ static void UpdatePadLights() {
                 Log("lightbar: player %d shows %s", k + 1, g_lightColourMode[k] ? "player colour" : "rpm");
             }
             uint8_t full[3] = {0, 0, 0};
-            bool cue = countdown;           // countdown / GO colours replace everything else
-            if (countdown) {
-                int second = (tick - stageStart) / 1000;
-                if ((tick - stageStart) % 1000 < 600) { full[0] = 255; full[1] = second >= 2 ? 120 : 0; }   // flash per count
-            } else if (racing && !paused && static_cast<int>(greenUntil - tick) > 0) {
-                full[1] = 255;
-                cue = true;
-            }
+            bool cue = StartCue(countdown, racing, paused, tick, stageStart, greenUntil, full);   // replaces everything else
             if (k < 0) {
             } else if (cue) {
                 for (int c = 0; c < 3; ++c) rgb[c] = static_cast<uint8_t>(full[c] * g_lightbarBrightness / 100);
             } else if (!paused && racing && FinishedPosition(GetLocalPlayer(k))) {   // finish colour until state 6 ends
-                static const uint8_t kPlace[3][3] = {{255, 180, 0}, {200, 200, 220}, {205, 100, 30}};
                 int place = FinishedPosition(GetLocalPlayer(k));
                 finishPlace = place;
                 finishPlayer = k;
                 for (int c = 0; c < 3; ++c)
-                    rgb[c] = static_cast<uint8_t>((place <= 3 ? kPlace[place - 1][c] : 0) * g_lightbarBrightness / 100);
+                    rgb[c] = static_cast<uint8_t>((place <= 3 ? kPodium[place - 1][c] : 0) * g_lightbarBrightness / 100);
             } else if (paused) {            // the player's colour at 25%
                 for (int c = 0; c < 3; ++c) rgb[c] = static_cast<uint8_t>(kPlayerColour[k][c] * g_lightbarBrightness / 400);
             } else if (SplitMode() && g_lightColourMode[k]) {

@@ -137,11 +137,17 @@ in the same slots, threads and hotplug, under `[INPUT] NativeDualSense` and the 
 false for them and `XPadIsDs4` true, so they get no player LEDs, trigger row, mute or speaker.
 - **Init:** feature 0x02 (calibration, read only); on Bluetooth it switches the pad to the full 0x11 input report, as
   any 0x11 output report does. Logged as "DS4 N: USB|Bluetooth, report sizes in .. out ..". Nothing else is needed.
-- **Address:** feature 0x12 (same layout as the DualSense's 0x09), else the HID serial string.
+- **Address:** feature 0x12 (same layout as the DualSense's 0x09), else the HID serial string. A cable plugged into a
+  Bluetooth DS4 mid-race changes nothing: the pad keeps sending on Bluetooth and the slot stays there (2026-10-30).
 - **Input:** USB 0x01 or BT 0x11 (offsets +2). Same bits as the DualSense at other offsets: sticks 1..4, hat + face 5,
   L1/R1/Share/Options/L3/R3 6, PS and touchpad click 7, L2 8, R2 9, battery 30. The input buffer is `kInMax` (600 bytes).
 - **Output:** USB 0x05 (32 bytes, flags 0x07 at 1, from 4 on) or BT 0x11 (78 bytes, 0xC4 at 1, flags 0x03 at 3, from 6 on,
-  same CRC as the DualSense): small motor, large motor, R, G, B. The motors aren't scaled. The lightbar stays dim blue.
+  same CRC as the DualSense): small motor, large motor, R, G, B. The motors aren't scaled.
+- **Lightbar (`Ds4Lightbar` in `parts/pad_lights.cpp`, `[LIGHTS] Lightbar`, `LightbarBrightness`):** the bar faces away from the
+  driver and there are no player LEDs, so it shows who the pad is, never the rpm: the player's colour from the join on
+  (`kPlayerColour`; 1P and the controlling pad: P1's), at 25% in the pause. The start animation is the DualSense's
+  (`StartCue`). Finished: the podium colours, dim white (60, 60, 60) from 4th down, since off would look like a dead pad.
+  Any other pad flashes that dim white at 1 Hz, as the DualSense flashes its player LEDs. The touchpad click does nothing yet.
 
 **Xbox impulse triggers (`XboxWgi.cpp`).**
 - XInput can't drive the trigger motors of Xbox One / Series pads; Windows.Gaming.Input (`Gamepad.Vibration`) can.

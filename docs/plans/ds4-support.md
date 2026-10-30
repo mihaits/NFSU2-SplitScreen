@@ -87,9 +87,6 @@ Reuse `sessionOn`, `seatLimit`, `ctl`, `flashOn`, `paused`, `FinishedPosition`, 
 countdown state (`countdown`, `stageStart`, `greenUntil`); move the colour step into a helper both models call. No rpm
 reads for a DS4. The touchpad toggle (line 476) is DualSense only, so the click does nothing yet on a DS4.
 
-Stage 1 on Bluetooth only ran for moments (the pad's battery was flat, sessions of ~0.6 s; 547/78 report sizes and the
-slot worked), so stage 2 is the first full race there: run it on Bluetooth with a charged pad, rumble included.
-
 **Test (user):** P2 on the DS4: colour after the join, flash before it, start animation, pause dim, finish on and off the podium,
 frontend after the race. One check per run, asked right after.
 
