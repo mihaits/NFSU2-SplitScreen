@@ -569,7 +569,8 @@ void XPadSetImpulseTriggers(int pad, float left, float right) {
     if (WgiHasTriggers(pad)) WgiSetVibration(pad, g_xbMotors[pad][0], g_xbMotors[pad][1], left, right);
 }
 
-bool XPadIsDualSense(int pad) { return pad >= kDsFirst && pad < kMaxPads && g_dsConnected[pad - kDsFirst]; }
+bool XPadIsDs4(int pad) { return pad >= kDsFirst && pad < kMaxPads && g_dsConnected[pad - kDsFirst] && DsIsDs4(pad - kDsFirst); }
+bool XPadIsDualSense(int pad) { return pad >= kDsFirst && pad < kMaxPads && g_dsConnected[pad - kDsFirst] && !DsIsDs4(pad - kDsFirst); }
 
 bool XPadIsBluetoothDualSense(int pad) { return XPadIsDualSense(pad) && DsIsBluetooth(pad - kDsFirst); }
 bool XPadSpeakerReady(int pad) { return XPadIsDualSense(pad) && DsSpeakerReady(pad - kDsFirst); }

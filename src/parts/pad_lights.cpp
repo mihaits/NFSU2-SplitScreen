@@ -456,6 +456,11 @@ static void UpdatePadLights() {
             UpdateImpulseTriggers(pad, drives);
             continue;
         }
+        if (XPadIsDs4(pad)) {
+            static const uint8_t kDs4Idle[3] = {0, 0, 64};
+            XPadSetLights(pad, kDs4Idle, 0);
+            continue;
+        }
         if (!XPadIsDualSense(pad)) continue;
         uint8_t leds = 0;
         if (g_playerLeds) {

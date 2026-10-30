@@ -27,6 +27,7 @@ enum : WORD {   // XInput button bits
 };
 
 constexpr WORD kVid = 0x054C, kPidDualSense = 0x0CE6, kPidEdge = 0x0DF2;
+constexpr DWORD kInMax = 600;             // largest input report (a Bluetooth descriptor may list 547)
 constexpr DWORD kKeepAliveBtMs = 500;     // BT: re-send when nothing else was sent
 constexpr DWORD kKeepAliveRumbleMs = 4000;
 constexpr DWORD kMinGapBtMs = 25;         // BT: at most 40 reports/s per pad (the lightbar changes every frame)
@@ -49,7 +50,7 @@ struct Slot {
     char path[MAX_PATH];
     char mac[13];                         // the pad's Bluetooth address (hex); kept after it drops: its slot is kept for it
     DWORD lostAt;
-    bool usb, edge;
+    bool usb, edge, ds4;
     int rumbleV2;
     USHORT inLen, outLen;
     CRITICAL_SECTION cs;
@@ -76,6 +77,8 @@ bool g_enabled;
 int g_rumbleMode = -1;
 DsLogFn g_log;
 int g_ds4wState = -1;                     // 0 not running, 1 running without a virtual pad, 2 virtual pad exposed
+
+const char* Model(const Slot* s) { return s->ds4 ? "DS4" : "DualSense"; }
 
 void Log(const char* fmt, ...) {
     if (!g_log) return;
@@ -115,15 +118,20 @@ void ParseInput(Slot* s, const uint8_t* buf, DWORD n) {
     if (s->usb) {
         if (n < 11 || buf[0] != 0x01) return;
         b = buf;
+    } else if (s->ds4) {
+        if (n < 13 || buf[0] != 0x11) return;   // BT: ignore the short report (id 0x01)
+        b = buf + 2;
     } else {
         if (n < 12 || buf[0] != 0x31) return;   // BT: ignore the short report (id 0x01)
         b = buf + 1;
     }
+    // same bits on both models, at other offsets: DS4 face 5, mid 6, special 7, triggers 8/9, battery 30
+    const int oFace = s->ds4 ? 5 : 8, oTrig = s->ds4 ? 8 : 5, oBattery = s->ds4 ? 30 : 53;
     DsPadState st = {};
     st.thumbLX = Stick(b[1], false); st.thumbLY = Stick(b[2], true);
     st.thumbRX = Stick(b[3], false); st.thumbRY = Stick(b[4], true);
-    st.leftTrigger = b[5]; st.rightTrigger = b[6];
-    uint8_t face = b[8], mid = b[9];
+    st.leftTrigger = b[oTrig]; st.rightTrigger = b[oTrig + 1];
+    uint8_t face = b[oFace], mid = b[oFace + 1], special = b[oFace + 2];
     WORD btn = 0;
     if (face & 0x10) btn |= XB_X;         // Square
     if (face & 0x20) btn |= XB_A;         // Cross
@@ -131,7 +139,7 @@ void ParseInput(Slot* s, const uint8_t* buf, DWORD n) {
     if (face & 0x80) btn |= XB_Y;         // Triangle
     if (mid & 0x01) btn |= XB_LB;
     if (mid & 0x02) btn |= XB_RB;
-    if (mid & 0x10) btn |= XB_BACK;       // Create
+    if (mid & 0x10) btn |= XB_BACK;       // Create (DS4: Share)
     if (mid & 0x20) btn |= XB_START;      // Options
     if (mid & 0x40) btn |= XB_LTHUMB;
     if (mid & 0x80) btn |= XB_RTHUMB;
@@ -147,13 +155,13 @@ void ParseInput(Slot* s, const uint8_t* buf, DWORD n) {
     }
     st.buttons = btn;
     DsExtra ex = {};
-    ex.ps = b[10] & 0x01; ex.touchClick = b[10] & 0x02; ex.mute = b[10] & 0x04;
-    ex.battery = n > 53 ? b[53] & 0x0F : 0;
+    ex.ps = special & 0x01; ex.touchClick = special & 0x02; ex.mute = !s->ds4 && (special & 0x04);
+    ex.battery = n > static_cast<DWORD>(oBattery) ? b[oBattery] & 0x0F : 0;
     ex.usb = s->usb;
     DWORD now = GetTickCount();
     if (s->stalled) {
         s->stalled = false;
-        Log("DualSense %d: input again after %lu ms", static_cast<int>(s - g_slot), now - s->inAt);
+        Log("%s %d: input again after %lu ms", Model(s), static_cast<int>(s - g_slot), now - s->inAt);
     }
     EnterCriticalSection(&s->cs);
     st.packet = s->st.packet + 1;
@@ -167,7 +175,22 @@ void ParseInput(Slot* s, const uint8_t* buf, DWORD n) {
 // ---------------------------------------------------------------- output
 // flag0: 0x01 compatible vibration, 0x02 haptics select, 0x04 right trigger, 0x08 left trigger
 // flag1: 0x04 lightbar colour, 0x10 player LEDs; flag2: 0x01 LED brightness, 0x02 lightbar setup, 0x04 vibration v2
+// DS4: USB 0x05 (flags at 1, motors at 4) or BT 0x11 (flags at 3, motors at 6, CRC as the DualSense); flags 0x01 motors,
+// 0x02 lightbar, 0x04 hardware flash; from the motors on: small, large, R, G, B, flash on, flash off.
+DWORD BuildDs4Report(const Slot* s, const DsOutput& o, uint8_t* r) {
+    memset(r, 0, s->outLen);
+    uint8_t* c;
+    if (s->usb) { r[0] = 0x05; r[1] = 0x07; c = r + 4; }
+    else { r[0] = 0x11; r[1] = 0xC0 | 0x04; r[3] = 0x03; c = r + 6; }
+    c[0] = o.smallMotor;
+    c[1] = o.largeMotor;
+    c[2] = o.rgb[0]; c[3] = o.rgb[1]; c[4] = o.rgb[2];
+    if (!s->usb) BtSign(r);
+    return s->outLen;
+}
+
 DWORD BuildReport(const Slot* s, const DsOutput& o, bool setup, uint8_t* r, int seq) {
+    if (s->ds4) return BuildDs4Report(s, o, r);
     memset(r, 0, s->outLen);
     uint8_t* c;
     if (s->usb) { r[0] = 0x02; c = r + 1; }
@@ -219,13 +242,19 @@ DWORD WINAPI IoThread(LPVOID param) {
     HANDLE writeEv = CreateEventA(nullptr, TRUE, FALSE, nullptr);
     OVERLAPPED ro = {};
     ro.hEvent = readEv;
-    uint8_t in[256], out[128];
+    uint8_t in[kInMax], out[128];
 
-    // init: firmware info (also switches a Bluetooth pad to the full input report), calibration, light out
+    // init: firmware info (also switches a Bluetooth pad to the full input report), calibration, light out. A DS4
+    // has none of these: its calibration report 0x02 does that switch, and so does any 0x11 output report.
     uint32_t hw = 0, fw = 0;
     unsigned upd = 0;
-    bool gotFw = false;
-    for (int t = 0; t < 5 && !gotFw; ++t) {
+    bool gotFw = false, ds4Init = false;
+    for (int t = 0; t < 5 && s->ds4 && !ds4Init; ++t) {
+        uint8_t f[64] = {};
+        f[0] = 0x02;
+        ds4Init = HidD_GetFeature(s->dev, f, sizeof(f)) != 0;
+    }
+    for (int t = 0; t < 5 && !s->ds4 && !gotFw; ++t) {
         uint8_t f[64] = {};
         f[0] = 0x20;
         if (HidD_GetFeature(s->dev, f, sizeof(f))) {
@@ -234,14 +263,17 @@ DWORD WINAPI IoThread(LPVOID param) {
             gotFw = true;
         }
     }
-    for (int t = 0; t < 5; ++t) {
+    for (int t = 0; t < 5 && !s->ds4; ++t) {
         uint8_t f[41] = {};
         f[0] = 0x05;
         if (HidD_GetFeature(s->dev, f, sizeof(f))) break;
     }
     int v2 = g_rumbleMode == 2 || (g_rumbleMode < 0 && (s->edge || !gotFw || upd >= 0x0215));
     s->rumbleV2 = v2;
-    if (gotFw)
+    if (s->ds4)
+        Log("DS4 %d: %s, report sizes in %u out %u, calibration report %s", idx, s->usb ? "USB" : "Bluetooth", s->inLen,
+            s->outLen, ds4Init ? "read" : "unreadable");
+    else if (gotFw)
         Log("DualSense %d: %s%s, hardware %08X, firmware %08X, update %04X, rumble v%d%s", idx,
             s->usb ? "USB" : "Bluetooth", s->edge ? " (Edge)" : "", hw, fw, upd, v2 ? 2 : 1,
             g_rumbleMode < 0 ? " (auto)" : " (ini)");
@@ -251,7 +283,7 @@ DWORD WINAPI IoThread(LPVOID param) {
 
     int seq = 0;
     bool wrote = WriteReport(s, writeEv, out, BuildReport(s, s->want, true, out, seq++));
-    if (!wrote) Log("DualSense %d: light-out report failed (error %lu)", idx, GetLastError());
+    if (!wrote) Log("%s %d: first output report failed (error %lu)", Model(s), idx, GetLastError());
 
     DsOutput sent = {};
     bool haveSent = false, failing = false;
@@ -279,10 +311,10 @@ DWORD WINAPI IoThread(LPVOID param) {
         DWORD waitMs = changed && !due ? gap - (now - lastSend) : 100;   // wake when the held change is due
         if (due) {
             if (WriteReport(s, writeEv, out, BuildReport(s, want, false, out, seq++))) {
-                if (failing) Log("DualSense %d: output reports work again", idx);
+                if (failing) Log("%s %d: output reports work again", Model(s), idx);
                 sent = want; haveSent = true; failing = false;
             } else if (!failing) {
-                Log("DualSense %d: output report failed (error %lu), retrying every %lu ms", idx, GetLastError(),
+                Log("%s %d: output report failed (error %lu), retrying every %lu ms", Model(s), idx, GetLastError(),
                     kRetryMs);
                 failing = true;
             }
@@ -304,7 +336,7 @@ DWORD WINAPI IoThread(LPVOID param) {
         }
         if (s->have && !s->stalled && GetTickCount() - s->inAt >= kStallLogMs) {
             s->stalled = true;
-            Log("DualSense %d: no input for %lu ms", idx, GetTickCount() - s->inAt);
+            Log("%s %d: no input for %lu ms", Model(s), idx, GetTickCount() - s->inAt);
         }
     }
     if (pending) {
@@ -312,7 +344,7 @@ DWORD WINAPI IoThread(LPVOID param) {
         DWORD n;
         GetOverlappedResult(s->dev, &ro, &n, TRUE);
     }
-    if (!s->stop) Log("DualSense %d: lost (error %lu)", idx, GetLastError());
+    if (!s->stop) Log("%s %d: lost (error %lu)", Model(s), idx, GetLastError());
     EnterCriticalSection(&s->cs);
     s->have = false;
     memset(&s->st, 0, sizeof(s->st));
@@ -745,11 +777,12 @@ void ReapSlots(bool all) {
     }
 }
 
-// The pad's Bluetooth address as 12 hex digits, the same over USB and Bluetooth: feature report 0x09 (pairing info,
-// address at 1..6, last byte first, as hid-playstation and SDL read it), else the HID serial string (Bluetooth).
-bool ReadMac(HANDLE h, char out[13]) {
+// The pad's Bluetooth address as 12 hex digits, the same over USB and Bluetooth: feature report 0x09 on a DualSense or
+// 0x12 on a DS4 (pairing info, address at 1..6, last byte first, as hid-playstation and SDL read it), else the HID
+// serial string (Bluetooth).
+bool ReadMac(HANDLE h, bool ds4, char out[13]) {
     uint8_t f[64] = {};
-    f[0] = 0x09;
+    f[0] = ds4 ? 0x12 : 0x09;
     if (HidD_GetFeature(h, f, sizeof(f)) && (f[1] | f[2] | f[3] | f[4] | f[5] | f[6])) {
         sprintf_s(out, 13, "%02x%02x%02x%02x%02x%02x", f[6], f[5], f[4], f[3], f[2], f[1]);
         return true;
@@ -776,7 +809,7 @@ Slot* SlotFor(const char* mac) {
     return best;
 }
 
-void OpenPad(const char* path, bool edge) {
+void OpenPad(const char* path, bool edge, bool ds4) {
     bool anyFree = false;
     for (auto& c : g_slot) anyFree |= !c.thread && !c.alive;
     if (!anyFree) return;
@@ -801,7 +834,7 @@ void OpenPad(const char* path, bool edge) {
         return;
     }
     char mac[13] = {};
-    if (!ReadMac(h, mac)) mac[0] = 0;
+    if (!ReadMac(h, ds4, mac)) mac[0] = 0;
     // the same pad on its other transport (a cable plugged into a Bluetooth pad) while the old link is still open:
     // wait for that one to drop, then this one takes its slot on a later rescan
     for (auto& c : g_slot)
@@ -809,7 +842,7 @@ void OpenPad(const char* path, bool edge) {
             static char waiting[MAX_PATH];
             if (strcmp(waiting, path)) {
                 strcpy_s(waiting, path);
-                Log("DualSense %d: also seen on another connection, kept on the open one", static_cast<int>(&c - g_slot));
+                Log("%s %d: also seen on another connection, kept on the open one", Model(&c), static_cast<int>(&c - g_slot));
             }
             CloseHandle(h);
             return;
@@ -820,17 +853,18 @@ void OpenPad(const char* path, bool edge) {
     s->dev = h;
     s->usb = caps.InputReportByteLength == 64;
     s->edge = edge;
+    s->ds4 = ds4;
     s->inLen = caps.InputReportByteLength;
     s->outLen = caps.OutputReportByteLength;
     if (!s->usb && s->outLen > 78) s->outLen = 78;   // BT descriptor lists the largest report (547); 0x31 is 78 bytes
-    if (s->inLen > 256 || s->outLen > 128 || s->outLen < (s->usb ? 48 : 78)) {
-        Log("DualSense: unexpected report sizes in %u out %u", s->inLen, s->outLen);
+    if (s->inLen > kInMax || s->outLen > 128 || s->outLen < (s->usb ? (ds4 ? 32 : 48) : 78)) {
+        Log("%s: unexpected report sizes in %u out %u", Model(s), s->inLen, s->outLen);
         CloseHandle(h);
         return;
     }
     strcpy_s(s->path, path);
     // the log shows only the address's last 4 digits (logs get attached to bug reports)
-    Log("DualSense %d: pad ..%s, %s", static_cast<int>(s - g_slot), mac[0] ? mac + 8 : "(no address)",
+    Log("%s %d: pad ..%s, %s", Model(s), static_cast<int>(s - g_slot), mac[0] ? mac + 8 : "(no address)",
         same ? "back in its slot" : s->mac[0] ? "takes a slot another pad had" : "new slot");
     strcpy_s(s->mac, mac);
     s->stop = 0;
@@ -843,7 +877,8 @@ void OpenPad(const char* path, bool edge) {
     EnterCriticalSection(&s->spkCs);
     s->spkCount = 0;
     s->spkStop = 0;
-    s->spkNoDevice = s->spkWaitEndpoint = s->usb;
+    s->spkNoDevice = s->usb || ds4;       // a DS4 has no speaker path yet
+    s->spkWaitEndpoint = s->usb && !ds4;
     LeaveCriticalSection(&s->spkCs);
     s->alive = 1;
     s->thread = CreateThread(nullptr, 0, IoThread, s, 0, nullptr);
@@ -870,11 +905,13 @@ void Rescan() {
         bool sony = strstr(lower, "vid_054c") || strstr(lower, "vid&0002054c");
         bool ds = sony && (strstr(lower, "pid_0ce6") || strstr(lower, "pid&0ce6"));
         bool edge = sony && (strstr(lower, "pid_0df2") || strstr(lower, "pid&0df2"));
-        if (!ds && !edge) continue;
+        bool ds4 = sony && (strstr(lower, "pid_05c4") || strstr(lower, "pid&05c4") || strstr(lower, "pid_09cc") ||
+                            strstr(lower, "pid&09cc"));
+        if (!ds && !edge && !ds4) continue;
         bool open = false;
         for (auto& s : g_slot)
             if (s.thread && !_stricmp(s.path, d->DevicePath)) open = true;
-        if (!open) OpenPad(d->DevicePath, edge);
+        if (!open) OpenPad(d->DevicePath, edge, ds4);
     }
     SetupDiDestroyDeviceInfoList(set);
 }
@@ -980,6 +1017,8 @@ bool DsSpeakerWrite(int slot, const float* mono, int frames, int rate) {
     LeaveCriticalSection(&s.spkCs);
     return ok;
 }
+
+bool DsIsDs4(int slot) { return g_enabled && slot >= 0 && slot < kDsMax && g_slot[slot].alive && g_slot[slot].ds4; }
 
 bool DsIsBluetooth(int slot) { return g_enabled && slot >= 0 && slot < kDsMax && g_slot[slot].alive && !g_slot[slot].usb; }
 

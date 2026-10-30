@@ -132,6 +132,17 @@ controllers are hidden. Pads 0..3 are the real XInput pads, 4..9 debug pads driv
   applies.
 - Tested with 4 native DualSense pads over Bluetooth at once, next to 2 Xbox pads (5-6 player races, 2026-10-24).
 
+**Native DualShock 4 (`DualSense.cpp`).** The DualSense backend also opens DS4 pads (054C:05C4, 054C:09CC; `Slot.ds4`),
+in the same slots, threads and hotplug, under `[INPUT] NativeDualSense` and the same DS4Windows rule. `XPadIsDualSense` is
+false for them and `XPadIsDs4` true, so they get no player LEDs, trigger row, mute or speaker.
+- **Init:** feature 0x02 (calibration, read only); on Bluetooth it switches the pad to the full 0x11 input report, as
+  any 0x11 output report does. Logged as "DS4 N: USB|Bluetooth, report sizes in .. out ..". Nothing else is needed.
+- **Address:** feature 0x12 (same layout as the DualSense's 0x09), else the HID serial string.
+- **Input:** USB 0x01 or BT 0x11 (offsets +2). Same bits as the DualSense at other offsets: sticks 1..4, hat + face 5,
+  L1/R1/Share/Options/L3/R3 6, PS and touchpad click 7, L2 8, R2 9, battery 30. The input buffer is `kInMax` (600 bytes).
+- **Output:** USB 0x05 (32 bytes, flags 0x07 at 1, from 4 on) or BT 0x11 (78 bytes, 0xC4 at 1, flags 0x03 at 3, from 6 on,
+  same CRC as the DualSense): small motor, large motor, R, G, B. The motors aren't scaled. The lightbar stays dim blue.
+
 **Xbox impulse triggers (`XboxWgi.cpp`).**
 - XInput can't drive the trigger motors of Xbox One / Series pads; Windows.Gaming.Input (`Gamepad.Vibration`) can.
   WinRT is loaded from combase.dll at run time (no import), and one MTA thread owns every WGI object. Input stays on

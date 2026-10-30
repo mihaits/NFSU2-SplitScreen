@@ -37,6 +37,7 @@ void XPadSetImpulseTriggers(int pad, float left, float right);
 // Native DualSense pads (8..11) only; no-ops for other pads. The pad layer keeps one merged output per pad (rumble,
 // lights, triggers) and sends it on change.
 bool XPadIsDualSense(int pad);                                                   // connected native DualSense
+bool XPadIsDs4(int pad);                                                         // connected native DualShock 4
 void XPadSetLights(int pad, const uint8_t rgb[3], uint8_t playerLeds);           // lightbar + player LEDs (bits 0..4)
 void XPadSetTriggers(int pad, const uint8_t l[11], const uint8_t r[11]);         // trigger effects (mode + 10 params)
 bool XPadTouchClickPressed(int pad);   // touchpad click went down since the previous XPadUpdate

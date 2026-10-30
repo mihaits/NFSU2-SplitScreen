@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 
-// Native Sony DualSense (and DualSense Edge) pads over HID (SetupAPI + hid.dll), USB or Bluetooth, without
+// Native Sony DualSense, DualSense Edge and DualShock 4 pads over HID (SetupAPI + hid.dll), USB or Bluetooth, without
 // DS4Windows. One I/O thread per open pad keeps the latest input report and sends output reports (rumble, lights,
 // triggers) when the wanted output changes. A hotplug thread rescans every 2 s. See docs/input.md.
 
@@ -43,5 +43,6 @@ void DsSetOutput(int slot, const DsOutput& o);         // whole wanted output; s
 // itself after 1 s without samples. False (nothing queued) if the slot has no connected pad, or a USB pad's stream
 // failed (a thread reports that a moment after the first samples).
 bool DsSpeakerWrite(int slot, const float* mono, int frames, int rate);
+bool DsIsDs4(int slot);                                // a DualShock 4 (no player LEDs, triggers, mute; no speaker yet)
 bool DsIsBluetooth(int slot);                          // connected over Bluetooth
 bool DsSpeakerReady(int slot);                         // DsSpeakerWrite would take samples

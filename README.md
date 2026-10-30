@@ -10,9 +10,9 @@ Local **split screen for 2-6 players** in *Need for Speed Underground 2* on PC.
    free camera) and already includes the loader.
 2. Download the [latest release](https://github.com/mihaits/NFSU2-SplitScreen/releases) and copy
    `NFSU2SplitScreen.asi` and `NFSU2SplitScreen.ini` into the game's `scripts` folder.
-3. One controller per player. Xbox pads work directly (up to 4: the XInput limit); PlayStation DualSense pads work
-   natively (USB or Bluetooth, up to 8) or through DS4Windows. For 5-6 players use native DualSense pads (DS4Windows
-   off) for the players past the 4th Xbox pad, or the keyboard for one player.
+3. One controller per player. Xbox pads work directly (up to 4: the XInput limit); PlayStation DualSense and DualShock 4
+   pads work natively (USB or Bluetooth, up to 8) or through DS4Windows. For 5-6 players use native PlayStation pads
+   (DS4Windows off) for the players past the 4th Xbox pad, or the keyboard for one player.
 
 ## Play
 1. Main menu → **Split-Screen** (next to Quick Race).
@@ -46,6 +46,7 @@ options of whoever paused.
 
 **Controllers**
 - DualSense without DS4Windows: rumble, player LEDs, RPM / nitrous lightbar, adaptive triggers
+- DualShock 4 without DS4Windows: rumble
 - Xbox One / Series impulse triggers, Forza Horizon style: they buzz with wheelspin and brake slip
 - Each player's car sounds on their own DualSense's speaker (Bluetooth or USB), so the cars don't overlap on the PC.
   Windows may switch its default output to a pad when you plug it in; switch it back in the Windows sound settings
@@ -54,7 +55,7 @@ options of whoever paused.
 ## To do
 - [ ] More than 4 Xbox pads (Windows.Gaming.Input backend)
 - [ ] DualSense speaker with an adaptive bitrate, so 3-6 pads can stream at once over Bluetooth
-- [ ] DualShock 4 without DS4Windows: input, rumble, player-coloured lightbar
+- [ ] DualShock 4: player-coloured lightbar, speaker
 - [ ] Session results: standings across back-to-back races
 - [ ] Replays of split-screen races
 - [ ] Rear-view mirror in the bumper and hood cameras, like single player
