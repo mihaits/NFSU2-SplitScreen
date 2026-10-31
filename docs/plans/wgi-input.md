@@ -35,7 +35,8 @@ Also log the WGI list with a native DualSense and with DS4Windows running, to se
 2. Replace the 1 s list poll with `GamepadAdded`/`GamepadRemoved`, keeping a slow poll if events prove unreliable. The
    current `AddedHandler` does nothing and can grow into this.
 3. Publish the latest reading per number as an XInput-shaped state, converting from `GamepadReading`: button bits (the
-   `kMap` table in `Same`), triggers 0..255, sticks to +-32767. The thread's Sleep(8) adds up to 8 ms of delay: shorten
+   `kMap` table in `Same`), triggers 0..255 (a full pull must round to exactly 255: `StateOf` needs it for full brake,
+   see "Pedals on the shared Z axis" in docs/input.md), sticks to +-32767. The thread's Sleep(8) adds up to 8 ms of delay: shorten
    it, or read on the game thread if the MTA allows it.
 4. `XInputDevices.cpp`: `GetPad` reads WGI while it runs; else plain `XInputGetState(pad)`, with the number equal to
    the user index. `WgiPadUser` and `g_rumbleUser` go. Vibration goes through WGI for all pads, XInput only in the
