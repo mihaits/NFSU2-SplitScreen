@@ -43,6 +43,7 @@ options of whoever paused.
 - AI opponents with difficulty (up to 6 racers in all), catch-up between players, traffic around every player
 - Free Run: drive the whole city together from the district or venue you pick
 - Rematch without picking cars again
+- Tuned headlight colours work, also in single player: the original PC game turns bright ones white
 
 **Controllers**
 - DualSense without DS4Windows: rumble, player LEDs, RPM / nitrous lightbar, adaptive triggers
