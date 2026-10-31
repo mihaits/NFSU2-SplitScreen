@@ -12,6 +12,8 @@
 //   ds4_usb_speaker spkon [offset=value ..] audio chip writes (A0 05) that turn the speaker on, a tone, then off again
 //   ds4_usb_speaker after [offset=value ..] 1 s factory sine, sine off, then a 1000 Hz tone on the endpoint
 //   ds4_usb_speaker buzz                   a fake rev: the factory sine pulsed through the speaker volume, 15 to 90 Hz in 10 s
+//   ds4_usb_speaker output n [offset=value ..] feature report E0 "Set Audio Output" (0 stereo headset, 1 mono headset,
+//                                          2 headset and speaker, 3 speaker, 4 off), then a tone; back to 0 at the end
 //   ds4_usb_speaker mix [offset=value ...] 2 s factory sine, 2 s sine + a 1500 Hz tone on the endpoint, 3 s tone alone:
 //                                          does the test mode route the USB stream to the speaker?
 //   ds4_usb_speaker topology               the endpoint's audio parts: terminals, volumes, mutes, selectors; read only
@@ -386,6 +388,14 @@ int main(int argc, char** argv) {
             spkon = false;
     }
     double hz = mix ? 1500 : 440;
+    bool output = argc > 2 && !strcmp(argv[1], "output");
+    auto setOutput = [&](int n) {
+        BYTE f[3] = {0xE0, 0x00, static_cast<BYTE>(n)};
+        bool ok = HidD_SetFeature(dev, f, sizeof(f)) != 0;
+        printf("SET E0 00 %02X: %s", n, ok ? "ok\n" : "failed");
+        if (!ok) printf(", error %lu\n", GetLastError());
+    };
+    if (output) setOutput(atoi(argv[2]));
     if (argc > 1 && !strcmp(argv[1], "after")) {
         hz = 1000;
         TestCommand(dev, 1, 1);
@@ -443,6 +453,7 @@ int main(int argc, char** argv) {
         done += n;
     }
     client->Stop();
+    if (output) setOutput(0);
     if (sineOn) TestCommand(dev, 1, 0);
     if (argc > 1 && !strcmp(argv[1], "spkon")) {
         ChipWrite(dev, 0x31, 0);
