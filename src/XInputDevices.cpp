@@ -35,7 +35,7 @@ struct XPadVibration { WORD left, right; };
 typedef DWORD(WINAPI* XInputSetStateFn)(DWORD, XPadVibration*);
 XInputSetStateFn g_xinputSetState;
 WORD g_rumbleSent[4][2];
-float g_xbMotors[4][2], g_xbTriggers[4][2];   // wanted rumble / trigger motors of real pads, 0..1
+float g_xbMotors[8][2], g_xbTriggers[8][2];   // wanted rumble / trigger motors per WgiIndex, 0..1
 
 enum : WORD {
     XB_DPAD_UP = 0x0001, XB_DPAD_DOWN = 0x0002, XB_DPAD_LEFT = 0x0004, XB_DPAD_RIGHT = 0x0008,
@@ -43,10 +43,12 @@ enum : WORD {
     XB_LB = 0x0100, XB_RB = 0x0200, XB_A = 0x1000, XB_B = 0x2000, XB_X = 0x4000, XB_Y = 0x8000,
 };
 
-constexpr int kRealPads = 4;            // XInput user indices 0..3
+constexpr int kRealPads = 4;            // Xbox pads 0..3, the XInput user indices
 constexpr int kDebugPads = 6;           // test pads 4..9 driven by XPadSetVirtual
 constexpr int kDsFirst = kRealPads + kDebugPads;   // native DualSense pads 10..17
-constexpr int kMaxPads = kDsFirst + kDsMax;
+constexpr int kDsEnd = kDsFirst + kDsMax;
+constexpr int kXboxExtra = 4;           // Xbox pads 5..8 are pads 18..21, WGI only
+constexpr int kMaxPads = kDsEnd + kXboxExtra;
 constexpr int kVirtualDevices = 2;     // the game has two joystick slots
 int (*g_resolver)(int device);         // virtual device -> XInput user index (-1 = idle)
 
@@ -54,6 +56,14 @@ int (*g_resolver)(int device);         // virtual device -> XInput user index (-
 bool g_connected[kMaxPads];
 WORD g_buttons[kMaxPads], g_prevButtons[kMaxPads];
 int g_lastActive = 0;
+
+bool IsDs(int pad) { return pad >= kDsFirst && pad < kDsEnd; }
+
+// Number of an Xbox pad in XboxWgi.cpp, -1 = not an Xbox pad.
+int WgiIndex(int pad) {
+    if (pad >= 0 && pad < kRealPads) return pad;
+    return pad >= kDsEnd && pad < kMaxPads ? pad - kDsEnd + kRealPads : -1;
+}
 
 bool g_virtualConnected[kDebugPads];
 XPadState g_virtual[kDebugPads];
@@ -65,7 +75,7 @@ bool g_mute[kMaxPads], g_prevMute[kMaxPads];
 bool g_dsConnected[kDsMax];
 
 DWORD GetPad(int pad, XPadState* s) {
-    if (pad >= kDsFirst && pad < kMaxPads) {
+    if (IsDs(pad)) {
         static_assert(sizeof(DsPadState) == sizeof(XPadState), "DsPadState mirrors XPadState");
         return DsState(pad - kDsFirst, reinterpret_cast<DsPadState*>(s), nullptr) ? ERROR_SUCCESS
                                                                                  : ERROR_DEVICE_NOT_CONNECTED;
@@ -75,12 +85,13 @@ DWORD GetPad(int pad, XPadState* s) {
         *s = g_virtual[pad - kRealPads];
         return ERROR_SUCCESS;
     }
-    if (pad < 0 || pad >= kRealPads || !g_xinputGetState) return ERROR_DEVICE_NOT_CONNECTED;
+    int wgi = WgiIndex(pad);
+    if (wgi < 0 || !g_xinputGetState) return ERROR_DEVICE_NOT_CONNECTED;
     if (WgiLive()) {                             // XboxWgi.h; without it a pad number is the XInput user index
         static_assert(sizeof(WgiPadState) == sizeof(XPadState), "WgiPadState mirrors XPadState");
-        return WgiReadPad(pad, reinterpret_cast<WgiPadState*>(s)) ? ERROR_SUCCESS : ERROR_DEVICE_NOT_CONNECTED;
+        return WgiReadPad(wgi, reinterpret_cast<WgiPadState*>(s)) ? ERROR_SUCCESS : ERROR_DEVICE_NOT_CONNECTED;
     }
-    return g_xinputGetState(pad, s);
+    return pad < kRealPads ? g_xinputGetState(pad, s) : ERROR_DEVICE_NOT_CONNECTED;
 }
 
 bool PadActive(const XPadState& s) {
@@ -504,7 +515,7 @@ void XPadUpdate() {
         g_touch[i] = false;
         g_prevMute[i] = g_mute[i];
         g_mute[i] = false;
-        if (i >= kDsFirst) {
+        if (IsDs(i)) {
             DsPadState ds;
             DsExtra ex = {};
             if (DsState(i - kDsFirst, &ds, &ex)) { g_touch[i] = ex.touchClick; g_mute[i] = ex.mute; }
@@ -545,7 +556,7 @@ int XPadMax() { return kMaxPads; }
 
 void XPadSetRumble(int pad, float low, float high) {
     auto toByte = [](float v) { return static_cast<uint8_t>((v < 0 ? 0 : v > 1 ? 1 : v) * 255.0f + 0.5f); };
-    if (pad >= kDsFirst && pad < kMaxPads) {     // native DualSense: left = large motor, right = small motor
+    if (IsDs(pad)) {     // native DualSense: left = large motor, right = small motor
         DsOutput& o = g_dsOut[pad - kDsFirst];
         uint8_t lo = toByte(low), hi = toByte(high);
         if (o.largeMotor == lo && o.smallMotor == hi) return;
@@ -553,37 +564,39 @@ void XPadSetRumble(int pad, float low, float high) {
         DsSetOutput(pad - kDsFirst, o);
         return;
     }
-    if (pad < 0 || pad >= kRealPads) return;     // test pads have no motors
-    g_xbMotors[pad][0] = low; g_xbMotors[pad][1] = high;
-    if (WgiLive()) { WgiSetVibration(pad, low, high, g_xbTriggers[pad][0], g_xbTriggers[pad][1]); return; }
-    if (!g_xinputSetState) return;
+    int wgi = WgiIndex(pad);
+    if (wgi < 0) return;                         // test pads have no motors
+    g_xbMotors[wgi][0] = low; g_xbMotors[wgi][1] = high;
+    if (WgiLive()) { WgiSetVibration(wgi, low, high, g_xbTriggers[wgi][0], g_xbTriggers[wgi][1]); return; }
+    if (!g_xinputSetState || pad >= kRealPads) return;
     auto speed = [](float v) { return static_cast<WORD>((v < 0 ? 0 : v > 1 ? 1 : v) * 65535.0f); };
     XPadVibration v = {speed(low), speed(high)};
     if (v.left == g_rumbleSent[pad][0] && v.right == g_rumbleSent[pad][1]) return;   // only changes
     if (g_xinputSetState(pad, &v) == ERROR_SUCCESS) { g_rumbleSent[pad][0] = v.left; g_rumbleSent[pad][1] = v.right; }
 }
 
-bool XPadHasImpulseTriggers(int pad) { return pad >= 0 && pad < kRealPads && WgiHasTriggers(pad); }
+bool XPadHasImpulseTriggers(int pad) { return WgiHasTriggers(WgiIndex(pad)); }
 
 void XPadSetImpulseTriggers(int pad, float left, float right) {
-    if (pad < 0 || pad >= kRealPads) return;
-    g_xbTriggers[pad][0] = left; g_xbTriggers[pad][1] = right;
-    if (WgiHasTriggers(pad)) WgiSetVibration(pad, g_xbMotors[pad][0], g_xbMotors[pad][1], left, right);
+    int wgi = WgiIndex(pad);
+    if (wgi < 0) return;
+    g_xbTriggers[wgi][0] = left; g_xbTriggers[wgi][1] = right;
+    if (WgiHasTriggers(wgi)) WgiSetVibration(wgi, g_xbMotors[wgi][0], g_xbMotors[wgi][1], left, right);
 }
 
-bool XPadIsDs4(int pad) { return pad >= kDsFirst && pad < kMaxPads && g_dsConnected[pad - kDsFirst] && DsIsDs4(pad - kDsFirst); }
-bool XPadIsDualSense(int pad) { return pad >= kDsFirst && pad < kMaxPads && g_dsConnected[pad - kDsFirst] && !DsIsDs4(pad - kDsFirst); }
+bool XPadIsDs4(int pad) { return IsDs(pad) && g_dsConnected[pad - kDsFirst] && DsIsDs4(pad - kDsFirst); }
+bool XPadIsDualSense(int pad) { return IsDs(pad) && g_dsConnected[pad - kDsFirst] && !DsIsDs4(pad - kDsFirst); }
 
 bool XPadIsBluetoothSpeakerPad(int pad) { return (XPadIsDualSense(pad) || XPadIsDs4(pad)) && DsIsBluetooth(pad - kDsFirst); }
 bool XPadHasSpeaker(int pad) { return XPadIsDualSense(pad) || XPadIsDs4(pad); }
 bool XPadSpeakerReady(int pad) { return XPadHasSpeaker(pad) && DsSpeakerReady(pad - kDsFirst); }
 
 bool XPadSpeakerWrite(int pad, const float* mono, int frames, int rate) {
-    return pad >= kDsFirst && pad < kMaxPads && DsSpeakerWrite(pad - kDsFirst, mono, frames, rate);
+    return IsDs(pad) && DsSpeakerWrite(pad - kDsFirst, mono, frames, rate);
 }
 
 void XPadSetLights(int pad, const uint8_t rgb[3], uint8_t playerLeds) {
-    if (pad < kDsFirst || pad >= kMaxPads) return;
+    if (!IsDs(pad)) return;
     DsOutput& o = g_dsOut[pad - kDsFirst];
     if (!memcmp(o.rgb, rgb, 3) && o.playerLeds == playerLeds) return;
     memcpy(o.rgb, rgb, 3);
@@ -592,7 +605,7 @@ void XPadSetLights(int pad, const uint8_t rgb[3], uint8_t playerLeds) {
 }
 
 void XPadSetTriggers(int pad, const uint8_t l[11], const uint8_t r[11]) {
-    if (pad < kDsFirst || pad >= kMaxPads) return;
+    if (!IsDs(pad)) return;
     DsOutput& o = g_dsOut[pad - kDsFirst];
     if (!memcmp(o.trigL, l, 11) && !memcmp(o.trigR, r, 11)) return;
     memcpy(o.trigL, l, 11);
@@ -601,13 +614,13 @@ void XPadSetTriggers(int pad, const uint8_t l[11], const uint8_t r[11]) {
 }
 
 bool XPadTouchClickPressed(int pad) {
-    return pad >= kDsFirst && pad < kMaxPads && g_touch[pad] && !g_prevTouch[pad];
+    return IsDs(pad) && g_touch[pad] && !g_prevTouch[pad];
 }
 
-bool XPadMutePressed(int pad) { return pad >= kDsFirst && pad < kMaxPads && g_mute[pad] && !g_prevMute[pad]; }
+bool XPadMutePressed(int pad) { return IsDs(pad) && g_mute[pad] && !g_prevMute[pad]; }
 
 void XPadSetMuteLed(int pad, uint8_t mode) {
-    if (pad < kDsFirst || pad >= kMaxPads) return;
+    if (!IsDs(pad)) return;
     DsOutput& o = g_dsOut[pad - kDsFirst];
     if (o.muteLed == mode) return;
     o.muteLed = mode;

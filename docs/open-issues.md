@@ -36,7 +36,7 @@ finishes, racer +0xA reads 1 for one frame (Street X: every finisher logged "pla
 left as is.
 
 **Known bugs and limitations:**
-- **More than 4 Xbox pads** don't work (pads 0..3 are the Xbox block); see [input](input.md).
+- **5-8 Xbox pads** were only checked with virtual 360 pads. See [input](input.md).
 - **Two Xbox pads of one model can swap players on reconnect under Linux**: Wine gives no pad id, so the key is VID:PID
   ([input](input.md)). Follows from the code, not seen in a test.
 - A **stray white line** across P3's minimap was seen once in a 5-view debug layout (`CloneViews`); not seen in real

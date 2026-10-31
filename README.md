@@ -10,9 +10,8 @@ Local **split screen for 2-6 players** in *Need for Speed Underground 2* on PC.
    free camera) and already includes the loader.
 2. Download the [latest release](https://github.com/mihaits/NFSU2-SplitScreen/releases) and copy
    `NFSU2SplitScreen.asi` and `NFSU2SplitScreen.ini` into the game's `scripts` folder.
-3. One controller per player. Xbox pads work directly (up to 4); PlayStation DualSense and DualShock 4
-   pads work natively (USB or Bluetooth, up to 8) or through DS4Windows. For 5-6 players use native PlayStation pads
-   (DS4Windows off) for the players past the 4th Xbox pad, or the keyboard for one player.
+3. One controller per player, up to 6 players. Xbox pads work directly; PlayStation
+   DualSense and DualShock 4 pads work natively (USB or Bluetooth) or through DS4Windows. The keyboard can take one player.
 
 ## Play
 1. Main menu → **Split-Screen** (next to Quick Race).
@@ -55,7 +54,6 @@ options of whoever paused.
 - A controller that turns off keeps its player; a spare one can take over
 
 ## To do
-- [ ] More than 4 Xbox pads (Windows.Gaming.Input backend)
 - [ ] Pad speakers (DualSense and DualShock 4) with an adaptive bitrate, so 3-6 pads can stream at once over Bluetooth
 - [ ] Session results: standings across back-to-back races
 - [ ] Replays of split-screen races

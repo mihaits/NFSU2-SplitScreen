@@ -9,7 +9,7 @@ read port = 0x83A9D8[player]. Input port tables: 0x8655A0, 2 × 0x1C8 (binding n
 **XInputDevices.cpp.** It hooks the DirectInput8Create IAT slot 0x783024 and wraps IDirectInput8A.
 EnumDevices/CreateDevice expose virtual "Split Screen Pad N" gamepads with full DirectInput emulation (objects with
 Xbox names, GetObjectInfo, properties, buffered GetDeviceData — Options > Controls needs all of these). Real DirectInput
-controllers are hidden. Pads 0..3 are the real Xbox pads (read through WGI, see below), 4..9 debug pads driven through the mailbox, 10..17 native DualSense pads (below).
+controllers are hidden. Pads 0..3 and 18..21 are the real Xbox pads (read through WGI, see below), 4..9 debug pads driven through the mailbox, 10..17 native DualSense pads (below).
 
 **Native DualSense (`DualSense.cpp`).**
 - HID through SetupAPI + hid.dll (`hid.lib setupapi.lib`), USB and Bluetooth, DualSense 054C:0CE6 and Edge 054C:0DF2.
@@ -165,7 +165,7 @@ false for them and `XPadIsDs4` true, so they get no player LEDs, trigger row or 
   - A pad connected over Bluetooth stays there with a cable in and keeps its speaker: that is how to charge and use the speaker on a first-model pad.
 
 **Xbox pads through Windows.Gaming.Input (`XboxWgi.cpp`).**
-- Pads 0..3 read through WGI: a `Gamepad` gives input, id and vibration from one object, and XInput can't drive the
+- Xbox pads read through WGI: a `Gamepad` gives input, id and vibration from one object, and XInput can't drive the
   trigger motors of Xbox One / Series pads or say which pad a user index is. WinRT is loaded from combase.dll at run time
   (no import). One MTA thread owns the list and sends vibration; the game thread calls `GetCurrentReading` itself
   (`WgiReadPad`, under a lock against the list changing), so a reading adds no delay.
@@ -175,7 +175,7 @@ false for them and `XPadIsDs4` true, so they get no player LEDs, trigger row or 
   first focus), where XInput kept reading, so **test real pads with the window focused**. The plugin's test pads 4..9
   don't depend on focus.
 - **Fallback.** XInput stays the input path, with the pad number as the user index, until WGI has listed a pad. So older
-  Windows, or a Wine whose list stays empty, still reads pads, without impulse triggers. From the first listed pad on,
+  Windows, or a Wine whose list stays empty, still reads pads, 4 at most, without impulse triggers. From the first listed pad on,
   WGI is the only path.
 - The list is reread when `GamepadAdded` / `GamepadRemoved` fires, in about 50 ms, and every second as a backstop: an event
   can come before the list shows the change. The handler only wakes the thread. Some desktop apps report an empty list
@@ -184,7 +184,13 @@ false for them and `XPadIsDs4` true, so they get no player LEDs, trigger row or 
   the one that dropped longest ago (`Bind`, `FreeSlot`). So a returning pad keeps its player at once, in any order, with
   no press. The id held across reconnects within a run and was different in a later run, so numbers aren't remembered
   across runs. Under Wine the id reads empty, so the key is VID:PID: pads of different models keep their numbers, two of
-  one model can swap. Numbers follow the list order at start. A fifth pad has no number until one goes free.
+  one model can swap. Numbers follow the list order at start. A ninth pad has no number until one goes free.
+- **8 pads.** The numbers 0..7 of `XboxWgi.cpp` are pads 0..3 and 18..21 of the pad layer (`WgiIndex`): the extra pads come
+  after the PlayStation block, so test pads, PlayStation pads and the tools keep their numbers. Logs print a pad layer
+  number + 1 ("player 2 joined with pad 20"), while "xbox: pad N" prints the WGI number + 1. Checked with virtual 360 pads:
+  8 were listed, 6 players joined and a race started, the eighth drove a race (throttle, steering input, rumble reaching only
+  that pad) and the seventh took over from it. WGI has no 4 pad limit of its own
+  (no documented cap, 8 Xbox pads reported).
 - A pad's whole vibration goes through WGI, Xbox 360 class pads too (`XPadSetRumble` and `XPadSetImpulseTriggers` merge
   into one `WgiSetVibration`; checked on a virtual 360 pad). `WgiHasTriggers` is false for the 360 class PIDs
   045E:028E/028F/0291/02A1/0719, which include DS4Windows' virtual pad. Resent every second while non-zero (Windows drops
@@ -322,10 +328,3 @@ speed-sensitive steering) when 0x5C1000 says the slot has a wheel (0x86FFB4[slot
 2 slots), else the pad routine 0x416BB0. Index 4 read slot 0's joystick buttons (0x86FFC4) and the low byte of
 0x86E5C0, both non-zero, so player 5's pad was treated as a wheel. `JoySlotWheel` (jump at 0x5C1000) returns false
 for slots >= 2. Whether index 4 reads true depends on what slot 0 holds; forced true, P5's full-lock output at speed is about double ([details](bugs/p5-steering-sharp.md)).
-
-**More than 4 Xbox pads (not done).** The WGI path has no 4 pad limit of its own (no documented cap, 8 Xbox pads
-reported); the Xbox block of the pad layer, pads 0..3 (`kRealPads`), does. Other games get past it with SDL (merges XInput,
-Raw Input, WGI and HIDAPI; matches each Raw Input device to its XInput twin by input activity), GameInput (needs its
-redistributable, x86 support unclear), Raw Input / HID (PlayStation pads have no limit, this mod's native DualSense path;
-Xbox pads over Bluetooth HID report both triggers on one axis and can't rumble) or Steam Input (only for games started
-through Steam).

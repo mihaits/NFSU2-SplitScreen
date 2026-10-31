@@ -4,7 +4,7 @@
 // Replaces the DirectInput8Create import at `importSlot` so game-controller enumeration reports the plugin's
 // virtual gamepads (joystick slot N = virtual device N) and hides the real game controllers. Returns false if no
 // XInput runtime is available.
-// nativeDualSense: also starts the native DualSense backend (pads 8..11, DualSense.h); dsRumbleMode -1 auto, 1, 2.
+// nativeDualSense: also starts the native DualSense backend (pads 10..17, DualSense.h); dsRumbleMode -1 auto, 1, 2.
 bool InstallXInputDevices(uintptr_t importSlot, bool nativeDualSense, int dsRumbleMode,
                           void (*log)(const char* fmt, ...));
 
@@ -18,23 +18,23 @@ bool XPadYPressed(int pad);       // Y (triangle) went down since the previous X
 int  XPadLastActive();
 int  XPadMax();
 
-// Pads: 0..3 real XInput, 4..7 test pads (below), 8..11 native DualSense (DualSense.h).
-// Test pads (XInput-style state) that appear as pads 4..7 after the real ones (debug tooling).
+// Pads: 0..3 and 18..21 Xbox, 4..9 test pads (below), 10..17 native DualSense (DualSense.h).
+// Test pads (XInput-style state) that appear as pads 4..9 (debug tooling).
 void XPadSetVirtual(int index, bool connected, uint16_t buttons, uint8_t lt, uint8_t rt, int16_t lx, int16_t ly,
                     int16_t rx, int16_t ry);
 
-// Raw state of a pad (real 0..3 or test 4..7); false if not connected.
+// Raw state of any pad; false if not connected.
 bool XPadRawState(int pad, uint16_t* buttons, uint8_t* lt, uint8_t* rt, int16_t* lx);
 
-// Rumble motors of a real pad (0..3) or native DualSense (8..11): low = left heavy motor, high = right light motor, 0..1. Sent only on change.
+// Rumble motors of an Xbox pad (0..3, 18..21) or native DualSense (10..17): low = left heavy motor, high = right light motor, 0..1. Sent only on change.
 void XPadSetRumble(int pad, float low, float high);
 
-// Xbox One / Series pads (real pads 0..3): trigger motors, 0..1. Rumble and triggers go out together through
+// Xbox One / Series pads (pads 0..3 and 18..21): trigger motors, 0..1. Rumble and triggers go out together through
 // Windows.Gaming.Input (XboxWgi.cpp).
 bool XPadHasImpulseTriggers(int pad);
 void XPadSetImpulseTriggers(int pad, float left, float right);
 
-// Native DualSense pads (8..11) only; no-ops for other pads. The pad layer keeps one merged output per pad (rumble,
+// Native DualSense pads (10..17) only; no-ops for other pads. The pad layer keeps one merged output per pad (rumble,
 // lights, triggers) and sends it on change.
 bool XPadIsDualSense(int pad);                                                   // connected native DualSense
 bool XPadIsDs4(int pad);                                                         // connected native DualShock 4

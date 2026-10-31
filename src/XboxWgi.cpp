@@ -28,7 +28,7 @@ WindowsCreateStringFn g_createString;
 WindowsDeleteStringFn g_deleteString;
 WindowsGetStringRawBufferFn g_stringBuffer;
 
-constexpr int kPads = 4, kMaxWgi = 16;
+constexpr int kPads = 8, kMaxWgi = 16;
 WgiLogFn g_log;
 CRITICAL_SECTION g_lock;
 HANDLE g_listChanged;
