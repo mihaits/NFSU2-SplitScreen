@@ -17,6 +17,10 @@
   (0x8A3288: car models and textures). When it runs short, loading evicts the textures of car types no racer holds
   (0x63A1B0 → 0x639F20, after the memory check 0x48D420); AI racers' types are not held, so without the AI share an
   AI car drew untextured ("transparent"). The game's 6-car size is 16000 KB vs 11000 KB for 4 cars (≈2500 KB a car).
+  0x639F20 drops a texture set's references before it unloads; if every texture is held elsewhere it returns 0 with
+  them gone and the list kept, so a later unload frees textures that car still draws. `PurgeReleaseTextures` (the call
+  at 0x63A21E) takes them again. Not seen in a real race: a 2-3P race loaded down to a 9600 KB pool with no purge, and
+  no loaded set had all its textures shared.
   The exe is not large-address-aware; a 4P race uses about 380 MB.
 - **Block records.** The track pool has 192 records in a fixed array, one per used block and one per free gap, and
   the allocator 0x5DA4A0 doesn't check for none left (crash at 0x5DEEE1, [details](bugs/streamer-pool-crash.md)).

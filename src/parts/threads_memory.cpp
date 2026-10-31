@@ -171,3 +171,22 @@ static void __fastcall CreateSecondStreamingPool(void* pool, void*, int bytes) {
     Log("second streaming pool: %d KB", bytes / 1024);
     reinterpret_cast<void(__thiscall*)(void*, int)>(FN_SECOND_POOL_CREATE)(pool, bytes);
 }
+
+// 0x639F20 gives back a texture set's references and unloads the textures that reach 0, then empties the set. If none
+// did (another car of the same type holds them all) it returns 0 with the references gone and the list kept, so the
+// next unload frees textures this car still draws, and its own unload gives the references back again.
+#define AT_PURGE_RELEASE   0x63A21E      // the purge's `call 0x639F20` (thiscall, ret 4)
+#define FN_TEXSET_RELEASE  0x639F20
+#define TEXSET_COUNT       0x318
+#define TEXSET_NAMES       0x31C
+#define TEXSET_MAX         0x45
+static int __fastcall PurgeReleaseTextures(void* loader, void*, uint8_t* set) {
+    int released = reinterpret_cast<int(__thiscall*)(void*, void*)>(FN_TEXSET_RELEASE)(loader, set);
+    int n = *reinterpret_cast<int*>(set + TEXSET_COUNT);
+    if (released || n <= 0 || n > TEXSET_MAX) { Log("car purge: texture set %p unloaded", set); return released; }
+    uint8_t** names = reinterpret_cast<uint8_t**>(set + TEXSET_NAMES);
+    for (int i = 0; i < n; ++i)
+        if (names[i]) ++*reinterpret_cast<uint16_t*>(names[i] + 0xC);
+    Log("car purge: texture set %p unloaded nothing, %d references kept", set, n);
+    return 0;
+}
