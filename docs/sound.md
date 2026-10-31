@@ -123,3 +123,7 @@ speakers" block of `parts/sound.cpp`; the pad side is `DsSpeakerWrite` in `DualS
   pad} (16-bit scale) to `scripts/NFSU2SplitScreen_speaker.raw`, to check what leaks to the PC.
 - **Timing.** The game fills its DirectSound buffer in bursts of up to ~65 ms, so the pad's queue is a sawtooth; the
   pad side holds the queue's lowest point after each report near ~17 ms (see input.md).
+
+**Voice requests.** Removing a positional sound source (0x483E40 -> 0x481E50) leaves the request count at +0xC of the list, so
+the arbitration could walk an empty list at 0x481AB4 with every voice in use. `RemoveSoundSource` (call at 0x5A9584) recounts it.
+Not reproduced here; the bug was found by nfsu2-web.

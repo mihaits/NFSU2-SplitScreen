@@ -190,3 +190,18 @@ static int __fastcall PurgeReleaseTextures(void* loader, void*, uint8_t* set) {
     Log("car purge: texture set %p unloaded nothing, %d references kept", set, n);
     return 0;
 }
+
+// The car pool's extra block goes back at the track's unload (0x63A6F0). 0x43F9E0 only takes it out of the pool when it
+// is one free block again, and the caller frees it either way. Debug check for that case.
+#define AT_CAR_BLOCK_REMOVE 0x63A731     // `call 0x43FBA0` (cdecl pool index, block, size)
+#define FN_POOL_REMOVE      0x43FBA0
+#define POOL_TABLE          0x828154
+static void __cdecl RemoveCarBlock(int pool, uint8_t* block, int size) {
+    uint8_t* obj = *reinterpret_cast<uint8_t**>(POOL_TABLE + pool * 4);
+    uint8_t* head = obj + 4;
+    bool whole = false;
+    for (uint8_t* n = *reinterpret_cast<uint8_t**>(head); n != head; n = *reinterpret_cast<uint8_t**>(n))
+        if (n == block) whole = *reinterpret_cast<int*>(n + 8) == size;
+    Log("car pool block %p, %d KB at the track's unload: %s", block, size / 1024, whole ? "free" : "STILL IN USE");
+    reinterpret_cast<void(__cdecl*)(int, void*, int)>(FN_POOL_REMOVE)(pool, block, size);
+}

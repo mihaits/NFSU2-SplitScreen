@@ -38,3 +38,7 @@
   area was dropped; nothing reloads on the post-race screen (black world). After the results (`g_postRace`, set in
   `RaceResults`, cleared in `CreatePlayers`), `FollowCameraForSceneCars` (in `StreamZonesHook`) points every block
   whose car is scene-driven (mover 5) at the view 1 camera. Section byte +9 is not a load state.
+
+**Car pool block.** At the track's unload 0x63A6F0 frees the pool's extra block even if 0x43F9E0 could not take it out (it must be
+one free block again). `RemoveCarBlock` logs which: free after 3P races; a "STILL IN USE" line would mean a crash at the next load.
+The block is the pool size minus the 9000 KB base (+0x68): a smaller pool crashes in 0x440090.

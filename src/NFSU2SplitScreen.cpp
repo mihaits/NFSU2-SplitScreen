@@ -324,6 +324,8 @@ static void Install(HMODULE self) {
     WriteCall(AT_TRACK_POOL_CALL, &CreateTrackStreamingPool);
     WriteCall(AT_SECOND_POOL_CALL, &CreateSecondStreamingPool);
     WriteCall(AT_PURGE_RELEASE, &PurgeReleaseTextures);
+    WriteCall(AT_CAR_BLOCK_REMOVE, &RemoveCarBlock);
+    WriteCall(AT_SOUND_SOURCE_REMOVE, &RemoveSoundSource);
     WriteCall(AT_PAUSE_MASK_CALL, &PauseInputMask);
     g_origPausingPlayer = MakeTrampoline(FN_PAUSING_PLAYER, 5);
     WriteJump(FN_PAUSING_PLAYER, &PausingPlayer, 5);

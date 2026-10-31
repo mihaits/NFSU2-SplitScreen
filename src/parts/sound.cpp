@@ -811,3 +811,19 @@ static void InstallPadSpeakers() {
     }
     Log("pad speakers: installed (gain %.2f)", g_padSpeakerGain);
 }
+
+// Removing a positional sound source (0x483E40 -> 0x481E50) takes its voice request out of the list but leaves the count
+// (+0xC) that a request recounts (0x479770). With every voice in use and that the last request, the arbitration
+// (0x481AB4) walked the empty list.
+#define AT_SOUND_SOURCE_REMOVE 0x5A9584  // `call 0x483E40` (thiscall (sounds, source), ret 4)
+#define FN_SOUND_SOURCE_REMOVE 0x483E40
+#define SOUND_ENABLED          0x7FAAA8
+static void __fastcall RemoveSoundSource(uint8_t* sounds, void*, void* source) {
+    uint8_t* list = *reinterpret_cast<uint8_t**>(sounds + 0x3C);
+    reinterpret_cast<void(__thiscall*)(void*, void*)>(FN_SOUND_SOURCE_REMOVE)(sounds, source);
+    if (!at<int>(SOUND_ENABLED) || !list) return;
+    uint8_t* head = list + 4;
+    int count = 0;
+    for (uint8_t* n = *reinterpret_cast<uint8_t**>(head); n != head; n = *reinterpret_cast<uint8_t**>(n)) ++count;
+    *reinterpret_cast<int*>(list + 0xC) = count;
+}
