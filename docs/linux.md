@@ -20,7 +20,7 @@ at 240 Hz, 133 % scaling. Lutris 0.5.22, umu 1.4.4, GE-Proton11-11, DXVK 3.1.1, 
 | Pad | Input | Rumble | Lights, triggers | Speaker | Path |
 |---|---|---|---|---|---|
 | Xbox USB | yes | yes | no impulse triggers | - | WGI |
-| Xbox Bluetooth | yes | 1-4 s delay | no impulse triggers | - | WGI |
+| Xbox Bluetooth | yes | yes | no impulse triggers | - | WGI |
 | DualSense USB | yes | yes | yes | yes | native |
 | DualSense Bluetooth | yes, keeps its slot | yes | yes | dropouts | native |
 | DS4 USB | yes | yes | yes | yes | native |
@@ -34,6 +34,13 @@ channels (mask 0x33). The stream has 4 ports (AUX0-3) and only AUX0 is linked to
 as on Windows, is silent. Under Wine (`wine_get_version` in ntdll) `UsbSpeakerThread` fills channels 1 and 2 of a DualSense
 endpoint. Quiet at first: the node's volume was 0.40; at 1.00 the level is right, and that survives a reconnect.
 
+**Xbox Bluetooth rumble.** It came 1-4 s late while the mod sent every change, up to 125 times a second. Capped at 20 sends a
+second under Wine (`Apply` in `XboxWgi.cpp`, always the latest value) it's on time, checked by A/B on the same setup. The pad
+(045E:0B20, hid-microsoft) is BLE: each rumble change is a GATT Write Request (handle 0x0022) that BlueZ sends one at a time
+and the uhid and hid-microsoft layers above don't slow down. `btmon`: uncapped, the link stayed saturated at 40 writes/s
+(median 23 ms each); capped, 14-19/s, 14 ms each, with idle gaps. So the excess most likely queued; the tail after a stop and
+the exact queue weren't measured. Wine's process holds the pad's event node; no udev rule is needed.
+
 **Steam Controller (2015) rumble without Steam.** Not possible through Wine: no input node has force feedback. On cable
 (hid-steam) the gamepad node has no EV_FF and disappears while the game holds hidraw; on Bluetooth (hid-generic) only
 keyboard and mouse nodes exist. Keeping its rumble on XInput instead of WGI changed nothing (tested on Bluetooth). Steam
@@ -45,7 +52,5 @@ median, 78 low, with the main thread at 98 % of a core and the GPU at 67 %: CPU 
 ## To fix
 - **Xbox impulse triggers.** The mod logs and sends them ("impulse: pad 1 L 0.00 R 0.50"), nothing vibrates. Likely Wine's
   WGI; not checked.
-- **Xbox Bluetooth rumble delay.** Xbox only. Its hidraw node (045E:0B20) is root-only while Sony and Valve pads have
-  uaccess; the link is unproven and no udev rule was tried.
 - **Bluetooth speaker dropouts**, worse than Windows, on DualSense and DS4. 235 reports per 5 s, 0 underruns, so the loss is
   probably after the queue, in Wine or the Bluetooth stack. Not measured.

@@ -211,6 +211,9 @@ void Apply(DWORD now) {
         bool on = w[0] > 0 || w[1] > 0 || w[2] > 0 || w[3] > 0;
         // resent every second while on: Windows drops a pad's vibration when the window loses focus
         if (p.sentValid && !memcmp(w, p.sent, sizeof(w)) && !(on && now - p.sentAt >= 1000)) continue;
+        // under Wine at most 20 sends/s, the latest value: more may queue up on a Bluetooth link
+        static const bool wine = GetProcAddress(GetModuleHandleA("ntdll.dll"), "wine_get_version") != nullptr;
+        if (wine && p.sentValid && now - p.sentAt < 50) continue;
         GamepadVibration v = {w[0], w[1], w[2], w[3]};
         if (SUCCEEDED(p.gp->put_Vibration(v))) {
             memcpy(p.sent, w, sizeof(w));

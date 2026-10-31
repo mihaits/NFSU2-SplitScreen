@@ -177,7 +177,8 @@ false for them and `XPadIsDs4` true, so they get no player LEDs, trigger row or 
 - A paired pad with trigger motors (anything except the Xbox 360 class PIDs 045E:028E/028F/0291/02A1/0719, which
   includes DS4Windows' virtual pad) sends its whole vibration through WGI (`XPadSetRumble` and
   `XPadSetImpulseTriggers` merge into one `WgiSetVibration`), since an XInputSetState would zero the triggers.
-  Resent every second while non-zero (Windows drops vibration when the window loses focus).
+  Resent every second while non-zero (Windows drops vibration when the window loses focus). Under Wine at most 20 sends
+  a second: faster made Xbox Bluetooth rumble 1-4 s late (docs/linux.md).
 - Effects (`UpdateImpulseTriggers` in `parts/pad_lights.cpp`), Forza Horizon style: the motors buzz in proportion to
   tyre slip, wheel surface speed (angular speed `wheel+0x28` × the wheel's radius `*(*(wheel+0x14)+0x10)`, per wheel
   from the car's tyre data) against ground speed (length of the body velocity `[mover+0x20]+0xA0`), s = (surface −
