@@ -25,7 +25,7 @@ at 240 Hz, 133 % scaling. Lutris 0.5.22, umu 1.4.4, GE-Proton11-11, DXVK 3.1.1, 
 | DualSense Bluetooth | yes, keeps its slot | yes | yes | dropouts | native |
 | DS4 USB | yes | yes | yes | yes | native |
 | DS4 Bluetooth | yes | yes | yes | dropouts | native |
-| Steam Controller, Steam closed | yes | **no** | - | - | WGI 28DE:1102 |
+| Steam Controller, Steam closed | yes | no (see below) | - | - | WGI 28DE:1102, Bluetooth 1106 |
 | Steam Controller, through Steam | yes | yes | - | - | WGI 28DE:11FF |
 | Sony pads, through Steam | yes, not doubled | not checked | **lost** | **lost** | WGI 28DE:11FF |
 
@@ -34,12 +34,15 @@ channels (mask 0x33). The stream has 4 ports (AUX0-3) and only AUX0 is linked to
 as on Windows, is silent. Under Wine (`wine_get_version` in ntdll) `UsbSpeakerThread` fills channels 1 and 2 of a DualSense
 endpoint. Quiet at first: the node's volume was 0.40; at 1.00 the level is right, and that survives a reconnect.
 
+**Steam Controller (2015) rumble without Steam.** Not possible through Wine: no input node has force feedback. On cable
+(hid-steam) the gamepad node has no EV_FF and disappears while the game holds hidraw; on Bluetooth (hid-generic) only
+keyboard and mouse nodes exist. Keeping its rumble on XInput instead of WGI changed nothing (tested on Bluetooth). Steam
+drives the pad itself. A fix would be native HID haptic pulses over hidraw, writable on both links: a new feature, not started.
+
 **Frame rate** (AC, native, all effects, vsync, 240 cap): 1P 182 median, 155 low; 2P about 145-170; 3P about 110-155; 4P 89
 median, 78 low, with the main thread at 98 % of a core and the GPU at 67 %: CPU limited. No physics check at high frame rates.
 
 ## To fix
-- **Steam Controller rumble without Steam.** `XboxWgi.cpp` treats any pad off its Xbox 360 list as having trigger motors, so
-  its rumble goes through WGI. Try limiting that path to vendor 045E. Unproven.
 - **Xbox impulse triggers.** The mod logs and sends them ("impulse: pad 1 L 0.00 R 0.50"), nothing vibrates. Likely Wine's
   WGI; not checked.
 - **Xbox Bluetooth rumble delay.** Xbox only. Its hidraw node (045E:0B20) is root-only while Sony and Valve pads have
