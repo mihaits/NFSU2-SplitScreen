@@ -199,6 +199,20 @@ false for them and `XPadIsDs4` true, so they get no player LEDs, trigger row or 
   player whose pad is off ("player N's pad P is off: pad Q takes over"); `RacePad` reads it idle until its buttons are
   released, so that START doesn't pause.
 - A missing pad is reported idle, never as DIERR_INPUTLOST (the game would drop the slot).
+- **Pedals on the shared Z axis (`StateOf`).** 0x5C2029 turns Z into one byte (+0x13: idle 0x7F, 0..0xFE; merged at
+  0x86EAFB, port 0), with single-precision x87 (control word 0x007F), so ±10000 × 0.0127 is exactly ±127. Records at
+  0x7FE190.. (+8 event, +0xC decoder, +0x10 polarity, +0x12 bit, +0x14 mode, +0x15 curve) feed the events. The polarity is
+  1 for buttons (0x571CC0 XORs and keeps bit 0) and also for the driving axes, 0x90 steer, 0x92/0x95 pedal axes, 0x93/0x96
+  shared axis. The decoder 0x5795C0 then: XORs the whole byte with it, runs it through a curve (0x576790; pedals (0,0) (123,128) (133,128) (255,255), the flat part is the dead zone), and makes a value 0..254:
+  throttle (0x7F - x) × 2, brake (x - 0x80) × 2. Only 254 becomes 255. Brake +0x2DC = value / 255 (0x407F2A); throttle
+  takes the value × 1.07 in gear, capped at 255 (0x416E48), and goes through a curve in neutral (0x416F51). The unused
+  separate pedal channels rest at 0, which the XOR turns into 1, so idle pedals read 1/255 (+0x2D1, +0x2D9). Digital
+  keys send a fixed 255: brake 1.0, measured.
+  Because of the XOR, the top is byte 0xFE for the brake and byte 1 for the throttle; bytes 0xFF and 0 aren't. Byte 0
+  gives 252, and 0xFD gives 246 (brake 0.965). A real Xbox pad through DirectInput at this range reads Z -9961..9961, so
+  it also stops at 0xFD and 1: the original game gives such a pad at most 0.965 brake. `StateOf` scales LT to the axis end
+  to reach 1.0, as a digital brake does, and leaves RT at the real pad's scale. This model matches every measured value.
+  The XOR also swaps neighbouring steps, so the top of the pedal isn't quite monotonic (0xFC 248, 0xFD 246); harmless.
 - While the Controls screen shows the P2 page, slot 2 is fed by the last active pad (`UpdateEditingSlot2`).
 
 **Per-port merge.** Ports 0/1 are merged per device slot, which separates P1 and P2.
