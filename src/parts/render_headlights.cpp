@@ -43,11 +43,8 @@ static uint32_t CarLightColor(void* car) {
     uint32_t c = reinterpret_cast<uint32_t(__cdecl*)(void*)>(FN_CAR_LIGHT_COLOR)(car);
     int r = c & 0xFF, g = (c >> 8) & 0xFF, b = (c >> 16) & 0xFF;
     int top = max(r, max(g, b));
-    static uint32_t logged;
-    if (g_debug && c != logged) {
-        logged = c;
-        Log("headlights: car colour %06X", c & 0xFFFFFF);
-    }
+    static std::unordered_set<uint32_t> logged;
+    if (g_debug && logged.insert(c).second) Log("headlights: car colour %06X", c & 0xFFFFFF);
     if (top <= 128) return c;
     return (r * 128 / top) | (g * 128 / top) << 8 | (b * 128 / top) << 16;
 }
