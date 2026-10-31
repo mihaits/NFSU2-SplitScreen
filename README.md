@@ -91,6 +91,9 @@ are most likely to change:
 | NFSU2 Redux | testing pending |
 | XtendedInput | not recommended: replaces the same controller input code, and this mod already handles Xbox and DualSense pads per player |
 
+## Linux compatibility
+Tested up to 4 players with GE-Proton through Lutris on Ubuntu 26.04. Setup, pad support and optional Bluetooth tweaks are in [docs/linux.md](docs/linux.md).
+
 ## For developers
 Build with Visual Studio 2022 Build Tools (C++, x86): run `build.bat`.
 [`docs/TECHNICAL.md`](docs/TECHNICAL.md) explains how everything works, for anyone (or any AI agent) continuing the

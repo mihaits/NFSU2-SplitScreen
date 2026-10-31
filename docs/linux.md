@@ -77,11 +77,12 @@ evdev has no trigger path. So Bluetooth with the rule is the working path on Lin
 **Steam Controller (2015) rumble without Steam.** Not possible through Wine: no input node has force feedback. On cable
 (hid-steam) the gamepad node has no EV_FF and disappears while the game holds hidraw; on Bluetooth (hid-generic) only
 keyboard and mouse nodes exist. Keeping its rumble on XInput instead of WGI changed nothing (tested on Bluetooth). Steam
-drives the pad itself. A fix would be native HID haptic pulses over hidraw, writable on both links: a new feature, not started.
+drives the pad itself, so use Steam with this pad. Native HID haptic pulses over hidraw would work but aren't worth doing.
 
 **Frame rate** (AC, native, all effects, vsync, 240 cap): 1P 182 median, 155 low; 2P about 145-170; 3P about 110-155; 4P 89
 median, 78 low, with the main thread at 98 % of a core and the GPU at 67 %: CPU limited. No physics check at high frame rates.
 
 ## To fix
-- **Remaining DualSense Bluetooth speaker dropouts.** With the scan setting below, a few are left, about like Windows. A DS4 with
-  as many link gaps is clean, so it may be specific to the DualSense's audio format or buffer; cause unknown.
+- **Remaining DualSense Bluetooth speaker dropouts.** With the scan setting above, a few are left, about like Windows. A DS4 with
+  as many link gaps is clean, so it may be specific to the DualSense's audio format or buffer; cause unknown. To pick up with
+  the adaptive bitrate work (sound.md).
