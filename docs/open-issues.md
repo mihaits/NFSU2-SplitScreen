@@ -1,7 +1,5 @@
 # Open issues and leads
 
-- **Light streaks without overbright** in split views ([rendering](rendering.md)).
-
 Fixed 2026-10-30: **player 5's steering too sharp at speed**, the wheel check read past its 2-slot arrays
 ([details](bugs/p5-steering-sharp.md)). **Crash in the track streamer's pool** (0x5DEEE1), 192 block records ran out with 4-6
 players far apart ([details](bugs/streamer-pool-crash.md)).
@@ -20,12 +18,12 @@ pause by P4, the touchpad lightbar toggle. Earlier: 6P drift results after the H
 P5/P6 player LEDs and lightbar colours, pause menus by P5/P6, the post-race scene with 5 humans.
 
 **Not covered yet:**
-- 5-6P in drift, URL, Street X and Free Run (6 players spread across the city: streaming, memory; peak 874 MB virtual
-  of 2 GB measured); the post-race scene with 6 humans (`FollowCameraForSceneCars`); 5P with 1 AI opponent.
+- 5-6P in URL, Street X and Free Run; low risk: 6P on a big circuit was the worst case for streaming and memory (user,
+  2026-10-31, after the streamer pool fix). 5P with 1 AI opponent.
 - Controls pages P5/P6 (rebind, saved to `[Player5]`/`[Player6]`); Customize from seats 5/6.
-- Frame rate on a display faster than 75 Hz.
-- USB speaker with 2 or more DualSense pads on USB: each should hear only their own car, and 3-6 on one USB 2.0 hub may
-  run out of isochronous bandwidth (the stream then fails and the car stays on the PC).
+- USB speakers with 2 or more PlayStation pads on USB, in any mix (DualSense + DualShock 4 too): each should hear only
+  their own car, and 3-6 on one USB 2.0 hub may run out of isochronous bandwidth (the stream then fails and the car stays
+  on the PC).
 
 **Podium lightbar** (user, 2026-10-24/25). The 3P logs of 2026-10-25 ruled out the colour going at the results screen
 (it stays until state 7) and a missing finish for P3. Found: in drift the place was the order on track (P1 crossed 5th,
@@ -34,25 +32,19 @@ finishes, racer +0xA reads 1 for one frame (Street X: every finisher logged "pla
 left as is.
 
 **Known bugs and limitations:**
-- After a USB replug mid-race, the pad's speaker stream restarted with peak 0.00 for up to 10 s more before the car
-  was heard (2026-10-30, seen once, cause unknown; the reconnect itself works).
 - **More than 4 Xbox pads** don't work (XInput limit); see [input](input.md).
 - A **stray white line** across P3's minimap was seen once in a 5-view debug layout (`CloneViews`); not seen in real
   5P/6P races.
-- Virtual pads: a 0.15 s START press for P3..P6 sometimes didn't register; 0.3 s always did. Check with real pads that
-  a quick tap pauses.
 
 ## Multiple DualSense pads, static analysis (2026-10-24)
 Fixed in a93b159: Bluetooth output flood (now at most 40 reports/s per pad) and the retry stall after a failed write.
 - **Slots by first free index** (fixed: slots are kept per pad by its Bluetooth address, see [input](input.md)). Xbox
   pads still have it through the XInput user index, with no id to key on: two that drop and reconnect in the other
-  order swap players.
-- No rumble after a reconnect while the game holds the same value: `g_dsOut` (and `g_rumbleSent` for Xbox pads) keeps
-  the old motors and only changes are sent.
-- P5's player LEDs (0x1F, all five) look like the unjoined pads' flash (0x1F / 0).
-- DS4Windows exposing any virtual pad closes every native pad, also the ones it doesn't handle.
-- Steam Input (PlayStation support on) can expose a DualSense as an XInput pad too: one pad, two indices.
-- `OpenPad`'s logged-failure list (16 paths) is never cleared.
+  order swap players. A lone pad coming back on a lower free index takes the wrong player the same way. Lead, not
+  tried: `IRawGameController2.NonRoamableId` in the WGI pairing (`XboxWgi.cpp`), if it stays the same across a
+  reconnect, then map each XInput user to the player who had that id.
+- Steam Input (PlayStation support on) can expose a DualSense as an XInput pad too: one pad, two indices. Depends on
+  the Steam Input config; not worth much, native input needs no Steam Input.
 - DualSense 0 (hardware 00000514) dropped with error 1167 several times on 2026-10-24, also mid-race: likely its
   Bluetooth link (range, battery).
 
