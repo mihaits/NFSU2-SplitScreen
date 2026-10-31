@@ -24,6 +24,10 @@ crash files. 5-6P were not tested. A launch that exits after 2 s worked on a ret
 | Steam Controller, through Steam | yes | yes | - | - | WGI 28DE:11FF |
 | Sony pads, through Steam | yes, not doubled | not checked | **lost** | **lost** | WGI 28DE:11FF |
 
+**Xbox pads through WGI.** Xbox and Steam Controller pads read and rumble through Wine's WGI, with no doubled pad next to
+native Sony pads. `NonRoamableId` reads empty, so a pad number is kept by VID:PID: pads of different models get their own
+number back in any order, and two of one model can swap. If WGI lists no pad, pads read through XInput (not seen here).
+
 **DualSense USB speaker.** PipeWire's UCM profile exposes the pad as a mono "Internal Mono Speaker" node, yet Wine reports 4
 channels (mask 0x33). The stream has 4 ports (AUX0-3) and only AUX0 is linked to the node, so a signal on channel 2 alone,
 as on Windows, is silent. Under Wine (`wine_get_version` in ntdll) `UsbSpeakerThread` fills channels 1 and 2 of a DualSense

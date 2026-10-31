@@ -1,8 +1,8 @@
-// Xbox pads' trigger motors through Windows.Gaming.Input (XboxWgi.h, docs/input.md).
+// Xbox pads through Windows.Gaming.Input (XboxWgi.h, docs/input.md).
 //
-// One thread (MTA) owns every WGI object: it lists the Gamepads once a second, pairs each with its XInput user index
-// and sends the wanted vibration of the paired pads. WinRT is loaded from combase.dll at run time, so the plugin
-// still loads where it is missing.
+// One thread (MTA) owns the WGI list: it keeps each Gamepad on its pad number by its id and sends the wanted vibration.
+// The game thread reads a pad directly, so a reading is as fresh as WGI's. WinRT is loaded from combase.dll at run
+// time, so the plugin still loads where it is missing.
 
 #include <windows.h>
 #include <roapi.h>
@@ -21,37 +21,40 @@ typedef HRESULT(WINAPI* RoInitializeFn)(RO_INIT_TYPE);
 typedef HRESULT(WINAPI* RoGetActivationFactoryFn)(HSTRING, REFIID, void**);
 typedef HRESULT(WINAPI* WindowsCreateStringFn)(PCNZWCH, UINT32, HSTRING*);
 typedef HRESULT(WINAPI* WindowsDeleteStringFn)(HSTRING);
+typedef PCWSTR(WINAPI* WindowsGetStringRawBufferFn)(HSTRING, UINT32*);
 RoInitializeFn g_roInitialize;
 RoGetActivationFactoryFn g_roGetActivationFactory;
 WindowsCreateStringFn g_createString;
 WindowsDeleteStringFn g_deleteString;
+WindowsGetStringRawBufferFn g_stringBuffer;
 
-struct XState {                       // XINPUT_STATE
-    DWORD packet;
-    WORD buttons;
-    BYTE lt, rt;
-    SHORT lx, ly, rx, ry;
-};
-
-constexpr int kUsers = 4, kMaxWgi = 16;
-WgiXInputGetStateFn g_getState;
+constexpr int kPads = 4, kMaxWgi = 16;
 WgiLogFn g_log;
 CRITICAL_SECTION g_lock;
-float g_want[kUsers][4];              // large, small, left trigger, right trigger (under g_lock)
-volatile LONG g_hasTriggers[kUsers];
+HANDLE g_listChanged;
+IGamepad* g_slotPad[kPads];           // pad number -> its pad (under g_lock; the Pad in g_pads holds the reference)
+float g_want[kPads][4];               // per pad number: large, small, left trigger, right trigger (under g_lock)
+volatile LONG g_hasTriggers[kPads];   // per pad number
+volatile LONG g_live;                 // WGI has listed a pad; until then a pad number is its XInput user
 
 // thread only
 struct Pad {
     IGamepad* gp;
-    int user;                         // paired XInput user, -1 = not yet
+    int slot;                         // its pad number, -1 = none free
     bool triggers;                    // has trigger motors (not an Xbox 360 class pad)
     UINT16 vid, pid;
+    UINT32 id;                        // hash of IRawGameController2.NonRoamableId, else VID:PID, 0 = none
     float sent[4];
     DWORD sentAt;
     bool sentValid;
 };
 Pad g_pads[kMaxWgi];
 int g_padCount;
+struct Slot {
+    UINT32 id;                        // the pad that has this number, 0 = none
+    DWORD droppedAt;
+};
+Slot g_slots[kPads];
 
 template <class T> T* Factory(const wchar_t* cls) {
     HSTRING name = nullptr;
@@ -62,24 +65,61 @@ template <class T> T* Factory(const wchar_t* cls) {
     return f;
 }
 
-void Unpair(Pad& p, const char* why) {
-    if (p.user < 0) return;
-    g_log("xbox: pad %d unpaired from WGI gamepad %04X:%04X (%s)", p.user + 1, p.vid, p.pid, why);
-    InterlockedExchange(&g_hasTriggers[p.user], 0);
-    if (p.gp && p.triggers) {
-        GamepadVibration v = {};
-        p.gp->put_Vibration(v);
+UINT32 PadId(IRawGameController* rc) {
+    IRawGameController2* rc2 = nullptr;
+    if (FAILED(rc->QueryInterface(__uuidof(IRawGameController2), reinterpret_cast<void**>(&rc2))) || !rc2) return 0;
+    HSTRING id = nullptr;
+    UINT32 hash = 0;
+    if (SUCCEEDED(rc2->get_NonRoamableId(&id)) && id) {
+        UINT32 len = 0;
+        const wchar_t* s = g_stringBuffer(id, &len);
+        hash = 2166136261u;           // FNV-1a
+        for (UINT32 i = 0; i < len; ++i) hash = (hash ^ s[i]) * 16777619u;
+        g_deleteString(id);
     }
-    p.user = -1;
-    p.sentValid = false;
+    rc2->Release();
+    return hash;
 }
 
-void Pair(Pad& p, int user, const char* how) {
-    p.user = user;
+// A number no pad has, else the one whose pad dropped longest ago, -1 = all taken.
+int FreeSlot() {
+    int oldest = -1;
+    for (int s = 0; s < kPads; ++s) {
+        if (g_slotPad[s]) continue;
+        if (!g_slots[s].id) return s;
+        if (oldest < 0 || g_slots[s].droppedAt - g_slots[oldest].droppedAt >= 0x80000000u) oldest = s;
+    }
+    if (oldest >= 0) g_slots[oldest].id = 0;
+    return oldest;
+}
+
+// A pad gets back the number it had, so it keeps its player when pads return in another order.
+void Bind(Pad& p) {
+    int slot = -1;
+    for (int s = 0; s < kPads; ++s)
+        if (p.id && g_slots[s].id == p.id && !g_slotPad[s]) slot = s;
+    if (slot < 0) slot = FreeSlot();
+    if (slot < 0) return;
+    g_slots[slot].id = p.id;
+    p.slot = slot;
     p.sentValid = false;
-    InterlockedExchange(&g_hasTriggers[user], p.triggers ? 1 : 0);
-    g_log("xbox: pad %d = WGI gamepad %04X:%04X (%s), %s", user + 1, p.vid, p.pid, how,
-          p.triggers ? "impulse triggers; its rumble goes through WGI" : "no trigger motors; rumble stays on XInput");
+    InterlockedExchange(&g_hasTriggers[slot], p.triggers ? 1 : 0);
+    EnterCriticalSection(&g_lock);
+    g_slotPad[slot] = p.gp;
+    LeaveCriticalSection(&g_lock);
+    InterlockedExchange(&g_live, 1);
+    g_log("xbox: pad %d = WGI gamepad %04X:%04X%s", slot + 1, p.vid, p.pid, p.triggers ? ", impulse triggers" : "");
+}
+
+void Unbind(Pad& p) {
+    if (p.slot < 0) return;
+    g_log("xbox: pad %d lost WGI gamepad %04X:%04X", p.slot + 1, p.vid, p.pid);
+    InterlockedExchange(&g_hasTriggers[p.slot], 0);
+    EnterCriticalSection(&g_lock);
+    g_slotPad[p.slot] = nullptr;
+    LeaveCriticalSection(&g_lock);
+    g_slots[p.slot].droppedAt = GetTickCount();
+    p.slot = -1;
 }
 
 void Refresh(IGamepadStatics* statics, IRawGameControllerStatics* raw) {
@@ -95,7 +135,7 @@ void Refresh(IGamepadStatics* statics, IRawGameControllerStatics* raw) {
         Pad p = {};
         bool known = false;
         for (int j = 0; j < g_padCount; ++j)
-            if (g_pads[j].gp == gp) {      // same pad as before: keep its pairing, drop the old reference
+            if (g_pads[j].gp == gp) {      // same pad as before: keep its number, drop the old reference
                 p = g_pads[j];
                 g_pads[j].gp->Release();
                 g_pads[j].gp = nullptr;
@@ -104,13 +144,15 @@ void Refresh(IGamepadStatics* statics, IRawGameControllerStatics* raw) {
             }
         p.gp = gp;
         if (!known) {
-            p.user = -1;
+            p.slot = -1;
             IGameController* gc = nullptr;
             if (raw && SUCCEEDED(gp->QueryInterface(__uuidof(IGameController), reinterpret_cast<void**>(&gc)))) {
                 IRawGameController* rc = nullptr;
                 if (SUCCEEDED(raw->FromGameController(gc, &rc)) && rc) {
                     rc->get_HardwareVendorId(&p.vid);
                     rc->get_HardwareProductId(&p.pid);
+                    p.id = PadId(rc);
+                    if (!p.id) p.id = p.vid << 16 | p.pid;   // none under Wine: tells models apart, not two of a model
                     rc->Release();
                 }
                 gc->Release();
@@ -118,7 +160,8 @@ void Refresh(IGamepadStatics* statics, IRawGameControllerStatics* raw) {
             // Xbox 360 class pads (wired / wireless receiver; DS4Windows' virtual pad is a wired 360 pad) have none
             p.triggers = !(p.vid == 0x045E && (p.pid == 0x028E || p.pid == 0x028F || p.pid == 0x0291 ||
                                                p.pid == 0x02A1 || p.pid == 0x0719));
-            g_log("xbox: WGI gamepad %04X:%04X connected%s", p.vid, p.pid, p.triggers ? "" : " (Xbox 360 class)");
+            g_log("xbox: WGI gamepad %04X:%04X id %08X connected%s", p.vid, p.pid, p.id,
+                  p.triggers ? "" : " (Xbox 360 class)");
         }
         next[count++] = p;
     }
@@ -126,87 +169,23 @@ void Refresh(IGamepadStatics* statics, IRawGameControllerStatics* raw) {
     for (int j = 0; j < g_padCount; ++j)
         if (g_pads[j].gp) {               // gone from the list
             g_log("xbox: WGI gamepad %04X:%04X disconnected", g_pads[j].vid, g_pads[j].pid);
-            IGamepad* gp = g_pads[j].gp;
+            Unbind(g_pads[j]);
+            g_pads[j].gp->Release();
             g_pads[j].gp = nullptr;
-            Unpair(g_pads[j], "WGI gamepad gone");
-            gp->Release();
         }
     memcpy(g_pads, next, sizeof(Pad) * count);
     g_padCount = count;
-}
-
-bool Active(const XState& x) {
-    const int dz = 12000;
-    return x.buttons || x.lt > 30 || x.rt > 30 || abs(x.lx) > dz || abs(x.ly) > dz || abs(x.rx) > dz || abs(x.ry) > dz;
-}
-
-bool Same(const XState& x, const GamepadReading& r) {
-    // XInput button bit, WGI GamepadButtons bit
-    static const WORD kMap[][2] = {{0x0010, 0x0001}, {0x0020, 0x0002}, {0x1000, 0x0004}, {0x2000, 0x0008},
-                                   {0x4000, 0x0010}, {0x8000, 0x0020}, {0x0001, 0x0040}, {0x0002, 0x0080},
-                                   {0x0004, 0x0100}, {0x0008, 0x0200}, {0x0100, 0x0400}, {0x0200, 0x0800},
-                                   {0x0040, 0x1000}, {0x0080, 0x2000}};
-    unsigned wb = static_cast<unsigned>(r.Buttons);
-    for (auto& m : kMap)
-        if (!(x.buttons & m[0]) != !(wb & m[1])) return false;
-    auto close = [](double a, double b) { return fabs(a - b) <= 0.04; };
-    return close(x.lt / 255.0, r.LeftTrigger) && close(x.rt / 255.0, r.RightTrigger) &&
-           close(x.lx / 32767.0, r.LeftThumbstickX) && close(x.ly / 32767.0, r.LeftThumbstickY) &&
-           close(x.rx / 32767.0, r.RightThumbstickX) && close(x.ry / 32767.0, r.RightThumbstickY);
-}
-
-// XInput doesn't say which WGI Gamepad a user index is. A free user and a free WGI pad are paired when their input
-// matches while it is not idle and neither matches any other free one (two players pressing A at once wait), or by
-// elimination: one of each left and as many WGI pads as connected XInput users.
-void PairPads() {
-    XState xs[kUsers] = {};
-    bool conn[kUsers];
-    int connected = 0;
-    for (int u = 0; u < kUsers; ++u) {
-        conn[u] = g_getState(u, &xs[u]) == 0;
-        connected += conn[u];
-    }
-    bool used[kUsers] = {};
-    for (int i = 0; i < g_padCount; ++i) {
-        Pad& p = g_pads[i];
-        if (p.user >= 0 && !conn[p.user]) Unpair(p, "XInput pad gone");
-        if (p.user >= 0) used[p.user] = true;
-    }
-    int freeUsers = 0, freePads = 0, lastUser = -1, lastPad = -1;
-    for (int u = 0; u < kUsers; ++u)
-        if (conn[u] && !used[u]) { ++freeUsers; lastUser = u; }
     for (int i = 0; i < g_padCount; ++i)
-        if (g_pads[i].user < 0) { ++freePads; lastPad = i; }
-    if (!freeUsers || !freePads) return;
-    if (freeUsers == 1 && freePads == 1 && connected == g_padCount) {
-        Pair(g_pads[lastPad], lastUser, "the only pad left");
-        return;
-    }
-    GamepadReading rd[kMaxWgi] = {};
-    for (int i = 0; i < g_padCount; ++i)
-        if (g_pads[i].user < 0) g_pads[i].gp->GetCurrentReading(&rd[i]);
-    for (int u = 0; u < kUsers; ++u) {
-        if (!conn[u] || used[u] || !Active(xs[u])) continue;
-        int match = -1, matches = 0;
-        for (int i = 0; i < g_padCount; ++i)
-            if (g_pads[i].user < 0 && Same(xs[u], rd[i])) { match = i; ++matches; }
-        if (matches != 1) continue;
-        bool other = false;
-        for (int v = 0; v < kUsers; ++v)
-            if (v != u && conn[v] && !used[v] && Same(xs[v], rd[match])) other = true;
-        if (other) continue;
-        Pair(g_pads[match], u, "matched by input");
-        used[u] = true;
-    }
+        if (g_pads[i].slot < 0) Bind(g_pads[i]);
 }
 
 void Apply(DWORD now) {
     for (int i = 0; i < g_padCount; ++i) {
         Pad& p = g_pads[i];
-        if (p.user < 0 || !p.triggers) continue;
+        if (p.slot < 0) continue;
         float w[4];
         EnterCriticalSection(&g_lock);
-        memcpy(w, g_want[p.user], sizeof(w));
+        memcpy(w, g_want[p.slot], sizeof(w));
         LeaveCriticalSection(&g_lock);
         bool on = w[0] > 0 || w[1] > 0 || w[2] > 0 || w[3] > 0;
         // resent every second while on: Windows drops a pad's vibration when the window loses focus
@@ -223,9 +202,9 @@ void Apply(DWORD now) {
     }
 }
 
-// Some desktop apps see an empty Gamepads list until something listens to GamepadAdded; the list itself is polled.
+// Some desktop apps see an empty Gamepads list until something listens to GamepadAdded. The events only wake the thread.
 typedef ABI::Windows::Foundation::IEventHandler<Gamepad*> GamepadHandler;
-struct AddedHandler : GamepadHandler {
+struct ListHandler : GamepadHandler {
     HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid, void** out) override {
         if (iid == __uuidof(IUnknown) || iid == __uuidof(GamepadHandler) || iid == __uuidof(IAgileObject)) {
             *out = this;
@@ -236,63 +215,100 @@ struct AddedHandler : GamepadHandler {
     }
     ULONG STDMETHODCALLTYPE AddRef() override { return 1; }    // static object
     ULONG STDMETHODCALLTYPE Release() override { return 1; }
-    HRESULT STDMETHODCALLTYPE Invoke(IInspectable*, IGamepad*) override { return S_OK; }
+    HRESULT STDMETHODCALLTYPE Invoke(IInspectable*, IGamepad*) override {
+        SetEvent(g_listChanged);
+        return S_OK;
+    }
 };
-AddedHandler g_added;
+ListHandler g_listHandler;
 
 DWORD WINAPI WgiThread(void*) {
     g_roInitialize(RO_INIT_MULTITHREADED);
     auto* statics = Factory<IGamepadStatics>(L"Windows.Gaming.Input.Gamepad");
     auto* raw = Factory<IRawGameControllerStatics>(L"Windows.Gaming.Input.RawGameController");
     if (!statics) {
-        g_log("xbox: Windows.Gaming.Input not available; no impulse triggers");
+        g_log("xbox: Windows.Gaming.Input not available; pads read through XInput, no impulse triggers");
         return 0;
     }
-    EventRegistrationToken token;
-    statics->add_GamepadAdded(&g_added, &token);
+    EventRegistrationToken added, removed;
+    statics->add_GamepadAdded(&g_listHandler, &added);
+    statics->add_GamepadRemoved(&g_listHandler, &removed);
     g_log("xbox: Windows.Gaming.Input started");
     DWORD lastRefresh = GetTickCount() - 1000;
     for (;;) {
+        bool changed = WaitForSingleObject(g_listChanged, 8) == WAIT_OBJECT_0;
         DWORD now = GetTickCount();
-        if (now - lastRefresh >= 1000) {   // the list fills in shortly after the first call, and on hotplug
+        // the list fills in shortly after the first call; an event can come before the list shows the change
+        if (changed || now - lastRefresh >= 1000) {
             Refresh(statics, raw);
             lastRefresh = now;
         }
-        PairPads();
         Apply(now);
-        Sleep(8);
     }
 }
 
 }  // namespace
 
-bool WgiInstall(WgiXInputGetStateFn getState, WgiLogFn log) {
+bool WgiInstall(WgiLogFn log) {
     HMODULE combase = LoadLibraryA("combase.dll");
-    if (!combase || !getState) return false;
+    if (!combase) return false;
     g_roInitialize = reinterpret_cast<RoInitializeFn>(GetProcAddress(combase, "RoInitialize"));
     g_roGetActivationFactory =
         reinterpret_cast<RoGetActivationFactoryFn>(GetProcAddress(combase, "RoGetActivationFactory"));
     g_createString = reinterpret_cast<WindowsCreateStringFn>(GetProcAddress(combase, "WindowsCreateString"));
     g_deleteString = reinterpret_cast<WindowsDeleteStringFn>(GetProcAddress(combase, "WindowsDeleteString"));
-    if (!g_roInitialize || !g_roGetActivationFactory || !g_createString || !g_deleteString) return false;
-    g_getState = getState;
+    g_stringBuffer = reinterpret_cast<WindowsGetStringRawBufferFn>(GetProcAddress(combase, "WindowsGetStringRawBuffer"));
+    if (!g_roInitialize || !g_roGetActivationFactory || !g_createString || !g_deleteString || !g_stringBuffer)
+        return false;
     g_log = log;
     InitializeCriticalSection(&g_lock);
+    g_listChanged = CreateEventA(nullptr, FALSE, FALSE, nullptr);
     HANDLE t = CreateThread(nullptr, 0, WgiThread, nullptr, 0, nullptr);
     if (!t) return false;
     CloseHandle(t);
     return true;
 }
 
-bool WgiHasTriggers(int user) { return user >= 0 && user < kUsers && g_hasTriggers[user]; }
+bool WgiLive() { return g_live != 0; }
 
-void WgiSetVibration(int user, float largeMotor, float smallMotor, float leftTrigger, float rightTrigger) {
-    if (user < 0 || user >= kUsers || !g_getState) return;
+bool WgiReadPad(int pad, WgiPadState* s) {
+    if (pad < 0 || pad >= kPads || !g_live) return false;
+    GamepadReading r;
+    bool ok = false;
+    EnterCriticalSection(&g_lock);
+    if (g_slotPad[pad]) ok = SUCCEEDED(g_slotPad[pad]->GetCurrentReading(&r));
+    LeaveCriticalSection(&g_lock);
+    if (!ok) return false;
+    // XInput button bit, WGI GamepadButtons bit
+    static const WORD kMap[][2] = {{0x0010, 0x0001}, {0x0020, 0x0002}, {0x1000, 0x0004}, {0x2000, 0x0008},
+                                   {0x4000, 0x0010}, {0x8000, 0x0020}, {0x0001, 0x0040}, {0x0002, 0x0080},
+                                   {0x0004, 0x0100}, {0x0008, 0x0200}, {0x0100, 0x0400}, {0x0200, 0x0800},
+                                   {0x0040, 0x1000}, {0x0080, 0x2000}};
+    unsigned wb = static_cast<unsigned>(r.Buttons);
+    s->packet = static_cast<unsigned long>(r.Timestamp);
+    s->buttons = 0;
+    for (auto& m : kMap)
+        if (wb & m[1]) s->buttons |= m[0];
+    auto trigger = [](double v) { return static_cast<uint8_t>(lround(v * 255)); };   // full must be 255 (StateOf)
+    auto stick = [](double v) { return static_cast<int16_t>(lround(v < 0 ? v * 32768 : v * 32767)); };
+    s->leftTrigger = trigger(r.LeftTrigger);
+    s->rightTrigger = trigger(r.RightTrigger);
+    s->thumbLX = stick(r.LeftThumbstickX);
+    s->thumbLY = stick(r.LeftThumbstickY);
+    s->thumbRX = stick(r.RightThumbstickX);
+    s->thumbRY = stick(r.RightThumbstickY);
+    return true;
+}
+
+bool WgiHasTriggers(int pad) { return pad >= 0 && pad < kPads && g_hasTriggers[pad]; }
+
+void WgiSetVibration(int pad, float largeMotor, float smallMotor, float leftTrigger, float rightTrigger) {
+    if (pad < 0 || pad >= kPads || !g_live) return;
     auto clamp = [](float v) { return v < 0 ? 0.0f : v > 1 ? 1.0f : v; };
     EnterCriticalSection(&g_lock);
-    g_want[user][0] = clamp(largeMotor);
-    g_want[user][1] = clamp(smallMotor);
-    g_want[user][2] = clamp(leftTrigger);
-    g_want[user][3] = clamp(rightTrigger);
+    g_want[pad][0] = clamp(largeMotor);
+    g_want[pad][1] = clamp(smallMotor);
+    g_want[pad][2] = clamp(leftTrigger);
+    g_want[pad][3] = clamp(rightTrigger);
     LeaveCriticalSection(&g_lock);
 }

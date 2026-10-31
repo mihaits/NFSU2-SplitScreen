@@ -29,8 +29,8 @@ bool XPadRawState(int pad, uint16_t* buttons, uint8_t* lt, uint8_t* rt, int16_t*
 // Rumble motors of a real pad (0..3) or native DualSense (8..11): low = left heavy motor, high = right light motor, 0..1. Sent only on change.
 void XPadSetRumble(int pad, float low, float high);
 
-// Xbox One / Series pads (real pads 0..3, once XboxWgi.cpp has paired them): trigger motors, 0..1. Rumble and
-// triggers then go out together through Windows.Gaming.Input.
+// Xbox One / Series pads (real pads 0..3): trigger motors, 0..1. Rumble and triggers go out together through
+// Windows.Gaming.Input (XboxWgi.cpp).
 bool XPadHasImpulseTriggers(int pad);
 void XPadSetImpulseTriggers(int pad, float left, float right);
 

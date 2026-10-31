@@ -36,17 +36,16 @@ finishes, racer +0xA reads 1 for one frame (Street X: every finisher logged "pla
 left as is.
 
 **Known bugs and limitations:**
-- **More than 4 Xbox pads** don't work (XInput limit); see [input](input.md).
+- **More than 4 Xbox pads** don't work (pads 0..3 are the Xbox block); see [input](input.md).
+- **Two Xbox pads of one model can swap players on reconnect under Linux**: Wine gives no pad id, so the key is VID:PID
+  ([input](input.md)). Follows from the code, not seen in a test.
 - A **stray white line** across P3's minimap was seen once in a 5-view debug layout (`CloneViews`); not seen in real
   5P/6P races.
 
 ## Multiple DualSense pads, static analysis (2026-10-24)
 Fixed in a93b159: Bluetooth output flood (now at most 40 reports/s per pad) and the retry stall after a failed write.
-- **Slots by first free index** (fixed: slots are kept per pad by its Bluetooth address, see [input](input.md)). Xbox
-  pads still have it through the XInput user index, with no id to key on: two that drop and reconnect in the other
-  order swap players. A lone pad coming back on a lower free index takes the wrong player the same way. Lead, not
-  tried: `IRawGameController2.NonRoamableId` in the WGI pairing (`XboxWgi.cpp`), if it stays the same across a
-  reconnect, then map each XInput user to the player who had that id.
+- **Slots by first free index** (fixed: slots are kept per pad by its Bluetooth address, see [input](input.md); Xbox pads
+  by `NonRoamableId`, same page).
 - Steam Input (PlayStation support on) can expose a DualSense as an XInput pad too: one pad, two indices. Depends on
   the Steam Input config; not worth much, native input needs no Steam Input.
 - DualSense 0 (hardware 00000514) dropped with error 1167 several times on 2026-10-24, also mid-race: likely its

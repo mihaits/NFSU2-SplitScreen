@@ -1,17 +1,23 @@
 #pragma once
 #include <cstdint>
 
-// Xbox One / Series pads through Windows.Gaming.Input, for the trigger motors (impulse triggers) XInput can't reach.
-// XInput stays the input path; WGI doesn't say which XInput user index a Gamepad is, so a thread pairs them by
-// comparing their input (or by elimination when one of each is left) and, once paired, sends that pad's whole
-// vibration (both motors + both triggers) through WGI. Pads without trigger motors (Xbox 360 class, DS4Windows'
-// virtual pad) stay on XInput. See docs/input.md.
+// Xbox pads through Windows.Gaming.Input: input, id and vibration (both motors + both triggers) from one object. A
+// thread keeps each pad on its pad number 0..3 by its NonRoamableId, so a pad keeps its player when it returns. Where
+// WGI lists no pad (older Windows, Wine without it) the pad layer falls back to XInput. See docs/input.md.
 
 typedef void (*WgiLogFn)(const char* fmt, ...);
-typedef unsigned long(__stdcall* WgiXInputGetStateFn)(unsigned long user, void* state);   // XInputGetState
 
-// Starts the pairing thread; false if WGI isn't available (older Windows, Wine without it).
-bool WgiInstall(WgiXInputGetStateFn getState, WgiLogFn log);
-bool WgiHasTriggers(int user);    // XInput user 0..3 is paired with a WGI pad that has trigger motors
-// Whole wanted vibration of a paired pad, 0..1 each; sent by the thread on change.
-void WgiSetVibration(int user, float largeMotor, float smallMotor, float leftTrigger, float rightTrigger);
+struct WgiPadState {                  // mirrors XINPUT_STATE
+    unsigned long packet;
+    uint16_t buttons;
+    uint8_t leftTrigger, rightTrigger;
+    int16_t thumbLX, thumbLY, thumbRX, thumbRY;
+};
+
+// Starts the WGI thread; false if WinRT isn't there.
+bool WgiInstall(WgiLogFn log);
+bool WgiLive();                   // WGI has listed a pad: it is the input path from now on
+bool WgiReadPad(int pad, WgiPadState* state);   // pad number 0..3, false = no pad there
+bool WgiHasTriggers(int pad);     // pad number 0..3 has trigger motors
+// Whole wanted vibration of a pad, 0..1 each; sent by the thread on change.
+void WgiSetVibration(int pad, float largeMotor, float smallMotor, float leftTrigger, float rightTrigger);

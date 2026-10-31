@@ -10,7 +10,7 @@ Local **split screen for 2-6 players** in *Need for Speed Underground 2* on PC.
    free camera) and already includes the loader.
 2. Download the [latest release](https://github.com/mihaits/NFSU2-SplitScreen/releases) and copy
    `NFSU2SplitScreen.asi` and `NFSU2SplitScreen.ini` into the game's `scripts` folder.
-3. One controller per player. Xbox pads work directly (up to 4: the XInput limit); PlayStation DualSense and DualShock 4
+3. One controller per player. Xbox pads work directly (up to 4); PlayStation DualSense and DualShock 4
    pads work natively (USB or Bluetooth, up to 8) or through DS4Windows. For 5-6 players use native PlayStation pads
    (DS4Windows off) for the players past the 4th Xbox pad, or the keyboard for one player.
 
