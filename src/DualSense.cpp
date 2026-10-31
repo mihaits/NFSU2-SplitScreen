@@ -68,6 +68,9 @@ struct Slot {
     DWORD spkLastWrite;
     HANDLE spkThread;
     volatile LONG spkStop;
+    // link stats for the speaker log: input reports, gaps over 20 ms, longest gap in ms (I/O thread adds, SpeakerThread takes)
+    volatile LONG inCount, inGaps, inGapMax;
+    LONGLONG inLast;                      // I/O thread only
     // USB: no usable audio endpoint. With spkWaitEndpoint the hotplug thread clears it once the endpoint shows up,
     // which is some seconds after the HID interface when a pad is plugged in; otherwise it stays until a reconnect.
     volatile bool spkNoDevice, spkWaitEndpoint;
@@ -114,7 +117,19 @@ int16_t Stick(int v, bool invert) {
     return static_cast<int16_t>(s > 32767 ? 32767 : s < -32767 ? -32767 : s);
 }
 
+void NoteInputGap(Slot* s) {
+    static const LONGLONG freq = [] { LARGE_INTEGER f; QueryPerformanceFrequency(&f); return f.QuadPart; }();
+    LARGE_INTEGER now;
+    QueryPerformanceCounter(&now);
+    LONG ms = s->inLast ? static_cast<LONG>((now.QuadPart - s->inLast) * 1000 / freq) : 0;
+    s->inLast = now.QuadPart;
+    InterlockedIncrement(&s->inCount);
+    if (ms > 20) InterlockedIncrement(&s->inGaps);
+    if (ms > s->inGapMax) InterlockedExchange(&s->inGapMax, ms);
+}
+
 void ParseInput(Slot* s, const uint8_t* buf, DWORD n) {
+    NoteInputGap(s);
     const uint8_t* b;                     // b[offset] with the USB offsets of the protocol doc
     if (s->usb) {
         if (n < 11 || buf[0] != 0x01) return;
@@ -524,8 +539,8 @@ DWORD WINAPI SpeakerThread(LPVOID param) {
     SpkQueue q;
     bool failing = false;
     uint8_t seq = 1, counter = 0;
-    int sent = 0, shortPackets = 0;
-    double lateMax = 0;
+    int sent = 0, shortPackets = 0, slowWrites = 0;
+    double lateMax = 0, writeMax = 0;
     DWORD statsAt = GetTickCount();
     while (ok && !s->spkStop) {
         if (!SpkTake(s, q, mono[idx], kSpkOut, 45000.0)) break;
@@ -549,6 +564,7 @@ DWORD WINAPI SpeakerThread(LPVOID param) {
         QueryPerformanceCounter(&now);
         double late = static_cast<double>(now.QuadPart) / freq.QuadPart - next;
         if (late > lateMax) lateMax = late;
+        LARGE_INTEGER writeStart = now;
         if (WriteReport(s, ev, rep, kSpkReport)) {
             if (failing) Log("DualSense %d: speaker reports work again", idx);
             failing = false;
@@ -557,15 +573,23 @@ DWORD WINAPI SpeakerThread(LPVOID param) {
             Log("DualSense %d: speaker report failed (error %lu)", idx, GetLastError());
             failing = true;
         }
+        QueryPerformanceCounter(&now);
+        double write = static_cast<double>(now.QuadPart - writeStart.QuadPart) / freq.QuadPart;
+        if (write > writeMax) writeMax = write;
+        if (write > period) ++slowWrites;
         DWORD t = GetTickCount();
         if (t - statsAt >= 5000) {
             Log("DualSense %d: speaker %d reports, %d underruns, %d samples dropped, peak %.2f (limited above 0.90), "
                 "left %d, queue max %d, %d short Opus packets, max late %.1f ms, rate %+.3f %%", idx, sent, q.underruns,
                 q.dropped, q.peak, q.statMin == 1 << 30 ? 0 : q.statMin, q.statMax, shortPackets, lateMax * 1000,
                 q.trim * 100);
+            LONG inCount = InterlockedExchange(&s->inCount, 0), inGaps = InterlockedExchange(&s->inGaps, 0);
+            Log("DualSense %d: speaker link: %d writes over one period, longest %.1f ms; %ld input reports, %ld gaps over "
+                "20 ms, longest %ld ms", idx, slowWrites, writeMax * 1000, inCount, inGaps,
+                InterlockedExchange(&s->inGapMax, 0));
             SpkStatsReset(q);
-            sent = shortPackets = 0;
-            lateMax = 0;
+            sent = shortPackets = slowWrites = 0;
+            lateMax = writeMax = 0;
             statsAt = t;
         }
         next += period;

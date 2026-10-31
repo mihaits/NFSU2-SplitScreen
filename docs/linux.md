@@ -22,9 +22,9 @@ at 240 Hz, 133 % scaling. Lutris 0.5.22, umu 1.4.4, GE-Proton11-11, DXVK 3.1.1, 
 | Xbox USB | yes | yes | no impulse triggers | - | WGI |
 | Xbox Bluetooth | yes | yes | impulse triggers with the udev rule below | - | WGI |
 | DualSense USB | yes | yes | yes | yes | native |
-| DualSense Bluetooth | yes, keeps its slot | yes | yes | dropouts | native |
+| DualSense Bluetooth | yes, keeps its slot | yes | yes | yes, with the scan setting below | native |
 | DS4 USB | yes | yes | yes | yes | native |
-| DS4 Bluetooth | yes | yes | yes | dropouts | native |
+| DS4 Bluetooth | yes | yes | yes | yes, with the scan setting below | native |
 | Steam Controller, Steam closed | yes | no (see below) | - | - | WGI 28DE:1102, Bluetooth 1106 |
 | Steam Controller, through Steam | yes | yes | - | - | WGI 28DE:11FF |
 | Sony pads, through Steam | yes, not doubled | not checked | **lost** | **lost** | WGI 28DE:11FF |
@@ -40,6 +40,26 @@ second under Wine (`Apply` in `XboxWgi.cpp`, always the latest value) it's on ti
 and the uhid and hid-microsoft layers above don't slow down. `btmon`: uncapped, the link stayed saturated at 40 writes/s
 (median 23 ms each); capped, 14-19/s, 14 ms each, with idle gaps. So the excess most likely queued; the tail after a stop and
 the exact queue weren't measured. Wine's process holds the pad's event node; no udev rule is needed.
+
+**Bluetooth speaker dropouts (optional setup).** Constant stutter on the Intel AX211 with default settings, caused by BlueZ's
+LE background scan, which runs while any bonded LE device (here Xbox pad, Steam Controller, mouse) is disconnected and takes
+the radio from the pad's BR/EDR link 30 ms out of every 60 ms. The reports leave the mod on time (235 per 5 s, 0 underruns,
+max late 2.9 ms), and Wi-Fi off or a single pad doesn't help. To cut it, under `[LE]` in `/etc/bluetooth/main.conf`:
+```
+ScanIntervalAutoConnect=1024
+ScanWindowAutoConnect=16
+```
+then `sudo systemctl restart bluetooth` (10 ms every 640 ms). Measured with `btmon` on a DualSense:
+
+| | Default scan | With the setting | Windows |
+|---|---|---|---|
+| Input gaps over 20 ms, per second | 23.7 | 0.7 | 0.3 |
+| Input reports per second | 208 | 667 | 480 |
+| Reports completing later than one period | 24.2 % | 0.8 % | not comparable |
+| By ear | constant | better, not perfect | once every few seconds |
+
+The DualSense's `speaker link:` log lines show the same gaps without `btmon`. With the setting a DS4 is flawless by ear (1.0
+gaps/s, 62.5 smaller reports/s). LE devices reconnected in a couple of seconds at most, with no failures; no timed comparison.
 
 **Xbox Bluetooth impulse triggers (optional setup).** Without hidraw access Wine reaches the pad through evdev, which has no
 trigger motors. Steam's `60-steam-input.rules` covers 045E:0B22 but not this pad's 045E:0B20, so its hidraw node stays
@@ -63,12 +83,5 @@ drives the pad itself. A fix would be native HID haptic pulses over hidraw, writ
 median, 78 low, with the main thread at 98 % of a core and the GPU at 67 %: CPU limited. No physics check at high frame rates.
 
 ## To fix
-- **Bluetooth speaker dropouts**, worse than Windows, on DualSense and DS4: on the laptop a constant stutter. The reports leave
-  on time: a 60 s race held 235 reports per 5 s, 0 underruns, 0 short packets, max late 2.9 ms, no write errors. So the loss
-  is below the mod and no mod-side fix is known. It stutters with the DualSense alone on the adapter too. `btmon` (20 s, classic
-  HID through bluetoothd's uhid): reports reach the controller on time (gap 21.3 ms, max 29.6), but a quarter take longer than
-  the 21.3 ms report period to complete (median 12.6 ms, p99 35.3, max 52.3), and the pad's input pauses over 20 ms about 24
-  times a second. So the link itself stalls, probably airtime or retransmits (not visible in HCI). It still drops with Wi-Fi
-  off, so that's not the main cause on this Intel AX211. Left: the adapter or its driver on BR/EDR, or the Linux stack; the
-  next check is the same pad's stats on Windows. Lower bitrate is the only mod-side lever (the to-do in sound.md); unknown if
-  it helps.
+- **Remaining DualSense Bluetooth speaker dropouts.** With the scan setting below, a few are left, about like Windows. A DS4 with
+  as many link gaps is clean, so it may be specific to the DualSense's audio format or buffer; cause unknown.
