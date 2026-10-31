@@ -48,7 +48,7 @@ options of whoever paused.
 - DualSense without DS4Windows: rumble, player LEDs, RPM / nitrous lightbar, adaptive triggers
 - DualShock 4 without DS4Windows: rumble, lightbar in the player's colour with the start lights and podium colours
 - Xbox One / Series impulse triggers, Forza Horizon style: they buzz with wheelspin and brake slip
-- Each player's car sounds on their own pad's speaker (DualSense: Bluetooth or USB; DualShock 4: Bluetooth, also while
+- Each player's car sounds on their own pad's speaker (DualSense and second-model DualShock 4: Bluetooth or USB; first-model DualShock 4: Bluetooth, also while
   charging if it connected over Bluetooth first), so the cars
   don't overlap on the PC.
   Windows may switch its default output to a pad when you plug it in; switch it back in the Windows sound settings

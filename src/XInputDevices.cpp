@@ -573,7 +573,7 @@ bool XPadIsDs4(int pad) { return pad >= kDsFirst && pad < kMaxPads && g_dsConnec
 bool XPadIsDualSense(int pad) { return pad >= kDsFirst && pad < kMaxPads && g_dsConnected[pad - kDsFirst] && !DsIsDs4(pad - kDsFirst); }
 
 bool XPadIsBluetoothSpeakerPad(int pad) { return (XPadIsDualSense(pad) || XPadIsDs4(pad)) && DsIsBluetooth(pad - kDsFirst); }
-bool XPadHasSpeaker(int pad) { return XPadIsDualSense(pad) || XPadIsBluetoothSpeakerPad(pad); }
+bool XPadHasSpeaker(int pad) { return XPadIsDualSense(pad) || XPadIsDs4(pad); }
 bool XPadSpeakerReady(int pad) { return XPadHasSpeaker(pad) && DsSpeakerReady(pad - kDsFirst); }
 
 bool XPadSpeakerWrite(int pad, const float* mono, int frames, int rate) {

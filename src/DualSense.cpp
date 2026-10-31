@@ -677,6 +677,20 @@ constexpr REFERENCE_TIME kUsbSpkBuffer = 300000;   // 30 ms
 
 template <class T> void ComRelease(T*& p) { if (p) { p->Release(); p = nullptr; } }
 
+// Puts a USB pad's endpoint on its speaker or back on the jack. DS4: feature report E0 "Set Audio Output" (3: right
+// channel to the speaker, 0: stereo headset), plus the speaker volume in report 0x05 (flag 0x80 at 1, volume at 22, 0x85
+// at 23 as for Bluetooth audio). A first model has no endpoint and never gets here.
+bool UsbRoute(Slot* s, HANDLE ev, uint8_t* rep, bool speaker) {
+    if (!s->ds4) return WriteReport(s, ev, rep, SpeakerRoute(s, rep, 0, speaker ? 3 : 0));
+    if (speaker) {
+        memset(rep, 0, s->outLen);
+        rep[0] = 0x05; rep[1] = 0x80; rep[22] = kDs4SpkVolume; rep[23] = 0x85;
+        if (!WriteReport(s, ev, rep, s->outLen)) return false;
+    }
+    uint8_t f[3] = {0xE0, 0x00, static_cast<uint8_t>(speaker ? 3 : 0)};
+    return HidD_SetFeature(s->dev, f, sizeof(f)) != 0;
+}
+
 bool PadContainerId(const Slot* s, GUID* id) {
     WCHAR path[MAX_PATH], inst[256];
     MultiByteToWideChar(CP_ACP, 0, s->path, -1, path, MAX_PATH);
@@ -753,13 +767,15 @@ DWORD WINAPI UsbSpeakerThread(LPVOID param) {
                                            fmt, nullptr)) ||
                  FAILED(client->SetEventHandle(ev)) || FAILED(client->GetBufferSize(&frames)) ||
                  FAILED(client->GetService(IID_PPV_ARGS(&render)))) why = "audio client setup failed";
-        else if (!WriteReport(s, writeEv, rep, SpeakerRoute(s, rep, 0, 3))) why = "route report failed";
+        else if (!UsbRoute(s, writeEv, rep, true)) why = "route report failed";
         else if (FAILED(client->Start())) why = "audio client didn't start";
     }
-    Log("DualSense %d: USB speaker stream %s%s", idx, why ? "failed: " : "started", why ? why : "");
+    Log("%s %d: USB speaker stream %s%s", Model(s), idx, why ? "failed: " : "started", why ? why : "");
     SpkQueue q;
     int channels = fmt ? fmt->nChannels : 0;
     double rate = fmt ? fmt->nSamplesPerSec : 0;
+    // a DS4's endpoint runs at 32 kHz: a kSpkOut take would need more input samples than SpkTake reads at once
+    const int maxChunk = rate < 40000 ? 512 : kSpkOut;
     int sent = 0;
     DWORD statsAt = GetTickCount();
     static float mono[kDsMax][kSpkOut];
@@ -775,7 +791,7 @@ DWORD WINAPI UsbSpeakerThread(LPVOID param) {
         float* f = reinterpret_cast<float*>(data);
         memset(f, 0, n * channels * sizeof(float));
         for (UINT32 done = 0; done < n && !idle;) {
-            int chunk = n - done > kSpkOut ? kSpkOut : static_cast<int>(n - done);
+            int chunk = n - done > static_cast<UINT32>(maxChunk) ? maxChunk : static_cast<int>(n - done);
             if (!SpkTake(s, q, mono[idx], chunk, rate)) { idle = true; break; }
             for (int i = 0; i < chunk; ++i) f[(done + i) * channels + 1] = mono[idx][i];
             done += chunk;
@@ -784,8 +800,8 @@ DWORD WINAPI UsbSpeakerThread(LPVOID param) {
         sent += n;
         DWORD t = GetTickCount();
         if (t - statsAt >= 5000) {
-            Log("DualSense %d: USB speaker %d frames, %d underruns, %d samples dropped, peak %.2f (limited above 0.90), "
-                "left %d, queue max %d, rate %+.3f %%", idx, sent, q.underruns, q.dropped, q.peak,
+            Log("%s %d: USB speaker %d frames, %d underruns, %d samples dropped, peak %.2f (limited above 0.90), "
+                "left %d, queue max %d, rate %+.3f %%", Model(s), idx, sent, q.underruns, q.dropped, q.peak,
                 q.statMin == 1 << 30 ? 0 : q.statMin, q.statMax, q.trim * 100);
             SpkStatsReset(q);
             sent = 0;
@@ -793,12 +809,12 @@ DWORD WINAPI UsbSpeakerThread(LPVOID param) {
         }
     }
     if (client) client->Stop();
-    if (!s->spkStop) WriteReport(s, writeEv, rep, SpeakerRoute(s, rep, 0, 0));   // back on the jack
+    if (!s->spkStop) UsbRoute(s, writeEv, rep, false);   // back on the jack
     if (why) {
-        Log("DualSense %d: USB speaker stopped: %s; engine stays on the PC", idx, why);
+        Log("%s %d: USB speaker stopped: %s; engine stays on the PC", Model(s), idx, why);
         s->spkWaitEndpoint = !dev || !strcmp(why, "endpoint gone");
         s->spkNoDevice = true;
-    } else Log("DualSense %d: speaker stream stopped", idx);
+    } else Log("%s %d: speaker stream stopped", Model(s), idx);
     ComRelease(render);
     ComRelease(client);
     ComRelease(dev);
@@ -960,8 +976,7 @@ void OpenPad(const char* path, bool edge, bool ds4) {
     EnterCriticalSection(&s->spkCs);
     s->spkCount = 0;
     s->spkStop = 0;
-    s->spkNoDevice = s->usb;              // a DS4 on a cable stays this way: only Bluetooth reaches its speaker
-    s->spkWaitEndpoint = s->usb && !ds4;
+    s->spkNoDevice = s->spkWaitEndpoint = s->usb;
     LeaveCriticalSection(&s->spkCs);
     s->alive = 1;
     s->thread = CreateThread(nullptr, 0, IoThread, s, 0, nullptr);
@@ -1006,7 +1021,7 @@ void CheckUsbEndpoints() {
         IMMDevice* d = PadContainerId(&s, &container) ? FindPadEndpoint(container, static_cast<int>(&s - g_slot)) : nullptr;
         if (!d) continue;
         d->Release();
-        Log("DualSense %d: USB audio endpoint ready", static_cast<int>(&s - g_slot));
+        Log("%s %d: USB audio endpoint ready", Model(&s), static_cast<int>(&s - g_slot));
         s.spkWaitEndpoint = false;
         s.spkNoDevice = false;
     }
@@ -1095,7 +1110,7 @@ bool DsSpeakerWrite(int slot, const float* mono, int frames, int rate) {
             s.spkBuf[(s.spkHead + s.spkCount++) % kSpkRing] = mono[i];
         }
         s.spkLastWrite = GetTickCount();
-        LPTHREAD_START_ROUTINE fn = s.ds4 ? Ds4SpeakerThread : s.usb ? UsbSpeakerThread : SpeakerThread;
+        LPTHREAD_START_ROUTINE fn = s.usb ? UsbSpeakerThread : s.ds4 ? Ds4SpeakerThread : SpeakerThread;
         if (!s.spkThread) s.spkThread = CreateThread(nullptr, 0, fn, &s, 0, nullptr);
     }
     LeaveCriticalSection(&s.spkCs);
