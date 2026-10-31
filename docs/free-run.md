@@ -62,7 +62,8 @@ race HUD, from the start the Start row picks (a city district or a closed venue)
   lead lap bonuses on a race track, user). `FreeRunTrackCheckHook` treats every track as 4000 in split screen.
 - **Players.** Free Run's starter (0x53F580) sets 1 local player and creates 1 human; `CreateHumanRacers` makes it 2 in
   split screen, then adds players 3..6 as usual ([players](players.md)).
-- **Free state.** When driving starts, Free Run switches the race to its free state (0x89E7B0 = 7, 0x607190) and sets
+- **Free state.** When driving starts, Free Run switches the race to its free state (0x89E7B0 = 7, the outrun race type; 0x607190 is inside the outrun
+  start 0x607180) and sets
   the local player count from the human cars (0x6071D5). With 3-4 that stopped the game's 2-player paths (dark
   screen). `FreeStatePlayersHook` (0x6071D2) caps it at 2.
 - **Skins.** Race type 9 sets skin 1 for every human (0x526007). `FreeRunSkinHook` (0x525FFE) skips that in split

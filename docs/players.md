@@ -129,6 +129,7 @@ player (0x42F800: a cross-traffic emitter 0x42E790, or ahead on that player's ro
   near P6 (196-231). Traffic level 3, starts staggered 8 s apart (P6 first), 90 s: 2.7-3.3 cars near every player,
   10 appearances, all at 196-250.
 - The count of traffic cars is the track's table entry for the traffic level (0x4FE9F0: track info +0xEC + direction +
-  level * 2, at most 16), the same as single player, shared by all players. Not raised: the race car array holds 25
-  cars (World +0x1C..+0x7F, the racer slots follow), and every car costs car pool memory and per-car resources.
+  level * 2, at most 16), the same as single player, shared by all players. Not raised: the race car array holds 22
+  cars (World +0x1C; `IndexCars` 0x5F0D20 has no bound, and its global arrays 0x89CCF8/0x89CD50/0x89CDA8 are 22 long),
+  6 racers + 16 traffic fill it exactly, and every car costs car pool memory and per-car resources.
 - Traffic car models still stream for P1's area only (0x412950: the zone at inOrder[0]'s car).
