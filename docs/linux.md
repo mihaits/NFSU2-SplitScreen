@@ -64,6 +64,9 @@ median, 78 low, with the main thread at 98 % of a core and the GPU at 67 %: CPU 
 - **Xbox USB impulse triggers.** Not tested with hidraw access; the rule below only matches the Bluetooth pad.
 - **Bluetooth speaker dropouts**, worse than Windows, on DualSense and DS4: on the laptop a constant stutter. The reports leave
   on time: a 60 s race held 235 reports per 5 s, 0 underruns, 0 short packets, max late 2.9 ms, no write errors. So the loss
-  is below the mod and no mod-side fix is known. Not separated: classic HID here goes through bluetoothd's uhid, not the
-  hidp module; the Intel AX211 shares its radio with Wi-Fi; and a DS4 and an Xbox pad were on the same adapter. Next
-  checks, none done: only the DualSense on Bluetooth, Wi-Fi off, `UserspaceHID=false` in `/etc/bluetooth/input.conf`, `btmon`.
+  is below the mod and no mod-side fix is known. It stutters with the DualSense alone on the adapter too. `btmon` (20 s, classic
+  HID through bluetoothd's uhid): reports reach the controller on time (gap 21.3 ms, max 29.6), but a quarter take longer than
+  the 21.3 ms report period to complete (median 12.6 ms, p99 35.3, max 52.3), and the pad's input pauses over 20 ms about 24
+  times a second. So the link itself stalls, probably airtime or retransmits (not visible in HCI); the Intel AX211 shares its
+  radio with Wi-Fi. Next checks, not done: a race with Wi-Fi off, the same capture on Windows. Lower bitrate is the only
+  mod-side lever (the to-do in sound.md); unknown if it helps.
