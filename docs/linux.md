@@ -67,6 +67,7 @@ median, 78 low, with the main thread at 98 % of a core and the GPU at 67 %: CPU 
   is below the mod and no mod-side fix is known. It stutters with the DualSense alone on the adapter too. `btmon` (20 s, classic
   HID through bluetoothd's uhid): reports reach the controller on time (gap 21.3 ms, max 29.6), but a quarter take longer than
   the 21.3 ms report period to complete (median 12.6 ms, p99 35.3, max 52.3), and the pad's input pauses over 20 ms about 24
-  times a second. So the link itself stalls, probably airtime or retransmits (not visible in HCI); the Intel AX211 shares its
-  radio with Wi-Fi. Next checks, not done: a race with Wi-Fi off, the same capture on Windows. Lower bitrate is the only
-  mod-side lever (the to-do in sound.md); unknown if it helps.
+  times a second. So the link itself stalls, probably airtime or retransmits (not visible in HCI). It still drops with Wi-Fi
+  off, so that's not the main cause on this Intel AX211. Left: the adapter or its driver on BR/EDR, or the Linux stack; the
+  next check is the same pad's stats on Windows. Lower bitrate is the only mod-side lever (the to-do in sound.md); unknown if
+  it helps.
