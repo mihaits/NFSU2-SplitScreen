@@ -85,7 +85,9 @@ redirect their view or player choice to the view currently being drawn (`g_curre
   effect (0x5C5953: worldheadlight, -nodepth, -reflect, depth_worldheadlight, -reflect), and clears it; the flush at
   0x5CB2A0 draws the queue. 0x5BDAA0 sets per draw `HeadlightWVP = X · VP9 · B` (VP9 = view 9's platInfo +0x80, B a
   translation by the floats at 0x80052C) and `HeadlightColor` from 0x60F510(car) (call at 0x5BDC20, always player
-  1's car: `OwnLightColor` uses the car view 9 is aimed at).
+  1's car: `OwnLightColor` uses the car view 9 is aimed at). The colour is the car's bytes / 128 (255 = 2.0), but ps_1_1
+  clamps constants to 1, so in the original game a colour with all bytes above 128 turned white. `CarLightColor` scales the
+  largest byte down to 128: same hue in the game's shaders and ours, and white stays 1.0 as before.
 - The headlight pixel shaders (ps_1_1; effects are PE resources, see `tools/fxdump`) compute
   `L = beam(q.xy/q.w) · ramp(0.005·q.w + 0.5) · HeadlightColor`, `rgb = sat(2 · texture · (vertex colour + L))`
   (q = pos · HeadlightWVP, beam stage projective; the ramp clips behind the projector and fades towards 100 m).

@@ -37,9 +37,22 @@ struct LightSet {
 static LightSet g_lights;
 static float g_lightGain = 0.8f, g_lightCap = 1.0f;
 
+// HeadlightColor is the car's bytes / 128 (0x5BDC42), so 255 is 2.0, but ps_1_1 clamps constants to 1 and a bright tuned
+// colour came out white. Scales the largest byte down to 128, which keeps the hue in both the game's and our shaders.
+static uint32_t CarLightColor(void* car) {
+    uint32_t c = reinterpret_cast<uint32_t(__cdecl*)(void*)>(FN_CAR_LIGHT_COLOR)(car);
+    int r = c & 0xFF, g = (c >> 8) & 0xFF, b = (c >> 16) & 0xFF;
+    int top = max(r, max(g, b));
+    static uint32_t logged;
+    if (g_debug && c != logged) {
+        logged = c;
+        Log("headlights: car colour %06X", c & 0xFFFFFF);
+    }
+    if (top <= 128) return c;
+    return (r * 128 / top) | (g * 128 / top) << 8 | (b * 128 / top) << 16;
+}
 static uint32_t __cdecl OwnLightColor(void* car) {
-    return reinterpret_cast<uint32_t(__cdecl*)(void*)>(FN_CAR_LIGHT_COLOR)(
-        SplitMode() && g_ownLightCar ? g_ownLightCar : car);
+    return CarLightColor(SplitMode() && g_ownLightCar ? g_ownLightCar : car);
 }
 
 // ---- shader swap
@@ -201,7 +214,7 @@ static int PrepareOtherLights(void* world, View* v) {
         if (dx * dx + dy * dy + dz * dz > LIGHT_REACH * LIGHT_REACH) continue;
         HeadlightsForPlayer(j);
         ProjectorMatrix(v9, other[n]);
-        colour[n] = reinterpret_cast<uint32_t(__cdecl*)(void*)>(FN_CAR_LIGHT_COLOR)(car);
+        colour[n] = CarLightColor(car);
         reinterpret_cast<void(__thiscall*)(void*, View*, void*)>(FN_FLAG_LIT_MESHES)(world, &v9, &MarkLitMesh);
         ++n;
     }

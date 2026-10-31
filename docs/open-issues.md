@@ -1,5 +1,9 @@
 # Open issues and leads
 
+Fixed 2026-10-31: **tuned headlight colours turned white**, also in the original game: ps_1_1 clamps the colour
+(a tuned 0x7878B4 is 1.41, 0.94, 0.94 before the clamp). Only the mod's ps_2_0 lit shaders kept it, with another car within
+250 m ([rendering](rendering.md)).
+
 Fixed 2026-10-30: **player 5's steering too sharp at speed**, the wheel check read past its 2-slot arrays
 ([details](bugs/p5-steering-sharp.md)). **Crash in the track streamer's pool** (0x5DEEE1), 192 block records ran out with 4-6
 players far apart ([details](bugs/streamer-pool-crash.md)).
