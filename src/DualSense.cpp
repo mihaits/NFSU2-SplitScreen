@@ -762,7 +762,10 @@ DWORD WINAPI UsbSpeakerThread(LPVOID param) {
         auto* ext = reinterpret_cast<WAVEFORMATEXTENSIBLE*>(fmt);
         bool isFloat = fmt->wBitsPerSample == 32 && (fmt->wFormatTag == WAVE_FORMAT_IEEE_FLOAT ||
                        (fmt->wFormatTag == WAVE_FORMAT_EXTENSIBLE && ext->SubFormat.Data1 == WAVE_FORMAT_IEEE_FLOAT));
-        if (!isFloat || fmt->nChannels < 2) why = "unexpected mix format";
+        Log("%s %d: USB speaker mix format: %d channels, %d Hz, %d bit, tag 0x%X, mask 0x%X", Model(s), idx, fmt->nChannels,
+            static_cast<int>(fmt->nSamplesPerSec), fmt->wBitsPerSample, fmt->wFormatTag,
+            fmt->wFormatTag == WAVE_FORMAT_EXTENSIBLE ? static_cast<unsigned>(ext->dwChannelMask) : 0);
+        if (!isFloat || fmt->nChannels < 1) why = "unexpected mix format";
         else if (FAILED(client->Initialize(AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_EVENTCALLBACK, kUsbSpkBuffer, 0,
                                            fmt, nullptr)) ||
                  FAILED(client->SetEventHandle(ev)) || FAILED(client->GetBufferSize(&frames)) ||
@@ -773,6 +776,10 @@ DWORD WINAPI UsbSpeakerThread(LPVOID param) {
     Log("%s %d: USB speaker stream %s%s", Model(s), idx, why ? "failed: " : "started", why ? why : "");
     SpkQueue q;
     int channels = fmt ? fmt->nChannels : 0;
+    // Wine reports 4 channels on a DualSense's mono PipeWire node, which only takes the stream's channel 1: fill channels
+    // 1 and 2 there (3 and 4 are haptics on the 4-channel layout), and every channel of a smaller endpoint. 0: channel 2 only
+    const bool wine = GetProcAddress(GetModuleHandleA("ntdll.dll"), "wine_get_version") != nullptr;
+    const int fill = channels < (s->ds4 ? 2 : 4) ? channels : wine && !s->ds4 ? 2 : 0;
     double rate = fmt ? fmt->nSamplesPerSec : 0;
     // a DS4's endpoint runs at 32 kHz: a kSpkOut take would need more input samples than SpkTake reads at once
     const int maxChunk = rate < 40000 ? 512 : kSpkOut;
@@ -793,7 +800,11 @@ DWORD WINAPI UsbSpeakerThread(LPVOID param) {
         for (UINT32 done = 0; done < n && !idle;) {
             int chunk = n - done > static_cast<UINT32>(maxChunk) ? maxChunk : static_cast<int>(n - done);
             if (!SpkTake(s, q, mono[idx], chunk, rate)) { idle = true; break; }
-            for (int i = 0; i < chunk; ++i) f[(done + i) * channels + 1] = mono[idx][i];
+            for (int i = 0; i < chunk; ++i) {
+                float* frame = f + (done + i) * channels;
+                if (fill) for (int c = 0; c < fill; ++c) frame[c] = mono[idx][i];
+                else frame[1] = mono[idx][i];
+            }
             done += chunk;
         }
         render->ReleaseBuffer(n, 0);

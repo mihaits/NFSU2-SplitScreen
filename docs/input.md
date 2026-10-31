@@ -88,6 +88,8 @@ controllers are hidden. Pads 0..3 are the real XInput pads, 4..9 debug pads driv
     After a plug it shows up about 10 s after the HID interface, so a USB slot starts with `spkNoDevice` set and the
     hotplug thread (`CheckUsbEndpoints`, every 2 s) clears it once the endpoint is there. Until then `DsSpeakerWrite`
     returns false and the car stays on the PC. sound.cpp takes the car back as soon as `XPadSpeakerReady` says so.
+  - Under Wine a DualSense also gets channel 1, and any smaller endpoint all its channels (docs/linux.md). The mix format
+    is logged.
   - Queue, rate trim and limiter are shared with Bluetooth (`SpkTake`, at 48 kHz here). Event driven, 30 ms buffer. No
     limit on other output reports while streaming. A stream that fails logs why; "no active audio endpoint" and
     "endpoint gone" wait for the endpoint again, anything else stays off until the pad reconnects.
