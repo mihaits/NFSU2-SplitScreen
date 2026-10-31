@@ -51,6 +51,8 @@ KERNEL=="hidraw*", KERNELS=="*045E:0B20*", MODE="0660", TAG+="uaccess"
 then run `sudo udevadm control --reload` and reconnect the pad. To undo, delete the file and reconnect. Tested on 0B20 only:
 Wine's process moves to the pad's hidraw node, the pad still appears once, the triggers buzz and rumble stays on time. Other
 Xbox Bluetooth ids may need their own line. Adding 0B20 to Steam's rules (steam-devices) would make this unnecessary.
+On USB the triggers stay off and the rule can't help: the pad (045E:02EA) uses the xpad driver, which has no hidraw node, and
+evdev has no trigger path. So Bluetooth with the rule is the working path on Linux.
 
 **Steam Controller (2015) rumble without Steam.** Not possible through Wine: no input node has force feedback. On cable
 (hid-steam) the gamepad node has no EV_FF and disappears while the game holds hidraw; on Bluetooth (hid-generic) only
@@ -61,7 +63,6 @@ drives the pad itself. A fix would be native HID haptic pulses over hidraw, writ
 median, 78 low, with the main thread at 98 % of a core and the GPU at 67 %: CPU limited. No physics check at high frame rates.
 
 ## To fix
-- **Xbox USB impulse triggers.** Not tested with hidraw access; the rule below only matches the Bluetooth pad.
 - **Bluetooth speaker dropouts**, worse than Windows, on DualSense and DS4: on the laptop a constant stutter. The reports leave
   on time: a 60 s race held 235 reports per 5 s, 0 underruns, 0 short packets, max late 2.9 ms, no write errors. So the loss
   is below the mod and no mod-side fix is known. It stutters with the DualSense alone on the adapter too. `btmon` (20 s, classic
