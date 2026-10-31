@@ -62,5 +62,8 @@ median, 78 low, with the main thread at 98 % of a core and the GPU at 67 %: CPU 
 
 ## To fix
 - **Xbox USB impulse triggers.** Not tested with hidraw access; the rule below only matches the Bluetooth pad.
-- **Bluetooth speaker dropouts**, worse than Windows, on DualSense and DS4. 235 reports per 5 s, 0 underruns, so the loss is
-  probably after the queue, in Wine or the Bluetooth stack. Not measured.
+- **Bluetooth speaker dropouts**, worse than Windows, on DualSense and DS4: on the laptop a constant stutter. The reports leave
+  on time: a 60 s race held 235 reports per 5 s, 0 underruns, 0 short packets, max late 2.9 ms, no write errors. So the loss
+  is below the mod and no mod-side fix is known. Not separated: classic HID here goes through bluetoothd's uhid, not the
+  hidp module; the Intel AX211 shares its radio with Wi-Fi; and a DS4 and an Xbox pad were on the same adapter. Next
+  checks, none done: only the DualSense on Bluetooth, Wi-Fi off, `UserspaceHID=false` in `/etc/bluetooth/input.conf`, `btmon`.
