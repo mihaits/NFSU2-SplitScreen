@@ -92,7 +92,7 @@ are most likely to change:
 | XtendedInput | not recommended: replaces the same controller input code, and this mod already handles Xbox and DualSense pads per player |
 
 ## Linux compatibility
-Tested up to 4 players with GE-Proton through Lutris on Ubuntu 26.04. Setup, pad support and optional Bluetooth tweaks are in [docs/linux.md](docs/linux.md).
+Tested up to 4 players with GE-Proton through Lutris. Setup, pad support and optional Bluetooth tweaks are in [docs/linux.md](docs/linux.md).
 
 ## For developers
 Build with Visual Studio 2022 Build Tools (C++, x86): run `build.bat`.

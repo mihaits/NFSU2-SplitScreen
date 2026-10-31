@@ -1,16 +1,11 @@
 # Linux compatibility
 
-Tested 2026-10-31 with build 610e9ca2 (`main` before the headlight fix), up to 4 players: it works, with no missing imports
-and no crash files. 5-6P were not tested. Two of about 20 launches exited after 2 s (wait status 40); a retry worked, cause
-unknown.
-
-**Setup.** Ubuntu 26.04.1, kernel 7.0.0-38, GNOME Wayland, RTX 4070 Mobile (595.99.02) + Intel Arc, Ultra 7 155H, 2560x1600
-at 240 Hz, 133 % scaling. Lutris 0.5.22, umu 1.4.4, GE-Proton11-11, DXVK 3.1.1, win64 prefix, current WidescreenFix.
+Tested through Lutris with GE-Proton and DXVK on GNOME Wayland, up to 4 players: it works, with no missing imports and no
+crash files. 5-6P were not tested. A launch that exits after 2 s worked on a retry; cause unknown.
 
 **What a player needs.**
 - GE-Proton with WidescreenFix and `dinput8=n,b`; the asi and ini in `scripts`.
-- AC power: on battery the GPU drops to 10 W and the game crawls.
-- Native resolution with fractional scaling: the game otherwise sees a virtual X size above the panel's (3840x2400 here).
+- Native resolution with fractional scaling: the game otherwise sees a virtual X size above the panel's.
   Use `PROTON_ENABLE_WAYLAND=1` and `WindowedMode = 5`, with the resolution set in the registry before launch
   (`g_RacingResolution`, high word 0x8000 | width, low word height). Under X11, the game's resolution menu shrinks mode 5
   to 2/3 size. Windows testing only used mode 4.
@@ -32,7 +27,7 @@ at 240 Hz, 133 % scaling. Lutris 0.5.22, umu 1.4.4, GE-Proton11-11, DXVK 3.1.1, 
 **DualSense USB speaker.** PipeWire's UCM profile exposes the pad as a mono "Internal Mono Speaker" node, yet Wine reports 4
 channels (mask 0x33). The stream has 4 ports (AUX0-3) and only AUX0 is linked to the node, so a signal on channel 2 alone,
 as on Windows, is silent. Under Wine (`wine_get_version` in ntdll) `UsbSpeakerThread` fills channels 1 and 2 of a DualSense
-endpoint. Quiet at first: the node's volume was 0.40; at 1.00 the level is right, and that survives a reconnect.
+endpoint. If it's quiet, raise that node's volume in the system's sound settings.
 
 **Xbox Bluetooth rumble.** It came 1-4 s late while the mod sent every change, up to 125 times a second. Capped at 20 sends a
 second under Wine (`Apply` in `XboxWgi.cpp`, always the latest value) it's on time, checked by A/B on the same setup. The pad
@@ -41,25 +36,15 @@ and the uhid and hid-microsoft layers above don't slow down. `btmon`: uncapped, 
 (median 23 ms each); capped, 14-19/s, 14 ms each, with idle gaps. So the excess most likely queued; the tail after a stop and
 the exact queue weren't measured. Wine's process holds the pad's event node; no udev rule is needed.
 
-**Bluetooth speaker dropouts (optional setup).** Constant stutter on the Intel AX211 with default settings, caused by BlueZ's
-LE background scan, which runs while any bonded LE device (here Xbox pad, Steam Controller, mouse) is disconnected and takes
-the radio from the pad's BR/EDR link 30 ms out of every 60 ms. The reports leave the mod on time (235 per 5 s, 0 underruns,
-max late 2.9 ms), and Wi-Fi off or a single pad doesn't help. To cut it, under `[LE]` in `/etc/bluetooth/main.conf`:
+**Bluetooth speaker dropouts (optional setup).** Constant stutter with default settings, caused by BlueZ's LE background scan,
+which runs while any bonded LE device (a pad or mouse, say) is disconnected and takes the radio from the pad's BR/EDR link 30
+ms out of every 60 ms. Reports leave the mod on time, and Wi-Fi off or a single pad doesn't help. To cut it, under `[LE]` in `/etc/bluetooth/main.conf`:
 ```
 ScanIntervalAutoConnect=1024
 ScanWindowAutoConnect=16
 ```
-then `sudo systemctl restart bluetooth` (10 ms every 640 ms). Measured with `btmon` on a DualSense:
-
-| | Default scan | With the setting | Windows |
-|---|---|---|---|
-| Input gaps over 20 ms, per second | 23.7 | 0.7 | 0.3 |
-| Input reports per second | 208 | 667 | 480 |
-| Reports completing later than one period | 24.2 % | 0.8 % | not comparable |
-| By ear | constant | better, not perfect | once every few seconds |
-
-The DualSense's `speaker link:` log lines show the same gaps without `btmon`. With the setting a DS4 is flawless by ear (1.0
-gaps/s, 62.5 smaller reports/s). LE devices reconnected in a couple of seconds at most, with no failures; no timed comparison.
+then `sudo systemctl restart bluetooth` (10 ms every 640 ms). On a DualSense, input gaps over 20 ms fell from about 24 to 0.7 a second (Windows: 0.3); a DS4 sounded
+clean. The DualSense's `speaker link:` log lines show these gaps. LE devices still reconnected within a couple of seconds.
 
 **Xbox Bluetooth impulse triggers (optional setup).** Without hidraw access Wine reaches the pad through evdev, which has no
 trigger motors. Steam's `60-steam-input.rules` covers 045E:0B22 but not this pad's 045E:0B20, so its hidraw node stays
@@ -78,9 +63,6 @@ evdev has no trigger path. So Bluetooth with the rule is the working path on Lin
 (hid-steam) the gamepad node has no EV_FF and disappears while the game holds hidraw; on Bluetooth (hid-generic) only
 keyboard and mouse nodes exist. Keeping its rumble on XInput instead of WGI changed nothing (tested on Bluetooth). Steam
 drives the pad itself, so use Steam with this pad. Native HID haptic pulses over hidraw would work but aren't worth doing.
-
-**Frame rate** (AC, native, all effects, vsync, 240 cap): 1P 182 median, 155 low; 2P about 145-170; 3P about 110-155; 4P 89
-median, 78 low, with the main thread at 98 % of a core and the GPU at 67 %: CPU limited. No physics check at high frame rates.
 
 ## To fix
 - **Remaining DualSense Bluetooth speaker dropouts.** With the scan setting above, a few are left, about like Windows. A DS4 with
