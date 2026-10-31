@@ -184,6 +184,10 @@ static void Install(HMODULE self) {
         static const uint8_t jmp = 0xEB;
         if (*reinterpret_cast<uint8_t*>(at) == 0x75) Write(at, &jmp, 1);
     }
+    {
+        static const uint8_t jmp = 0xEB;
+        if (*reinterpret_cast<uint8_t*>(AT_RAIN_SPLIT_THIN) == 0x7C) Write(AT_RAIN_SPLIT_THIN, &jmp, 1);
+    }
     if (g_rumble) WriteJump(FN_FF_CAPABLE, &FfCapable, 5);   // Feedback selectable (not for the keyboard player)
     WriteJump(FN_IMPACT_RUMBLE, &ImpactRumbleHook, 6);
     WriteJump(FN_JOY_SLOT_PRESENT, &JoySlotPresent, 5);

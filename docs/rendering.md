@@ -131,7 +131,7 @@ the same fractions of their targets. Movers are found through a hook on the vtab
 **Car detail.** With the split layout (0x5B98A0 == 3) the car renderers 0x620AE0 and 0x6162E0 multiplied the car's
 screen size by 0.7 (0x7A6700) and forced its LOD range to 1..1, the low model, ignoring Car Geometry Detail (0x870CF8
 -> 0x8A1C10/14). The car parts renderer 0x615630 scaled the size too. The `jne` past each block (0x620C8C, 0x616316,
-0x6156CC) is patched to `jmp`. Not touched: 0x61F332 scales a car value at +0x5094 by 1/8 in split (purpose unknown).
+0x6156CC) is patched to `jmp`.
 
 **Car light glares.** 0x5D6570 made glares only for views 1/2 (GetView(2) check at 0x5D683C, mask from GetView(1) at
 0x5D686F). `GlareView` counts views 5/6 as view 1, reading the rendering view from the model renderer's context
@@ -173,6 +173,8 @@ also needed the nearest-racer fix ([players](players.md)).
 
 **Weather.**
 - Every view has its own rain object (view +0x64), but the frame only used view 1's, full screen.
+- With the split layout the rain update cut the target amount (rain +0x5094) to 1/8 (0.125 at 0x788164). The `jl` past it
+  at 0x61F335 is patched to `jmp`: the same rain as single player.
 - Falling rain and the drop update 0x61F120 (call 0x5CB46B) → `RainForViews`: once per view, viewport = its region
   (the previous viewport is restored afterwards; later passes depend on it).
 - Lens droplets 0x5C7AB0 (call 0x5CB9A6) → `RainDropsForViews`; its four 0x48B1E0(1) calls → `RainDropsView`; the

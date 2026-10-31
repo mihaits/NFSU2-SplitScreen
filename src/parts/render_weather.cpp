@@ -8,7 +8,8 @@
 // rain in its region (viewport moved by SetViewportHook via g_currentView), drops remapped into its region.
 #define AT_RAIN_CALL       0x5CB46B      // `call 0x61F120` (thiscall rain object)
 #define FN_RAIN_UPDATE     0x61F120
-#define RAIN_TIME_ACCUM    0x8A1D50      // global accumulator advanced by 0x61F120 (once per frame)
+#define AT_RAIN_SPLIT_THIN 0x61F335      // `jl` past the split layout's 1/8 on the rain target (rain +0x5094) -> `jmp`
+#define RAIN_TIME_ACCUM   0x8A1D50      // global accumulator advanced by 0x61F120 (once per frame)
 #define AT_RAIN_DROPS_CALL 0x5CB9A6      // `call 0x5C7AB0` (cdecl, byte arg)
 #define FN_RAIN_DROPS      0x5C7AB0
 #define AT_RAIN_DROP_GET   0x5C7C52      // `call 0x6142C0` (thiscall (i, &x, &y, &alpha, &size), ret 0x14)
