@@ -228,7 +228,7 @@ Curve: 9 points idle..redline (S +0x200). Fuel cut at redline − 25, resume at 
 
 Clutch states (0x5A1400): 0 opening, 1 open (gear changes), 2 closing, 3 closed; rates `{−3, 1.5}·S+0x1CC`. Slip torque `S+0x1C4·clutch·clamp(Δω, ±300)`.
 
-Delivery 0x594A30: `front = (1−split)·FD·ratio·T`, `rear = split·FD·ratio·T`. Each axle is a limited-slip diff *(inferred)*: shares by speed in the 0.35..0.65 band, else 82.5/17.5. Above 0.8 rear split, below 60 mph, with `*(car+0x3C)+0x120 > 0`, split is forced to 0.65 (0x5A49A0, meaning unknown).
+Delivery 0x594A30: `front = (1−split)·FD·ratio·T`, `rear = split·FD·ratio·T`. Each axle splits by wheel speed with no locking term: a wheel's share is its own ω over the pair's sum while that stays in 0.35..0.65, so the faster wheel gets more, unlike an open diff's 50/50. Past the band (one wheel about 1.86× the other) the slower wheel gets 82.5%. With a wheel off the ground the band closes, so the 82.5% applies at any difference. Nothing here reads a part or a tuning value, and no torque couples the two wheels. Above 0.8 rear split, below 60 mph, with `*(car+0x3C)+0x120 > 0`, split is forced to 0.65 (0x5A49A0, meaning unknown).
 
 Wheelspin (0x5AA830): with throttle > 0.2 and mean slip > 0.1, wheel speed is rewritten from engine speed (0x5A12D0), so the engine leads.
 
@@ -281,7 +281,7 @@ Chunk 0x34600 of GLOBAL\GLOBALB.BUN at [0x8A1CCC]: 46 records, stride 0x890, bas
 | +0x288 / +0x28C / +0x290 | yaw clamps, limiter mph 125 |
 | +0x2A0 / +0x2AC | NOS capacity, NOS strength |
 
-Parts lerp S toward targets by summed part fraction (table in chunk 0x34A15). Slider value is `current + (hi−lo)·(byte−100)/100`, range from the highest installed part. ECU and turbo bars are zero-sum: they reshape the curve but add no torque. Slider 0x11 is NOS balance and 0x12 brake bias.
+Parts lerp S toward targets by summed part fraction (table in chunk 0x34A15). The differential, LSD and 6-speed parts pick a gearbox set and widen the final drive and gear sliders; they don't change the torque split. Slider value is `current + (hi−lo)·(byte−100)/100`, range from the highest installed part. ECU and turbo bars are zero-sum: they reshape the curve but add no torque. Slider 0x11 is NOS balance and 0x12 brake bias.
 
 Mode tables (0x7FC2E4 drift, 0x7FC33C Street X, 0x7FC394 drag, + class·0x144; class 0 FWD, 1 AWD, 2 RWD; 22 floats) multiply downforce, mass, yaw inertia and grip and shift split, CG and bias, interpolated by part level. Drift: FWD +.15 rear split, RWD −.15. Street X adds up to 60% rear downforce and 6-35% grip by class and axle. Drag adds 20-40% downforce and −5% mass.
 
