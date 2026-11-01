@@ -61,7 +61,7 @@ options of whoever paused.
 - [ ] Maybe: everyone picking a car at once; press START to join at any time
 - [ ] Free Run: game modes like a waypoint race (see [Free Run ideas](docs/free-run.md#ideas-not-built-yet))
 
-This is beta 0.11.0, so expect the odd bug; known ones are in [open issues](docs/open-issues.md). If you hit one, please
+This is beta 0.12.0, so expect the odd bug; known ones are in [open issues](docs/open-issues.md). If you hit one, please
 [open an issue](https://github.com/mihaits/NFSU2-SplitScreen/issues): fill in the [bug report template](docs/bug-report.md)
 and attach `scripts\NFSU2SplitScreen.log` (set `Debug = 1` in the ini to write it). After a crash, also attach
 `scripts\NFSU2SplitScreen_crash.txt` and the newest `scripts\NFSU2SplitScreen_crash_*.dmp`.
