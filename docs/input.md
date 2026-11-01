@@ -29,8 +29,8 @@ controllers are hidden. Pads 0..3 and 18..21 are the real Xbox pads (read throug
 - **Input stalls:** a connected pad streams full input reports every few ms. Through a gap the game keeps the last
   input; after 1 s (`kStallMs`) `DsState` returns neutral input (no buttons, sticks centred, triggers released) until
   reports come back. Gaps from 250 ms (`kStallLogMs`) are logged: "DualSense N: no input for ... ms" / "input again
-  after ... ms". Seen 2026-10-30
-  (5 pads on one Bluetooth adapter): one pad dropping froze every pad's last input for ~19 s, until it reconnected,
+  after ... ms". Seen with 5 pads
+  on one Bluetooth adapter: one pad dropping froze every pad's last input for ~19 s, until it reconnected,
   and cars spun on held steering and throttle. Windows logged no error for the other pads, so the plugin had no way
   to see it before.
 - **DS4Windows:** native pads are closed, and none opened, only while `DS4Windows.exe` runs *and* exposes a virtual
@@ -133,7 +133,7 @@ controllers are hidden. Pads 0..3 and 18..21 are the real Xbox pads (read throug
   after the Feedback row, `call 0x54F170` at 0x4C4985, when the pausing player's pad is a DualSense). The choice is
   saved as `[PlayerN] AdaptiveTriggers` in `NFSU2SplitScreen_Players.ini`; without one, the ini's `AdaptiveTriggers`
   applies.
-- Tested with 4 native DualSense pads over Bluetooth at once, next to 2 Xbox pads (5-6 player races, 2026-10-24).
+- Tested with 4 native DualSense pads over Bluetooth at once, next to 2 Xbox pads (5-6 player races).
 
 **Native DualShock 4 (`DualSense.cpp`).** The DualSense backend also opens DS4 pads (054C:05C4, 054C:09CC; `Slot.ds4`),
 in the same slots, threads and hotplug, under `[INPUT] NativeDualSense` and the same DS4Windows rule. `XPadIsDualSense` is
@@ -141,7 +141,7 @@ false for them and `XPadIsDs4` true, so they get no player LEDs, trigger row or 
 - **Init:** feature 0x02 (calibration, read only); on Bluetooth it switches the pad to the full 0x11 input report, as
   any 0x11 output report does. Logged as "DS4 N: USB|Bluetooth, report sizes in .. out ..". Nothing else is needed.
 - **Address:** feature 0x12 (same layout as the DualSense's 0x09), else the HID serial string. A cable plugged into a
-  Bluetooth DS4 mid-race changes nothing: the pad keeps sending on Bluetooth and the slot stays there (2026-10-30).
+  Bluetooth DS4 mid-race changes nothing: the pad keeps sending on Bluetooth and the slot stays there.
 - **Input:** USB 0x01 or BT 0x11 (offsets +2). Same bits as the DualSense at other offsets: sticks 1..4, hat + face 5,
   L1/R1/Share/Options/L3/R3 6, PS and touchpad click 7, L2 8, R2 9, battery 30. The input buffer is `kInMax` (600 bytes).
 - **Output:** USB 0x05 (32 bytes, flags 0x07 at 1, from 4 on) or BT 0x11 (78 bytes, 0xC4 at 1, flags 0x03 at 3, from 6 on,
@@ -161,7 +161,7 @@ false for them and `XPadIsDs4` true, so they get no player LEDs, trigger row or 
   between the pad and the PC is the only feedback.
 - **Speaker (USB; `UsbSpeakerThread`, `UsbRoute`).** Second model (09CC) only; the first model has no USB audio, so it finds no endpoint and its car stays on the PC. The stream is the DualSense's USB one at 32 kHz on the right channel, with E0 3 and the speaker volume at the start and E0 0 at the end. The pad is a 2-channel 32 kHz "Headset Earphone" endpoint that normally plays on the jack. **Feature report E0 "Set Audio Output", `E0 00 n`, routes it** (2026-10-31, tone heard on the speaker on a cable, no Bluetooth): 0 stereo headset, 1 left to headset, 2 left to headset and right to speaker, 3 right to speaker, 4 off. The value table is in the Controller Collective wiki, under the wireless dongle, but the pad's own descriptor declares E0 too, and it refuses a read (`tools/ds4_usb_speaker.cpp output n`). So the car goes on the right channel.
   - What led there: 0x05 has no route byte (`sweep`), and report volumes 19, 20 and 22 stop at 0x4F. The factory sine, feature A0 `01 01` / `01 00`, plays on the speaker on a cable and 0x05's speaker volume changes it (`sine`, `sinevol`). A0 `05` (audio chip write) is rejected here: A4 reads FF FF (`chipstatus`). Never send A0 `04 02`, `04 03` or `0A`: they reach flash or strand the pad.
-  - After a replug the speaker comes back a few seconds later, once the endpoint is there (user, 2026-10-31).
+  - After a replug the speaker comes back a few seconds later, once the endpoint is there.
   - A pad connected over Bluetooth stays there with a cable in and keeps its speaker: that is how to charge and use the speaker on a first-model pad.
 
 **Xbox pads through Windows.Gaming.Input (`XboxWgi.cpp`).**

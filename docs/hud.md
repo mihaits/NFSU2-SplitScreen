@@ -83,9 +83,9 @@ parked off-screen) are moved 2000 further out. Pivots are scaled too.
   not `g_screenViews`: that is still 2 in a 3+ player race's first frame, and the minimap update then looked for P3's
   car entity before it existed (crash 0x4AC2B3). Then `MinimapUpdate` runs per player, the render
   hook picks the minimap objects out without a render slot, and `HudObjectFilter` sends only them through
-  `QuadTransform` → `MinimapPlace` (bottom-left of each half). The game's own map in the middle of the left edge is gone.
+  `QuadTransform` → `MinimapPlace` (bottom-left of each half). The game's own map in the middle of the left edge isn't shown.
 - `DestroyMinimapManager` (call 0x4FBFF2) unlinks P3/P4's entities first. They belong to P3's package, which is freed
-  earlier, and without this quitting crashed. The pause menu's choice 4 with race state 0x89E7B0 != 0 (0x606B32 ->
+  earlier, and without this quitting crashes. The pause menu's choice 4 with race state 0x89E7B0 != 0 (0x606B32 ->
   0x5EA980 -> 0x4F92A0, e.g. in Free Run) rebuilds the manager; its destroy call 0x4F92B1 goes through
   `DestroyMinimapManager` too, so `g_mmExtendedMgr` is reset and the new manager is extended even at the freed
   address (the game's allocator usually returns a new one: tested by calling 0x4F92A0 in a 3P Free Run).

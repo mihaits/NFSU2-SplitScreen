@@ -77,8 +77,8 @@ redirect their view or player choice to the view currently being drawn (`g_curre
   0x5E99C0 into the space after the cursor (world +0x6C8, limit +0x6CC) without advancing it. This is needed because
   the projector's geometry was culled from P1's position. It sets the entry's fields as pass 1 does (0x5E9A70..):
   +0x60 camera position (camera +0x40), +0x70 direction (camera +0x50), +0x80 view +0xC, +0x84 scenery section.
-  The direction used to go to +0x6C, one float off: views 6..8 (P4-P6) then culled with a direction mixed from
-  view 5's camera and drew scenery only close to the camera.
+  The direction must go to +0x70: at +0x6C, one float off, views 6..8 (P4-P6) cull with a direction mixed from
+  view 5's camera and draw scenery only close to the camera.
 - **Every player's light in one draw** (`parts/render_headlights.cpp`, the method of th0mk/nfsu2-web). The headlight
   pass (0x5D6D20(world; view 9, 0x488B90) at 0x5CB218) flags the meshes in view 9's culled list (+8 → +0x1B |= 0x80);
   the world draw (0x5CB23B) turns the flag into render flag 0x200 (0x5D6B85), which picks the material's headlight
@@ -101,9 +101,9 @@ redirect their view or player choice to the view currently being drawn (`g_curre
   from oT1.w), and a ps_2_0 per variant (`src/shaders/hl_ps_*.asm`) that sums up to 5 other lights:
   `L = min(L_own + gain · ΣL_k, cap)` (c1..c5 colours × gain, c6 cap; `[DEBUG] HeadlightGain` 80 /
   `HeadlightCap` 100, percent). The rest is the game's formula, so fog, reflection and alpha are unchanged.
-- Replaced (2026-10-24): extra subtract/add passes per other light. They forced depth bias over the coplanar kerb
-  decals (glitches at beam edges), clamped where a redrawn mesh wasn't the pixel's surface (whole objects brightening
-  as a car came near) and added every beam at full strength (blown-out overlaps).
+- Don't use extra subtract/add passes per other light: they force depth bias over the coplanar kerb decals (glitches at
+  beam edges), clamp where a redrawn mesh isn't the pixel's surface (whole objects brighten as a car comes near) and add
+  every beam at full strength (blown-out overlaps).
 - Light pools on the road (0x615490(view), "2PLAYERHEADLIGHT1" decal) are for traffic only: player cars have their
   lights flag (+0x550) cleared during the call (`PoolsForTraffic`). The split path calls it after 0x566400
   (`SplitPassWithHeadlightPools`, 0x5CB2E3); the 1P path (intro) at 0x5CAC07.

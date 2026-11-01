@@ -26,8 +26,8 @@ DUMMY_SKIN<index + 1>). The human component manager capacity (type 1) imm at 0x4
 4. byIndex is fixed up; +0x10 = k, +0x18 = view 5..8, +0x1C = 0 (no mirror); `0x5F3E10(player, car)` attaches it.
 
 **Per-player settings.** Table 0x83AA64 + i*0x28 has 2 entries (camera +0x10, Feedback +4, HUD options, ...), so P3
-read race data as its settings (e.g. camera 0 instead of P1's drift camera). The 27 in-race readers (kSettingsReaders)
-now use a 4-entry mirror `g_settings`. P1/P2 are synced both ways each frame: menus write the game's table, while the
+would read race data as its settings (e.g. camera 0 instead of P1's drift camera). The 27 in-race readers (kSettingsReaders)
+use a 4-entry mirror `g_settings`. P1/P2 are synced both ways each frame: menus write the game's table, while the
 in-race camera change 0x5F2FA0 → 0x502540 writes the mirror. P3/P4's entries are their own (seat store; the first race
 without one copies P1's / P2's). HUD state 0x600090 (call 0x600595, `HudStateOf`) has 2-player rules on the index, so P3/P4 run it as P1/P2 with
 their own options put into that mirror entry for the call.
@@ -57,7 +57,7 @@ joypad bindings (record tables + axis setup, [input](input.md)) and last car are
   quick race car list 0x844968, 0x5B entry pointers, car id at +8, as the lookup at 0x525FBB). Each pick is stored
   (`SaveSeat`). P1/P2's last cars are the game's (0x83AAB8 in their profile blocks).
 
-**Names.** Racer names come from the per-player block, so P3/P4 got P1/P2's. They now get P2's name with its digit
+**Names.** Racer names come from the per-player block, so P3/P4 would get P1/P2's. They get P2's name with its digit
 swapped ("Player 3/4", `g_extraNames`, spec +0x90C). Results and labels read the player object's name +0x30 (copied in
 the player ctor at 0x5F17B3), which is set for P3/P4 in CreatePlayers. The in-race labels at 0x4C7006 / 0x4C93CF are
 patched to read player+0x30.
@@ -102,10 +102,10 @@ hook in XInputDevices). Settings are read from WidescreenFix's ini. WidescreenFi
 frame on a throwaway copy, because it also hides the mouse cursor while racing.
 
 **Nearest player / racer.**
-- 0x459AC0 (player) and 0x459A50 (player's car) compared players 1/2 only. They are replaced by `NearestPlayer` /
+- 0x459AC0 (player) and 0x459A50 (player's car) compare players 1/2 only. They are replaced by `NearestPlayer` /
   `NearestPlayerCar`, which consider every local player.
-- 0x5F1160, "distance to the nearest racer", measured racers 0/1 only. Per-car effects (0x60A1AB) skip cars more than
-  150 m away, so P3's car had no particles. Now `NearestRacerDistance` (trampoline) uses every racer when extra
+- 0x5F1160, "distance to the nearest racer", measures racers 0/1 only. Per-car effects (0x60A1AB) skip cars more than
+  150 m away, so P3's car would have no particles. `NearestRacerDistance` (trampoline) uses every racer when extra
   players exist.
 
 **Traffic.** The World update 0x609CE0 copies the first +0x14 race cars (the racers, up to 6) into World slots:
@@ -124,7 +124,7 @@ player (0x42F800: a cross-traffic emitter 0x42E790, or ahead on that player's ro
   saved timer, P5 the cars-per-tick limit. `TrafficSpacingFillHook` / `TrafficSpacingReadHook` keep players 3..6 in
   `g_trafficSpacing`.
 - The same tick moves at most ebp-8 traffic cars (16 every 0.3 s in drag, else 1 every 1 s), shared by every player, so
-  with players apart the cars one had passed came back slowly. The limit is now at least one per local player (in the
+  with players apart the cars one had passed would come back slowly. The limit is at least one per local player (in the
   fill hook). Same 6P test: traffic near P6 2.8 -> 4.3 on average, near the parked group 0.5 -> 1.8, 6 appearances
   near P6 (196-231). Traffic level 3, starts staggered 8 s apart (P6 first), 90 s: 2.7-3.3 cars near every player,
   10 appearances, all at 196-250.

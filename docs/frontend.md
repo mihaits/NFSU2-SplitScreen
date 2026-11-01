@@ -11,8 +11,8 @@ Swedish; others keep theirs). Its vtable is `{0x4AEB70 dtor, SplitMenuReact}` an
 (0x4FC061) then sets mode 4 instead of 2.
 
 **Garage backup.** When the quick race flow backs out to the main menu in mode 4, it restores player 1's garage
-(0x4B2A00 → 0x515D70, from backup +0x1677C / car +0x20354). PC lost the code that takes that backup, so it restored
-zeros: no car in the main menu, and Customize crashed. The backup is now taken when mode 4 is entered (`BackupGarage`).
+(0x4B2A00 → 0x515D70, from backup +0x1677C / car +0x20354). PC lost the code that takes that backup, so it would restore
+zeros (no car in the main menu, and Customize crashes). The plugin takes the backup when mode 4 is entered (`BackupGarage`).
 Leaving split resets FE player 0x85AD28 and the FE ports; a stale FE player 1 crashes the next 1P car select.
 
 **Players row (2-6).** It's added to the split race options screen. Option rows are 0x54-byte widgets: base ctor
@@ -58,7 +58,7 @@ Back on a seat's pick screen undoes only that seat's join: the game's own Back r
 returns to the previous seat's pick: FE 1 seats (P2/P4/P6) at 0x4FC723 (`CarselBackToP1`), P3/P5 through `CarselFilter`. The car select
 message handler 0x4FC1F0 (`CarSelectHook`) retags FE messages with the current seat's port: PC tags every message with
 mask 1, and the handler drops messages whose port doesn't match `FE_PORTS[feplayer]`. While the FE player has no port it
-retags to 0 (= any), which fixed a softlock on Back. The name box ("Player_Name") is set each frame to the seat's name.
+retags to 0 (= any); otherwise Back softlocks. The name box ("Player_Name") is set each frame to the seat's name.
 
 **Customize from any seat.** In mode 4, X on the car select went to the memory card (0x4FCB7A). It's patched to take
 the normal shop path, and the shop opens as FE player 0. On return, the car select restarts at P1's Press START; P1

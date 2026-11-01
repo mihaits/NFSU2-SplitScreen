@@ -32,10 +32,10 @@
     under the map: body = [[car+0x34] + 0x20], z +0x28 (and +0x108) = -50, vz +0xA8 = 0.
   - The streamer followed such a car across the map, see [streaming](streaming.md).
 - **Views 4/9 without an intro.** Layouts 1/2 enable view 4 (road reflection; its RT 0x86E784 enabled, 320x240) and
-  view 9 (0x5C233D). Layout 3 has no case, so split races used to inherit them from the intro. With road reflections
+  view 9 (0x5C233D). Layout 3 has no case, so a split race would inherit them from the intro. With road reflections
   on (0x870CD4), the main render 0x5CAAD0 returns immediately when view 4 is inactive (0x5CAB35). A race without an
-  intro (the street drift tracks 4174-4179 have none) therefore drew nothing 3D and crashed on quit.
-  `ApplySplitLayout` now enables views 4 and 9 every frame.
+  intro (the street drift tracks 4174-4179 have none) would draw nothing 3D and crash on quit, so
+  `ApplySplitLayout` enables views 4 and 9 every frame.
 - **Counting extra racers.** Only add up to g_extraPlayers: the street drift tracks add non-human racers (ids 50+) to
   the race count (+0x74), and counting them overran the standings' static array 0x864640.
 - **Results.** The results builder 0x54CCA0 (call 0x551447) fills its pointer list for 0x89E7C0 + [C4] + [C8] + [CC]
