@@ -89,7 +89,7 @@ controllers are hidden. Pads 0..3 and 18..21 are the real Xbox pads (read throug
     After a plug it shows up about 10 s after the HID interface, so a USB slot starts with `spkNoDevice` set and the
     hotplug thread (`CheckUsbEndpoints`, every 2 s) clears it once the endpoint is there. Until then `DsSpeakerWrite`
     returns false and the car stays on the PC. sound.cpp takes the car back as soon as `XPadSpeakerReady` says so.
-  - Under Wine a DualSense also gets channel 1, and any smaller endpoint all its channels (docs/linux.md). The mix format
+  - Under Wine a DualSense also gets channel 1, and any smaller endpoint all its channels (docs/linux-technical.md). The mix format
     is logged.
   - Queue, rate trim and limiter are shared with Bluetooth (`SpkTake`, at 48 kHz here). Event driven, 30 ms buffer. No
     limit on other output reports while streaming. A stream that fails logs why; "no active audio endpoint" and
@@ -195,7 +195,7 @@ false for them and `XPadIsDs4` true, so they get no player LEDs, trigger row or 
   into one `WgiSetVibration`; checked on a virtual 360 pad). `WgiHasTriggers` is false for the 360 class PIDs
   045E:028E/028F/0291/02A1/0719, which include DS4Windows' virtual pad. Resent every second while non-zero (Windows drops
   vibration when the window loses focus). Under Wine at most 20 sends a second: faster made Xbox Bluetooth rumble 1-4 s
-  late (docs/linux.md).
+  late (docs/linux-technical.md).
 - A native DualSense doesn't show in the `Gamepad` list, so it isn't doubled. A virtual Xbox pad from a mapper is a normal
   `Gamepad` with its own number.
 - Effects (`UpdateImpulseTriggers` in `parts/pad_lights.cpp`), Forza Horizon style: the motors buzz in proportion to

@@ -26,7 +26,7 @@ everything here was verified in game. The source is split by subsystem into `src
 | [race-flow](race-flow.md) | intros and grid, post-race scene, results counting, standings, "Hurry!" timer |
 | [free-run](free-run.md) | Free Run (free roam) in split screen |
 | [open-issues](open-issues.md) | known open bugs and leads |
-| [linux](linux.md) | Linux (Lutris, Proton) test results, what a player needs, what is left to fix |
+| [linux-technical](linux-technical.md) | Linux (Lutris, Proton) test results, causes, what is left to fix; the player page is [linux](linux.md) |
 | [tooling](tooling.md) | static and live tools, debug mailbox, automation |
 | [bug-report](bug-report.md) | bug report template and the session handoff format |
 
