@@ -5,9 +5,9 @@ Local **split screen for 2-6 players** in *Need for Speed Underground 2* on PC.
 ![6-player split screen](docs/split-screen-6p.gif)
 
 ## Install
-1. You need `speed2.exe` **v1.2** and the [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader).
-   [WidescreenFix](https://github.com/ThirteenAG/WidescreenFixesPack/releases/tag/nfsu2) is recommended (widescreen,
-   free camera) and already includes the loader.
+1. You need `speed2.exe` **v1.2**. [WidescreenFix](https://github.com/ThirteenAG/WidescreenFixesPack/releases/tag/nfsu2)
+   is recommended (widescreen, free camera) and includes the ASI loader; without it you need the
+   [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader).
 2. Download the [latest release](https://github.com/mihaits/NFSU2-SplitScreen/releases) and copy
    `NFSU2SplitScreen.asi` and `NFSU2SplitScreen.ini` into the game's `scripts` folder.
 3. One controller per player, up to 6 players. Xbox pads work directly; PlayStation
@@ -81,7 +81,7 @@ are most likely to change:
 ## Mod compatibility
 | Mod | Status |
 |---|---|
-| [WidescreenFix](https://github.com/ThirteenAG/WidescreenFixesPack/releases/tag/nfsu2) | recommended; works, its free camera per player included; not tested without it |
+| [WidescreenFix](https://github.com/ThirteenAG/WidescreenFixesPack/releases/tag/nfsu2) | recommended; works, its free camera per player included |
 | underground2.net 1.0.3 | works (tested); the mod removes its old WidescreenFix's joystick hook, which made the menus press Up endlessly |
 | NFSU2 Extra Options | testing pending |
 | NFSU2 Unlimiter | testing pending |
