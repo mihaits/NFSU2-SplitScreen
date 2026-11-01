@@ -159,7 +159,7 @@ Rolling:  Fx = T/r (solved)       Fy = -sign(alpha)*sign(vx) * 2.5 * tyre[2] * y
 | 5 | 0 | 1.86 | 3.7 | 5.1 | 6.13 | 6.7 |
 | 6 | 0 | 1.9 | 3.8 | 5.2 | 6.3 | 7.1 |
 
-It is load sensitive and has no peak-and-drop: past the slip limit force stays flat. Tables: pointers 0x7FC7D4, data 0x7FC744.
+It is load sensitive and has no peak-and-drop: past the slip limit force stays flat. With stock data the friction circle usually clips first: on the Peugeot rolling Fy reaches the limit at about 3° of slip, so grip changes past that need the limit, not these tables. Tables: pointers 0x7FC7D4, data 0x7FC744.
 
 **Solver** 0x5ABDF0: five passes. For rolling wheels it picks Fx so wheel surface acceleration matches the ground at the contact, given the summed
 body force and yaw acceleration, and couples the engine (0x594DA0) while the clutch is closed. Wheel inertia is 0.01 for all wheels ([0x7FC6F0]). The wheel
@@ -176,7 +176,7 @@ if |vx| > 1: Fx -= 0.15*sin(alpha)*Fy
 Driving force therefore eats lateral grip early.
 
 **Rear stabiliser** 0x5990C0, rears only, off in drift: rear grip gains up to +35% with slip angle, tapered by 0x5A4D80's ramp (P +0x70: +1/s, −20/s, floor
-0.5 while the handbrake is held). A handbrake pull under 20° of slip cancels the gain. Its speed ramp reads BSS at 0x86B314/18, assumed 0 *(not confirmed)*.
+0.5 while the handbrake is held). A handbrake pull under 20° of slip cancels the gain. The gain is `min([0x7FC05C] = 0.35, (S+0x280 + S+0x284)·speed/30·|slip rad|)`, so with stock data it reaches the cap after a few degrees at race speed. Its other inputs, 0x86B314/18, read 0.
 
 **Launch hop** 0x5B6300: below 15 mph at race stage 4, peak wheelspin over 0.5 starts a count that alternates grip reduction on diagonal wheels every 0.5 s.
 The same state skews the L/R torque split.
@@ -345,6 +345,6 @@ S is per car and these 0x7Fxxxx values are global, so per-player changes need S,
 
 - Force and unit checks live: body +0x164, tyre forces, cap sizes.
 - Drag lane logic, race type 11, `*(car+0x3C)` (+0x18, +0x120, +0x140), car +0x4E4 writer, state +0x414 writer (nitrous seconds), drv +0xF0 writer.
-- Stability value 2; 0x86B314/18; drift table 0x86B3C8; air stabiliser table 0x86B4A0.
+- Stability value 2; drift table 0x86B3C8; air stabiliser table 0x86B4A0.
 - Aero slot [4] copied from input +0x1E0 (reads as a float).
 - Traffic response to hits; where dt comes from; MellowMover drive force.
