@@ -32,9 +32,8 @@ P1-P3 on virtual pads, so P5 stayed on the pad routine and matched P4. With the 
 pointer at 0x5C1007 moved to a page where only entry 4 is non-zero), P5 had the reported feel (user: "that's it"): full
 lock output 1360-1500 at 60-90 m/s against 680-780 on the pad routine. Writing 0x86FFC4 from outside doesn't hold, the
 game rewrites it during a race. Ruled out:
-- Stability Control. Its only reader is 0x5A33E0 in 0x5A3380, called by the physics update at 0x5AB007. Above
-  30 mph it multiplies by [0x7A1990] = 1.0, so it has no effect at speed. (The pause-menu toggle for P3..P6 was also
-  wrong. That is fixed in 0c0afa8, but it did not change the steering.)
+- Stability Control. It doesn't enter the steering filter; its physics effects are in [physics](../physics.md). (The
+  pause-menu toggle for P3..P6 was also wrong. That is fixed in 0c0afa8, but it did not change the steering.)
 - The pad. Another pad on P5 has the same problem.
 Leads (best first):
 1. Measure it live. In a 5P race at the same speed, log the input object's +0x2C4/+0x2C5/+0x2C8 for P4 and P5 and

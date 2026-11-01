@@ -1,7 +1,7 @@
 # NFSU2 Split Screen — technical reference
 
 How the plugin works and the game internals it relies on. These docs describe the **current, confirmed** state only:
-everything here was verified in game. The source is split by subsystem into `src/parts/` (see
+everything here was verified in game, except [physics](physics.md), which says so. The source is split by subsystem into `src/parts/` (see
 [architecture](architecture.md)); every subsystem starts with a comment block that goes into more detail.
 
 - Target: `speed2.exe` v1.2 (the cracked v1.2 exe's `.rdata` matches the SecuROM v1.2 one). Image base 0x400000, no ASLR, x86.
@@ -25,6 +25,7 @@ everything here was verified in game. The source is split by subsystem into `src
 | [sound](sound.md) | listeners, DirectSound output, the EA mixer and voice owners, engines on the pad speakers |
 | [race-flow](race-flow.md) | intros and grid, post-race scene, results counting, standings, "Hurry!" timer |
 | [free-run](free-run.md) | Free Run (free roam) in split screen |
+| [physics](physics.md) | car physics: movers, integration, tyres, suspension, drivetrain, tuning data, hook points (static analysis, not yet checked in game) |
 | [open-issues](open-issues.md) | known open bugs and leads |
 | [linux-technical](linux-technical.md) | Linux (Lutris, Proton) test results, causes, what is left to fix; the player page is [linux](linux.md) |
 | [tooling](tooling.md) | static and live tools, debug mailbox, automation |
