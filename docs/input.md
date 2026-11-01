@@ -231,6 +231,7 @@ false for them and `XPadIsDs4` true, so they get no player LEDs, trigger row or 
   it also stops at 0xFD and 1: the original game gives such a pad at most 0.965 brake. `StateOf` scales LT to the axis end
   to reach 1.0, as a digital brake does, and leaves RT at the real pad's scale. This model matches every measured value.
   The XOR also swaps neighbouring steps, so the top of the pedal isn't quite monotonic (0xFC 248, 0xFD 246); harmless.
+- **Both triggers held (`SeparatePedals`).** The shared axis is LT minus RT, so held together they cancel. A joypad record also has separate pedal bytes (+0x10 throttle, +0x11 brake, events 0x92 / 0x95), which 0x5C2044 clears in shared mode. The jump there fills them from the triggers, carried in `rglSlider[0..1]` of the pad's state. The input handlers use the larger of the separate and shared channels, so one trigger alone still reads the shared channel's values above.
 - While the Controls screen shows the P2 page, slot 2 is fed by the last active pad (`UpdateEditingSlot2`).
 
 **Per-port merge.** Ports 0/1 are merged per device slot, which separates P1 and P2.

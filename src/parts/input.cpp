@@ -320,3 +320,26 @@ static void* __cdecl PollPortHook(int port, int* type, void** prev) {
     *prev = g_portPrev[port];
     return g_portCur[port];
 }
+
+// ---------------------------------------------------------------- separate pedal channels
+// A pad's triggers share Z, so held together they cancel. A joypad record also has separate throttle and brake bytes
+// (+0x10, +0x11), which the game clears at 0x5C2044 when the pedals share an axis. The input handlers take the larger of
+// the separate and shared channels, so filling these from the triggers keeps the shared channel's tuning alone and
+// gives both pedals when both are held.
+#define AT_SEPARATE_PEDALS  0x5C2044
+#define AT_PEDALS_DONE      0x5C204C
+static void __fastcall SeparatePedals(uint8_t* record) {
+    const auto* state = at<const uint8_t*>(0x870760) + *reinterpret_cast<int*>(record + 0x230) * 0x110;
+    const auto* sliders = reinterpret_cast<const LONG*>(state + 0x18);
+    record[0x10] = static_cast<uint8_t>(sliders[0]);
+    record[0x11] = static_cast<uint8_t>(sliders[1]);
+}
+
+static __declspec(naked) void SeparatePedalsHook() {
+    __asm {
+        mov ecx, esi
+        call SeparatePedals
+        mov eax, AT_PEDALS_DONE
+        jmp eax
+    }
+}
