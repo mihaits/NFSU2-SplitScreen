@@ -13,7 +13,9 @@
   0x8A3288, call 0x57A62C). The 2-player sizes were made for the reduced split sections. Split races stream full
   sections for 2-4 far-apart areas, so with them the sections around a distant player went missing.
   `CreateTrackStreamingPool` / `CreateSecondStreamingPool` size them from the single-player values: 60 MB ×
-  (players + 1) / 2 and 11 MB × players / 2, plus 3000 KB per AI opponent. The second pool is the car loader's
+  (players + 1) / 2 and 11 MB × players / 2, plus 3000 KB per AI opponent. The scaling reads the tables, so a mod that
+  raises them scales too; the track pool stops at 256 MB because it is one allocation the game doesn't check, and without
+  such a mod it peaks at 210 MB. The second pool is the car loader's
   (0x8A3288: car models and textures). When it runs short, loading evicts the textures of car types no racer holds
   (0x63A1B0 → 0x639F20, after the memory check 0x48D420); AI racers' types are not held, so without the AI share an
   AI car drew untextured ("transparent"). The game's 6-car size is 16000 KB vs 11000 KB for 4 cars (≈2500 KB a car).

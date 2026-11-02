@@ -121,6 +121,9 @@ static void EnlargeAudioPool() {
 // split-screen sections; split races stream the full single-player sections (section remap skipped) for 2-4 far-apart
 // areas, so with 43 MB the sections around a player far from the others went missing (user: Palm Highway, 2P; earlier
 // 3-4P black world). Sized from the single-player budget: track pool 60 MB x (players + 1) / 2, second pool x players / 2.
+// Other mods can raise the table (Unlimiter: 120000 KB), so the split track pool is capped: it is one allocation from
+// the game's allocator in a 2 GB address space, and the game doesn't check the result.
+#define TRACK_POOL_MAX_BYTES (256 * 1024 * 1024)
 #define AT_TRACK_POOL_CALL 0x57A63A
 #define FN_TRACK_POOL_CREATE 0x5E4E70    // void __thiscall (streamer; bytes)
 #define AT_SECOND_POOL_CALL 0x57A62C
@@ -151,6 +154,7 @@ static void __fastcall CreateTrackStreamingPool(void* streamer, void*, int bytes
     if (SplitPools()) {
         int players = 2 + g_extraPlayers;
         int split = at<int>(TRACK_POOL_KB_1P) * 1024 / 2 * (players + 1);
+        if (split > TRACK_POOL_MAX_BYTES) split = TRACK_POOL_MAX_BYTES;
         if (split > bytes) bytes = split;
     }
     Log("track streaming pool: %d KB", bytes / 1024);
