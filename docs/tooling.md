@@ -138,6 +138,9 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
     drift `POKES="83AB0A=1"` (about 20 s). Works in circuit, Street X and drift; not in drag, where 0x5F3AB2 rewrites
     player +0x230 every frame (the tool fails as soon as the game takes a car back). Under autopilot a car can run on the AI mover (car +0x28 = 3),
     where 0x5ECEC0 reports no turbo, so that player's turbo gauge hides; it isn't a HUD fault.
+  - `start_matrix.sh [humans:ai:mode[:track] ...]` runs each setup through start, autopilot drive-off, pause menu
+    Restart and drive-off again, for changes to shared race-start code; about 1 min a setup, stops at the first failure,
+    and restores the ini's counts. `grid_check.py` is its grid check: every racer's slot and position, fails below 3 m.
   - `race_again.sh` starts the race again from the mode select; `quit_race.py` quits to the menu.
   - Pause menu: from Continue, `right` once is Restart, twice Options, three times Quit; `a`, then `left` and `a` in the
     confirmation. `b` doesn't leave Pause Options, and `left` there moves a volume slider. In a split race the menu sits
