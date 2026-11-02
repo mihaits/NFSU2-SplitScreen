@@ -104,6 +104,15 @@ Build with Visual Studio 2022 Build Tools (C++, x86): run `build.bat`.
 [`docs/TECHNICAL.md`](docs/TECHNICAL.md) explains how everything works, for anyone (or any AI agent) continuing the
 work; [`tools/`](tools) has the testing and reverse-engineering helpers.
 
+## Thanks
+- [ThirteenAG](https://github.com/ThirteenAG): the Ultimate ASI Loader and WidescreenFix, whose source showed how
+  to give each player its free camera.
+- [NFSU2 Extra Options](https://github.com/ExOptsTeam/NFSU2ExOpts) and [NFSU2 Unlimiter](https://github.com/nlgxzef/NFSU2Unlimiter):
+  their public sources name many of the game functions this mod uses.
+- [DS5Dongle](https://github.com/awalol/DS5Dongle), [KytyPS5](https://github.com/Myoko/KytyPS5),
+  [PadForge](https://padforge.org/docs/reference/controller-audio-internals), [SDL](https://github.com/libsdl-org/SDL)
+  and Linux `hid-playstation`: DualSense and DualShock 4 report layouts, including the Bluetooth speaker.
+
 ## Support
 The mod is free. If you enjoy it, you can support it on [Ko-fi](https://ko-fi.com/mihaits) ☕
 
