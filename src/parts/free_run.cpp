@@ -208,6 +208,7 @@ static void __cdecl StartSpots(int n, uint8_t* out) {
             Log("start spot %d: track %d  %.1f %.1f %.1f  heading %u%s", i, at<int>(CURRENT_TRACK), p[0], p[1], p[2],
                 *reinterpret_cast<uint16_t*>(out + i * 0x20 + 0x10), move ? " (moved)" : "");
     }
+    if (n == 6) memcpy(g_gridSpots, out, sizeof(g_gridSpots));
     if (move) Log("free run start: %s", kFreeRunStarts[pick].name);
 }
 // Free Run's starter (0x53F580) runs the free state only on track 4000: race state 0 (then 7, the free state) and 3

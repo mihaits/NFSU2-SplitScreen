@@ -1,5 +1,10 @@
 # Race flow: intro, results, standings
 
+- **Race load.** 0x57F2D0 (ecx = 0x8654A8) adds 1 to the step at +0 and runs that step; the callback 0x571150 of each
+  step's load calls it again. Step 2 is the custom HUD textures (call 0x577F60). Step 4 sets game state 5, queues the
+  race's cars and hands the callback to the car loader (0x63BCD0, see [streaming](streaming.md)). Later steps load the
+  HUD packages; the last one sets state 6. A load that never calls back stops the race load with no error: the
+  loading screen stays up at full frame rate.
 - **Intro (NIS).** The selector 0x436840 builds a context (0x431F10: racers, humans, slot masks, track byte) and
   filters scenes (0x42FE00). With exactly 2 local players only the 2P list passes (0x42FDA0: IntroNis12/13).
   - Scenes exist for 2 and 4 cars. `IntroContext` (call 0x4368F4) reports 4 racers for a race of 3 or 5-6 cars, so
@@ -12,11 +17,15 @@
   4-6, outside every scene's slots 1-4, so there was no intro. `AssignGrid` uses order 1 in split races with more than
   4 cars. Start spots come from 0x5EB5D0(6, out) (track markers).
 - **Extra cars during a 4-car scene (5-6 cars).**
-  - The scene binder 0x439240 (run at the scene's start, and again on restarts, which skip the scene) teleports each
-    bound car (0x4309D0 → 0x5FBD60) to its track's spot, a 2x2 formation, and records it in the binding table
-    0x827B98 + track × 0x14 (+0 track, +4 x, +8 y, +0x10 car array index, -1 = none). On a track whose grid is 4
-    abreast (drift 4311) the formation's second row is grid spots 5/6. `NisBindCars` → `MoveExtraCarsBehindScene`:
-    an extra car that overlaps a bound car goes one row behind the formation.
+  - The scene binder 0x439240 (run every frame while the scene object is active, which lasts into the race, and on
+    restarts, which skip the scene) teleports each bound car (0x4309D0 → 0x5FBD60) to its track's spot, a 2x2 formation,
+    and records it in the binding table 0x827B98 + track × 0x14 (+0 track, +4 x, +8 y, +0x10 car array index, -1 = none).
+    On a track whose grid is 4 abreast (drift 4311) the formation's second row is grid spots 5/6.
+    `NisBindCars` → `MoveExtraCarsBehindScene`: while the scene drives its cars, an extra car that overlaps a bound car
+    goes one row behind the formation.
+  - The scene leaves its cars off the grid (about a metre on Street X, a row on 4311). In every split race, as soon as no
+    car is scene-driven (scene over, or a restart's binder), `PutCarsOnGrid` puts every car on its own start spot
+    (`StartSpots` keeps 0x5EB5D0's entries; spec +3 = grid slot).
   - The scene's cars drive through the extra cars' spots. `CarNotVisible` (trampoline on the per-view car check
     0x60D4F0: body 0x6317A2, lights 0x60D594, headlight pools 0x6154D3) hides every car the scene doesn't drive
     (mover car +0x28 != 5) until the scene releases its cars.

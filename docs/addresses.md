@@ -36,7 +36,8 @@ find an address, grep `docs/` (and the source's comment blocks) for it.
 |---|---|
 | [0x890080]+0x1C+4i | race car i; count [[0x890118]+0x24] |
 | car +0x14 | racer spec (+3 grid slot, +4 type: 1 human, 2 AI, 3 traffic; ids 50+ = traffic) |
-| car +0x28 | mover mode (5 = NISMvr, driven by an intro/outro scene) |
+| car +0x24 | driver controller (1 human, 3 AI racer; autopilot sets 3) |
+| car +0x28 | mover mode (1 full car physics, 3 AI mover, 5 = NISMvr, driven by an intro/outro scene). Under autopilot a car moves between 1 and 3; 0x5ECEC0 reports a turbo only in mode 1. |
 | car +0x34 | mover; physics body = [mover+0x20]: position +0x20 (z +0x28), velocity +0xA0 |
 | racer +0x14 | progress: laps done + lap fraction (finished only in a 1-lap race at >= 1); +8 laps done; +0xA position |
 | [0x890080]+0x80+0x10i, +0xE0+4i | World slots of racer i (i < +0x14, max 6): position, road position (car +0x8FC); 0x609CE0 |
@@ -98,6 +99,8 @@ Car and race values the DualSense lights and triggers read (`parts/pad_lights.cp
 | `**(int**)0x890118` | race stage: 0 none, 1 flyby, 2 prerace, 3 countdown (3.0 s), 4 racing |
 | 0x7FB718 | game clock (seconds) |
 | 0x8654A4 | game state: 3 frontend, 4/5 loading, 6 race (results included) |
+| 0x8654A8 | race load: +0 step ([race flow](race-flow.md)) |
+| 0x8A3288 | car loader ([streaming](streaming.md)): +0/+4 done callback and context, +0x14 busy, +0x28 / +0x30 file lists |
 
 The game reads graphics options from the per-user VirtualStore registry copy
 (`HKCU\Software\Classes\VirtualStore\MACHINE\SOFTWARE\WOW6432Node\EA Games\Need for Speed Underground 2`). If you

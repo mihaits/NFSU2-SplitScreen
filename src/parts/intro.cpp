@@ -19,6 +19,8 @@
 #define AT_INTRO_EMPTY_RET   0x436A03
 #define AT_INTRO_LOOP        0x4368F9    // list init + scene loop (edi = 0)
 static bool g_intro2PFallback = false;
+static uint8_t g_gridSpots[6 * 0x20];    // the race's start spots: 0x5EB5D0's entries, kept by StartSpots
+static bool g_gridPending = false;       // a scene placed the cars of a split race: PutCarsOnGrid when it lets go
 static bool g_introHideExtra = false;    // 5-6 cars got a 4-car scene: the extra cars are hidden during it
 static bool __fastcall Intro2PFilter(void* ctx, void*, void* scene) {
     return g_intro2PFallback || reinterpret_cast<bool(__thiscall*)(void*, void*)>(FN_INTRO_2P_FILTER)(ctx, scene);
@@ -48,7 +50,7 @@ static __declspec(naked) void IntroEmptyHook() {
 }
 static void __fastcall IntroContext(int* ctx, void*, int track) {
     g_intro2PFallback = false;
-    g_introHideExtra = false;            // (also when the previous race's scene never started)
+    g_introHideExtra = g_gridPending = false;   // (also when the previous race's scene never started)
     reinterpret_cast<void(__thiscall*)(int*, int)>(FN_INTRO_CONTEXT)(ctx, track);
     Log("intro context: racers %d humans %d slots %X ai %X track byte %d (sound fs: %d free handles)", ctx[0], ctx[1],
         ctx[2], ctx[3], ctx[5], SoundFsFreeHandles());
@@ -89,16 +91,23 @@ static void __cdecl AssignGrid(int order) {
     g_origAssignGrid(order);
 }
 
-// The intro scene also places its cars itself: its binder (0x439240, run at the scene's start and again on restarts,
-// which skip the scene) teleports each bound car (0x4309D0 -> 0x5FBD60) to its track's spot, a 2x2 formation, and
-// records it in the binding table (0x827B98 + track*0x14: +0 track, +4 x, +8 y, +0x10 car array index, -1 = none). On a track whose
-// race grid is 4 abreast (drift 4311) the formation's second row is grid spots 5/6, where the extra cars stand: they
-// started inside the scene's cars (user). An extra car that overlaps a bound car goes one row behind the formation.
+// The intro scene also places its cars itself: its binder (0x439240, run every frame while the scene object is active,
+// which lasts into the race, and on restarts, which skip the scene) teleports each bound car (0x4309D0 -> 0x5FBD60) to
+// its track's spot, a 2x2 formation, and records it in the binding table (0x827B98 + track*0x14: +0 track, +4 x, +8 y,
+// +0x10 car array index, -1 = none). On a track whose race grid is 4 abreast (drift 4311) the formation's second row is
+// grid spots 5/6, where the extra cars stand: they started inside the scene's cars (user). An extra car that overlaps a
+// bound car goes one row behind the formation while the scene drives its cars; PutCarsOnGrid places every car when it ends.
 #define FN_NIS_BIND_CARS   0x439240      // void __thiscall (scene; int)
 static const uintptr_t kNisBindCarsCalls[] = {0x43AC10, 0x43AFDF, 0x43B196};
 #define NIS_BINDINGS       0x827B98
 #define FN_CAR_TELEPORT    0x5FBD60      // void __thiscall (car; const float* pos, 0, int heading, bool)
 #define FN_HEADING_OF      0x43E6D0      // int __cdecl (float dx, float dy)
+static bool SceneDrivesCars() {
+    if (uint8_t* mgr = at<uint8_t*>(RACE_CARS))
+        for (auto* c = *reinterpret_cast<uint8_t**>(mgr); c && c != mgr; c = *reinterpret_cast<uint8_t**>(c))
+            if (*reinterpret_cast<int*>(c + 0x28) == MOVER_NIS) return true;
+    return false;
+}
 static void MoveExtraCarsBehindScene() {
     auto* list = at<uint8_t*>(0x890118);
     auto* cars = at<uint8_t*>(RACE_CARS);
@@ -135,9 +144,31 @@ static void MoveExtraCarsBehindScene() {
         }
     }
 }
+// The scene leaves its 4 cars near the grid (Street X) or a row off it (drift 4311: on slots 5/6), and a restart's binder
+// the same. Every car goes to its own start spot when no car is scene-driven any more: spec +3 is the grid slot
+// (1-based), the spots are the ones the race was placed on.
+static void PutCarsOnGrid() {
+    auto* list = at<uint8_t*>(0x890118);
+    auto* cars = at<uint8_t*>(RACE_CARS);
+    if (!list || !cars) return;
+    int n = *reinterpret_cast<int*>(list + 0x24);
+    for (int i = 0; i < n && i < 16; ++i) {
+        uint8_t* c = reinterpret_cast<uint8_t**>(cars + 0x1C)[i];
+        auto* spec = c ? *reinterpret_cast<uint8_t**>(c + 0x14) : nullptr;
+        int slot = spec ? *reinterpret_cast<int8_t*>(spec + 3) : 0;
+        if (slot < 1 || slot > 6) continue;
+        uint8_t* e = g_gridSpots + (slot - 1) * 0x20;
+        reinterpret_cast<void(__thiscall*)(void*, const float*, int, int, int)>(FN_CAR_TELEPORT)(
+            c, reinterpret_cast<const float*>(e), 0, *reinterpret_cast<uint16_t*>(e + 0x10), 0);
+        Log("intro: car %d on grid slot %d, %.1f, %.1f", i, slot, reinterpret_cast<float*>(e)[0], reinterpret_cast<float*>(e)[1]);
+    }
+}
 static void __fastcall NisBindCars(void* scene, void*, int arg) {
     reinterpret_cast<void(__thiscall*)(void*, int)>(FN_NIS_BIND_CARS)(scene, arg);
-    if (SplitMode() && at<int>(NUM_PLAYERS) == 2) MoveExtraCarsBehindScene();
+    if (SplitMode() && at<int>(NUM_PLAYERS) == 2 && SceneDrivesCars()) {
+        MoveExtraCarsBehindScene();
+        g_gridPending = true;
+    }
 }
 
 // A 4-car scene drives its 4 cars onto the grid through the extra cars already standing in grid slots 5/6 (user). Those
@@ -153,11 +184,12 @@ static int __cdecl CarNotVisible(uint8_t* car, void* view) {
     return g_origCarNotVisible(car, view);
 }
 static void UpdateIntroHiding() {        // per frame
+    bool scene = SceneDrivesCars();
+    if (g_gridPending && !scene) {
+        g_gridPending = false;
+        PutCarsOnGrid();
+    }
     if (!g_introHideExtra) return;
-    bool scene = false;
-    if (uint8_t* mgr = at<uint8_t*>(RACE_CARS))
-        for (auto* c = *reinterpret_cast<uint8_t**>(mgr); c && c != mgr; c = *reinterpret_cast<uint8_t**>(c))
-            if (*reinterpret_cast<int*>(c + 0x28) == MOVER_NIS) scene = true;
     if (scene && !g_introSceneSeen) Log("intro: extra cars hidden during the scene");
     if (scene) g_introSceneSeen = true;
     else if (g_introSceneSeen || !SplitMode()) {

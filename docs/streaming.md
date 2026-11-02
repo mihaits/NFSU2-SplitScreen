@@ -24,6 +24,14 @@
   at 0x63A21E) takes them again. Not seen in a real race: a 2-3P race loaded down to a 9600 KB pool with no purge, and
   no loaded set had all its textures shared.
   The exe is not large-address-aware; a 4P race uses about 380 MB.
+- **Car loader.** 0x8A3288 keeps file entries in two lists: +0x28 geometry, +0x30 textures and vinyls, in load order,
+  with the path at +8. 0x63BCD0(cb, ctx) starts it and 0x63B160 runs its next step, which issues one load and returns;
+  each load's callback (0x610A10 geometry, 0x610A30 textures) sets the entry's state, clears busy (+0x14) and calls
+  0x63B160 again. Entry state: geometry byte +0x5A, textures byte +0x52 (0 not loaded, 1 loading, 2 done).
+  - A file that can't be read is handled differently by the two paths. Geometry (0x63A770) finds no resource, marks the
+    entry done with a null pointer at +0x50 and goes on. Textures (0x63A820) ignore the result of the request 0x4944D0:
+    the request returns without queuing a callback (0x4933F0, file size <= 0x40), so the entry stays at 1, busy stays
+    set and the loader waits forever. The failed request leaves no resource record, so asking again later is clean.
 - **Block records.** The track pool has 192 records in a fixed array, one per used block and one per free gap, and
   the allocator 0x5DA4A0 doesn't check for none left (crash at 0x5DEEE1, [details](bugs/streamer-pool-crash.md)).
   Spread-out 5-6P races use more (236 measured), so `AddPoolRecords` links 320 more into the free list. Debug

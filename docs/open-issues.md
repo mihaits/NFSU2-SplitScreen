@@ -10,7 +10,7 @@ Tested with real controllers, 4 native DualSense pads over Bluetooth at once plu
 - 6P circuit on autopilot: frame scratch peak ~340 KB of 1 MB. 6P at 3840x2160 / 60 Hz holds 60 fps.
 
 **Not covered yet:**
-- 5-6P in URL and Street X; low risk: 6P on a big circuit was the worst case for streaming and memory (user,
+- 5-6P in URL, and in Street X with real pads (6P ran on autopilot, 2026-11-02); low risk: 6P on a big circuit was the worst case for streaming and memory (user,
   2026-10-31). 6P Free Run ran on autopilot only (2026-11-02), not with real pads. 5P with 1 AI opponent.
 - Controls pages P5/P6 (rebind, saved to `[Player5]`/`[Player6]`); Customize from seats 5/6.
 - USB speakers with 2 or more PlayStation pads on USB, in any mix (DualSense + DualShock 4 too): each should hear only
@@ -34,6 +34,21 @@ Tested with real controllers, 4 native DualSense pads over Bluetooth at once plu
   the Steam Input config; not worth much, native input needs no Steam Input.
 - **A DualSense can drop with error 1167,** seen several times on one pad, also mid-race: likely its Bluetooth link (range,
   battery).
+
+## Missing car files hang the race load (2026-11-02)
+A 2P + 4 AI race stayed on the loading screen at full frame rate, game state 5, race load step 4: the car loader
+waited for `CARS\PEUGOT106\TEXTURES.BIN`, which that install doesn't have (see [streaming](streaming.md)). PEUGOT106
+and CORSA are in the car table, but their folders aren't in every install, and an AI opponent got the 106: with
+Unlimiter and ExtraOptions loaded, the AI car picker ran on a longer list holding both. `UnlockRegionalCars` (on by
+default in ExtraOptions) is the source: with it off the picker is back to the 26 stock cars and neither is in the list
+([players](players.md)).
+- The entry count was 28 before the folders were added and 30 after, with 7 and 6 in the list twice. What makes the
+  difference isn't known; each regional car then has twice the odds of another car.
+- Adding the two folders fixes that install; so should `UnlockRegionalCars = 0`, which removes them from the AI list.
+- A stuck load was recovered live: with the files in place, set the geometry entry's state +0x5A and the texture
+  entry's state +0x52 to 0, clear busy (+0x14), and run 0x63B160 once on the main thread. The race then started.
+- Not fixed: nothing in the plugin guards against this. An option is to take car types without a folder out of the AI
+  lists at boot; a human picking such a car would still hang.
 
 ## Found by static analysis (2026-10-23)
 The others are fixed (gearbox, minimap rebuild) or measured harmless (extra players' gauge textures, hud.md).

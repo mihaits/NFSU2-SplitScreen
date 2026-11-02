@@ -41,6 +41,9 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
   - `traffic_watch.py [sample_s] [seconds] [--radius 250]` streams the traffic around each local player (count within
     the radius, nearest car) and logs traffic cars that teleport (recycled) within the radius of a player ("pop-in");
     totals at the end. Read-only.
+  - `teleport_watch.py [seconds] [--min m] [--grid] [--csv path]` samples every race car about 500 times a second and
+    prints each move its velocity can't explain, with the car's state on both sides; every sample goes to the csv.
+    Read-only. A jump found this way can then be traced to its writer with `hwwatch.py` on the body position.
   - `telemetry.py [interval] [seconds]` streams every local player's car values live (race stage, engine and
     shift-light rpm, gear, nitrous, grip used per wheel, wheels in the air, position, finished, pedals, ground and
     wheel speed, wheel radius, slip ratio); read-only, needs the plugin loaded. The values the DualSense lights and the
@@ -133,8 +136,13 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
     the lap count is byte +0xA of the race type's quick race settings (0x83AAC4 + type × 0x14 + 0xA): circuit
     `POKES="83AACE=1"` (1 lap about 80 s), Street X (mode 4 = type 10) `POKES="83AB96=2"` (2 laps about 45 s),
     drift `POKES="83AB0A=1"` (about 20 s). Works in circuit, Street X and drift; not in drag, where 0x5F3AB2 rewrites
-    player +0x230 every frame (the tool fails as soon as the game takes a car back).
-  - `race_again.sh` starts the race again; `quit_race.py` quits to the menu.
+    player +0x230 every frame (the tool fails as soon as the game takes a car back). Under autopilot a car can run on the AI mover (car +0x28 = 3),
+    where 0x5ECEC0 reports no turbo, so that player's turbo gauge hides; it isn't a HUD fault.
+  - `race_again.sh` starts the race again from the mode select; `quit_race.py` quits to the menu.
+  - Pause menu: from Continue, `right` once is Restart, twice Options, three times Quit; `a`, then `left` and `a` in the
+    confirmation. `b` doesn't leave Pause Options, and `left` there moves a volume slider. In a split race the menu sits
+    outside a window capture at the default width: `g.screenshot(path, max_w=1920)` shows it.
+  - The game's frame loop stops while the window is out of focus. A one-shot hook on the main loop won't fire then.
   - `rec.py record|play` records and replays real pad input keyed to the active FE screens
     (`recordings/start_to_split2p.json`).
 - The linker map `build/NFSU2SplitScreen.map` maps crash offsets in the ASI to functions (RVA = section offset +
