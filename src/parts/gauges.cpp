@@ -240,23 +240,27 @@ static void __fastcall HudUpdateHook(void* hud, void*, void* player, void* arg) 
             for (uint32_t hash : timerHashes)
                 if (uint8_t* obj = FindFeObject(pkg, hash)) *reinterpret_cast<uint32_t*>(obj + 0x1C) |= 1;
     }
-    // Split Outrun: 2PHudBot_OUTRUN has the timer at the bottom of the view, on the minimap. It goes to the top of the
-    // view, where 2PHudTop_OUTRUN has it in P1's (y -165 + 240).
-    if (SplitMode() && at<int>(QR_RACE_TYPE) == 8) {
+    // The bottom Outrun and drift packages keep their left groups low in P2's view, on the minimap. They go where the top
+    // package has them in P1's (its y + 240), and the drift ones 27 higher, because P2's map sits that much higher in its
+    // view. The drift multiplier group exists twice under one name.
+    if (SplitMode()) {
+        struct Moved { const char* package; uint32_t hash; float y; };
+        static const uint32_t timerGroup = reinterpret_cast<uint32_t(__cdecl*)(const char*)>(FN_FE_HASH)("Timer_Group_01");
+        const Moved moved[] = {{"2PHudBot_OUTRUN", timerGroup, 75.0f},
+                               {"2PHudBot_DRIFT", 0xF90B0AC6, 17.0f},    // best drift
+                               {"2PHudBot_DRIFT", 0x1AC732CD, 82.0f},    // total
+                               {"2PHudBot_DRIFT", 0x7BE44FAC, 135.0f}};  // multiplier
         const char* name = *reinterpret_cast<const char**>(h + 0x10);
-        if (name && strstr(name, "2PHudBot_OUTRUN")) {
-            auto* entry = reinterpret_cast<uint8_t*(__thiscall*)(void*, const char*)>(FN_FIND_PACKAGE)(
-                reinterpret_cast<void*>(FE_PACKAGE_CACHE), name);
-            auto* pkg = entry ? *reinterpret_cast<uint8_t**>(entry + 0x18) : nullptr;
-            static const uint32_t timerGroup = reinterpret_cast<uint32_t(__cdecl*)(const char*)>(FN_FE_HASH)("Timer_Group_01");
-            if (uint8_t* obj = pkg ? FindFeObject(pkg, timerGroup) : nullptr) {
-                auto* data = *reinterpret_cast<float**>(obj + 0x2C);
-                if (data && data[8] > 120.0f) {
-                    data[8] = 75.0f;
+        auto* entry = name && strstr(name, "2PHudBot_") ? reinterpret_cast<uint8_t*(__thiscall*)(void*, const char*)>(FN_FIND_PACKAGE)(
+            reinterpret_cast<void*>(FE_PACKAGE_CACHE), name) : nullptr;
+        if (auto* pkg = entry ? *reinterpret_cast<uint8_t**>(entry + 0x18) : nullptr)
+            for (auto* obj = *reinterpret_cast<uint8_t**>(pkg + 0x4C); obj; obj = *reinterpret_cast<uint8_t**>(obj + 4))
+                for (const Moved& m : moved) {
+                    auto* data = *reinterpret_cast<float**>(obj + 0x2C);
+                    if (*reinterpret_cast<uint32_t*>(obj + 0x10) != m.hash || !strstr(name, m.package) || !data || data[8] == m.y) continue;
+                    data[8] = m.y;
                     *reinterpret_cast<uint32_t*>(obj + 0x1C) |= 0x400000;
                 }
-            }
-        }
     }
     for (PlayerGauges& g : g_gauges) {
         if (g.hud != hud) continue;
