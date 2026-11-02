@@ -7,8 +7,7 @@ Tested with real controllers, 4 native DualSense pads over Bluetooth at once plu
 - 6P, 5P and 3P circuit, 5P sprint, 4P drag; 6P drift results after the Hurry timer.
 - Joining P1..P6, finish, results, the post-race scene with 5 humans, restarts, pause by P4..P6, the touchpad lightbar
   toggle, P5/P6 player LEDs and lightbar colours.
-- 6P circuit on autopilot: frame scratch peak ~340 KB of 1 MB. 6P at 3840x2160 / 60 Hz holds 60 fps (46-55 around the
-  countdown).
+- 6P circuit on autopilot: frame scratch peak ~340 KB of 1 MB. 6P at 3840x2160 / 60 Hz holds 60 fps.
 
 **Not covered yet:**
 - 5-6P in URL and Street X; low risk: 6P on a big circuit was the worst case for streaming and memory (user,
@@ -28,6 +27,9 @@ Tested with real controllers, 4 native DualSense pads over Bluetooth at once plu
   (Street X: every finisher logged "place 1", then the right place); minor, left as is.
 - **Boot hang at the splash:** WidescreenFix in exclusive fullscreen, also without this plugin (1 boot in 2 to 8); none in
   12 boots with `WindowedMode = 4` (borderless fullscreen).
+- **Stutter at a steady 60 fps in borderless with monitors of different refresh rates:** the compositor can pace on the
+  faster monitor's clock. 60 fps on a 75 Hz clock shows as 13 and 27 ms frames, 15 times a second, while the game's own
+  timing stays even. Match the refresh rates or use exclusive fullscreen. `tools/screen_pacing` shows it.
 - **Steam Input** (PlayStation support on) can expose a DualSense as an XInput pad too: one pad, two indices. Depends on
   the Steam Input config; not worth much, native input needs no Steam Input.
 - **A DualSense can drop with error 1167,** seen several times on one pad, also mid-race: likely its Bluetooth link (range,

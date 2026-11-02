@@ -105,8 +105,44 @@ static void HookDeviceMethod(void* dev, int slotIndex, void* hook, void** orig) 
 static void* g_origPresent = nullptr;
 static void* g_origReset = nullptr;
 static void* g_origTestCoop = nullptr;
+// Debug: one line a second: frames, frame time, the game's CPU time and the wait in Present (ms, average / worst).
+struct FrameStats {
+    LARGE_INTEGER freq, last, second;
+    int frames;
+    double cpuSum, cpuMax, presentSum, presentMax, frameMax;
+    int timer, tickMin, tickMax;             // game timer 0x8651AC, 4000 ticks a second: ticks per frame
+};
+static FrameStats g_frameStats;
+static void NoteFrame(const LARGE_INTEGER& start, const LARGE_INTEGER& end) {
+    FrameStats& s = g_frameStats;
+    if (!s.freq.QuadPart) { QueryPerformanceFrequency(&s.freq); s.last = s.second = end; return; }
+    double ms = 1000.0 / s.freq.QuadPart;
+    double cpu = (start.QuadPart - s.last.QuadPart) * ms, present = (end.QuadPart - start.QuadPart) * ms;
+    s.last = end;
+    s.cpuSum += cpu, s.presentSum += present, ++s.frames;
+    int timer = at<int>(0x8651AC), ticks = timer - s.timer;
+    s.timer = timer;
+    if (s.frames > 1) {
+        if (!s.tickMin || ticks < s.tickMin) s.tickMin = ticks;
+        if (ticks > s.tickMax) s.tickMax = ticks;
+    }
+    s.cpuMax = max(s.cpuMax, cpu), s.presentMax = max(s.presentMax, present), s.frameMax = max(s.frameMax, cpu + present);
+    double span = (end.QuadPart - s.second.QuadPart) * ms;
+    if (span < 1000.0) return;
+    uint32_t mgr = at<uint32_t>(0x890118);
+    Log("frame: %d fps, worst %.1f; cpu %.1f / %.1f, present %.1f / %.1f; ticks %d-%d; state %d stage %d", s.frames, s.frameMax,
+        s.cpuSum / s.frames, s.cpuMax, s.presentSum / s.frames, s.presentMax, s.tickMin, s.tickMax, at<int>(0x8654A4),
+        mgr && at<int>(0x8654A4) == 6 ? *reinterpret_cast<int*>(mgr) : -1);
+    LARGE_INTEGER freq = s.freq;
+    s = FrameStats{};
+    s.freq = freq, s.last = s.second = end, s.timer = timer;
+}
 static HRESULT __stdcall PresentHook(void* dev, const void* a, const void* b, HWND c, const void* d) {
+    LARGE_INTEGER start, end;
+    QueryPerformanceCounter(&start);
     HRESULT hr = reinterpret_cast<HRESULT(__stdcall*)(void*, const void*, const void*, HWND, const void*)>(g_origPresent)(dev, a, b, c, d);
+    QueryPerformanceCounter(&end);
+    if (g_debug) NoteFrame(start, end);
     if (FAILED(hr)) Log("d3d: Present %08X (fg %p)", hr, GetForegroundWindow());
     return hr;
 }

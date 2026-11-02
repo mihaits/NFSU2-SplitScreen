@@ -1,5 +1,11 @@
 # Frontend: menu, players row, joining, car select
 
+**Menu icon.** The entry's icon is MAIN_ICON_SPLIT_SCREEN (128x64 DXT3). HD interface mods redraw the other main menu
+icons at 512x256 but not this one. `SwapSplitMenuIcon` runs each time the entry is added: when the loaded Quick Race
+icon is wider than 128, it replaces this texture's D3D texture with the embedded 512x256 DXT5 one (`src/assets/`, an
+upscale of the original). It reads TextureInfo through 0x4901D0(hash, 0, 0): +0 platform block (+0x18 the D3D
+texture), +0x24 hash, +0x44 width. The game reloads the menu textures after a race, so the swap runs again then.
+
 **Main menu entry.** The main menu builder 0x4AEE30 adds options. At 0x4AEED8 (the `call 0x570A60` right after Quick
 Race is added), `MainMenuHook` allocates an option (0x48 bytes, game malloc 0x575620) and initializes it with
 `0x51F670(opt, 0x883E25D6, 0x6A2B93EB, 0)`, which gives the console icon and the localized "2 Player Split-Screen" text,

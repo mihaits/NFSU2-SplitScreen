@@ -60,6 +60,11 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
     write watch (cmd 5) it needs no plugin and also catches other threads (sound).
   - `threadstacks.py [bytes]` prints every game thread's EIP and the return addresses on its stack (module+offset),
     each thread suspended while read: for a hung game (sample twice to see what doesn't move).
+  - `hotspots.py [seconds] [--stage n]` samples the main thread for a low frame rate: time by module, this plugin's
+    functions, `ntdll` callers (faults and waits show up here) and the hottest return addresses in the game. With
+    `Debug = 1` the log also has a `frame:` line a second: fps, worst frame, CPU time and the wait in Present.
+  - `screen_pacing.exe [seconds]` (`build_screen_pacing.bat`) records what reaches the primary monitor through Desktop
+    Duplication: the gap between shown frames and every hitch. For stutter the game's own timing can't see.
   - `minidump.py <dmp>` shows the exception, registers and code addresses on the stack (dumps land in
     `%LOCALAPPDATA%\CrashDumps`, and the plugin's own in `scripts\NFSU2SplitScreen_crash_*.dmp` with
     `NFSU2SplitScreen_crash.txt`: registers, memory at each register, stack, EBP chain, game state).

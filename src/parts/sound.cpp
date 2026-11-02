@@ -517,16 +517,32 @@ static int CarSoundLocalPlayer(const uint8_t* obj) {   // local player of a per-
     }
     return -1;
 }
+// Most fields of a sound object aren't pointers, and a fault costs far more than the scan: a car's objects were a third
+// of the main thread with 6 players. Pages are checked first, from a cache of VirtualQuery results; it goes stale as
+// pools change, so it's dropped now and then, and the __try stays for what slips through.
+#define PAGE_CACHE_FRAMES 600
+static uint8_t g_pageState[0x80000];     // per 4 KB page of the 2 GB space: 0 unknown, 1 readable, 2 not
+static bool ReadablePointer(const void* p) {
+    uintptr_t a = reinterpret_cast<uintptr_t>(p);
+    if (a < 0x10000 || (a & 3) || a >= 0x80000000) return false;
+    uint8_t& state = g_pageState[a >> 12];
+    if (!state) {
+        MEMORY_BASIC_INFORMATION m;
+        bool ok = VirtualQuery(p, &m, sizeof(m)) && m.State == MEM_COMMIT && !(m.Protect & (PAGE_GUARD | PAGE_NOACCESS));
+        state = ok ? 1 : 2;
+    }
+    return state == 1;
+}
 static uint8_t* PatchHeaderAt(const uint8_t* obj, int off, uint8_t** block, const char** name) {   // patch in `off`
     __try {
         uint8_t* param = *reinterpret_cast<uint8_t* const*>(obj + off);
-        if (reinterpret_cast<uintptr_t>(param) < 0x10000 || (reinterpret_cast<uintptr_t>(param) & 3)) return nullptr;
+        if (!ReadablePointer(param)) return nullptr;
         uint8_t* patch = *reinterpret_cast<uint8_t**>(param);
-        if (reinterpret_cast<uintptr_t>(patch) < 0x10000) return nullptr;
+        if (!ReadablePointer(patch)) return nullptr;
         uint8_t* def = *reinterpret_cast<uint8_t**>(patch);
-        if (reinterpret_cast<uintptr_t>(def) < 0x10000) return nullptr;
+        if (!ReadablePointer(def)) return nullptr;
         uint8_t* hdr = *reinterpret_cast<uint8_t**>(def);
-        if (reinterpret_cast<uintptr_t>(hdr) < 0x10000 || *reinterpret_cast<uint32_t*>(hdr + 8) != EA_PATCH_HEADER_SIGNATURE)
+        if (!ReadablePointer(hdr) || *reinterpret_cast<uint32_t*>(hdr + 8) != EA_PATCH_HEADER_SIGNATURE)
             return nullptr;
         *block = *reinterpret_cast<uint8_t**>(patch + 8);
         *name = *reinterpret_cast<const char**>(def + 4);
@@ -586,6 +602,8 @@ static bool PatchGoesToPad(const char* name) {
 // every frame (a patch can be created at any time: the engine's CAR patch when the engine starts, FX_NITROUS when
 // nitrous is used).
 static void NotePatchesOfFrame(std::vector<const uint8_t*>& objs) {
+    static int frames;
+    if (++frames >= PAGE_CACHE_FRAMES) { frames = 0; memset(g_pageState, 0, sizeof(g_pageState)); }
     std::vector<const uint8_t*> sorted(objs);
     std::sort(sorted.begin(), sorted.end());
     for (size_t i = 0; i < sorted.size(); ++i) {

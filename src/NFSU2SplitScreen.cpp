@@ -17,6 +17,7 @@
 #include <shlwapi.h>
 #include <mmsystem.h>
 #include <dsound.h>
+#include <d3d9.h>
 #include <cmath>
 #include <cstdarg>
 #include <cstdint>
@@ -37,6 +38,7 @@
 #include "parts/core.cpp"
 #include "parts/frontend.cpp"
 #include "parts/log.cpp"
+#include "parts/split_icon.cpp"
 #include "parts/hud_split.cpp"
 #include "parts/debug_tools.cpp"
 #include "parts/seats.cpp"

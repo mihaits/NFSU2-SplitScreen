@@ -76,6 +76,9 @@ speakers" block of `parts/sound.cpp`; the pad side is `DsSpeakerWrite` in `DualS
     +0x18 low byte = number of children, +0x24 instance size, +0x30 + 4i = child i's offset from the instance
     (block - 0x2C); a child is a sample player {+0/+4 bank, +8 channel handle, +0xC flags}. Each playing child of a
     patch named in `PadSpeakerSounds` (case-insensitive, comma list) is recorded for the car's player.
+  - The scan follows every field of an object as a pointer, every frame, and most fields aren't pointers. Each pointer
+    is checked against a cache of VirtualQuery results first (`ReadablePointer`, dropped every 600 frames), because a
+    fault caught by `__try` costs far more than the scan: without it, this was a third of the main thread at 6 players.
   - Patch names per car (3P race): CAR (engine layers, 8 children, engine object +0xB0), CAR_SWTN, CAR_Sputter
     (limiter), FX_TURBO_01, FX_SHIFTING_01, FX_NITROUS, FX_PURGE, FX_SKID, FX_Scrape, AEMS_StichCollision,
     AEMS_StichWoosh, FX_ROADNOISE(_TRANS), FX_WIND, FX_WIND_Weather, FX_Weather (rain), FX_Camera, FX_TRAFFIC,

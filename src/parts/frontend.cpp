@@ -96,11 +96,14 @@ static void RenameSplitMenuText() {
     }
 }
 
+static void SwapSplitMenuIcon();
+
 static void __cdecl AddSplitMenuOption(void* menu) {
     using MallocFn = void*(__cdecl*)(size_t);
     using InitFn = void(__thiscall*)(void*, uint32_t, uint32_t, uint32_t);
     using AddFn = void(__thiscall*)(void*, void*);
     RenameSplitMenuText();
+    SwapSplitMenuIcon();
     void* option = reinterpret_cast<MallocFn>(FN_MALLOC)(0x48);
     if (!option) return;
     reinterpret_cast<InitFn>(FN_MENU_OPTION_INIT)(option, MMSPLIT_ICON, MMSPLIT_TEXT, 0);
