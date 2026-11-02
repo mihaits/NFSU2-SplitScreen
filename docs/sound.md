@@ -88,6 +88,8 @@ speakers" block of `parts/sound.cpp`; the pad side is `DsSpeakerWrite` in `DualS
     AEMS_StichWoosh, FX_ROADNOISE(_TRANS), FX_WIND, FX_WIND_Weather, FX_Weather (rain), FX_Camera, FX_TRAFFIC,
     ENV_STATIC, PlayCommonSample. The default list keeps feedback about the player's own car (short, mid/high
     sounds a small speaker carries) on the pad; rain, wind and road noise (shared, broadband or low rumble) on the PC.
+    The names come from the sound banks. Car Sound Tuner (Unlimiter's, or the older standalone one) changes the data
+    the patches are set up with, not the patches, so the list holds with it.
   - A new sound can play on the PC for up to a frame before it's claimed: EA starts it on the sound thread.
   - `tools/unclaimed_voices.py` lists playing voices that follow one car but aren't routed.
 - **Splitting the mix** (sound thread). Every place 0x7292BC puts a voice into the output channels or aux sends is
