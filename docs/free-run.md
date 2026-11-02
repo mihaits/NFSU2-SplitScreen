@@ -11,6 +11,10 @@ race HUD, from the start the Start row picks (a city district or a closed venue)
   Players row). `NextScreenAfterMode`: split screen + type 9 → the race options screen, track word (0x83AAC4 + 9 ×
   0x14 + 8) = the Start row's track (`SetFreeRunTrack`: 4000, or the venue's) and the direction dword (+0xC) = 0
   (forward). No track list (user).
+- **Outrun track.** The Outrun race setup picks one of 4 tracks at random (table 0x79AA3C), or uses the race settings'
+  track when the race is preset (branch at 0x5268F8). Extra Options' `OutrunTrackSelect` removes the branch, which needs
+  the track list that split screen's Outrun doesn't have: the track stays 0 and AddTrafficCars crashes at 0x4FEA46.
+  `OutrunTrackSetHook` (0x526921) gives a split race with no track a random one from that table.
 - **Back.** The race options' previous screen (0x4B2AF0) is the mode select (0x7F445C) for split screen's Outrun, else
   the track list. `PrevScreenRaceOptions` returns the mode select for split screen's Free Run too.
 - **Options rows.** Free Run's row builder (0x4B4A10) adds Track Direction (vtable 0x791608, settings +4) when the track
@@ -70,8 +74,9 @@ race HUD, from the start the Start row picks (a city district or a closed venue)
   screen, so every player keeps their own paint.
 - **No outrun challenges.** In the free state the race update runs the challenge logic 0x607CA9..0x608C01 (picks an
   opponent, race +0xBD0, ends the race when the player pulls away). `FreeStateRaceHook` (0x607C9C) skips it in split
-  screen. The player update aims a 3D direction arrow at that opponent (0x5F3AE0, MARKER_DIRECTION_AID);
-  `DirectionArrowHook` (trampoline) returns at once (`ret 4`) in split screen.
+  screen's Free Run. The player update aims a 3D direction arrow at that opponent (0x5F3AE0, MARKER_DIRECTION_AID);
+  `DirectionArrowHook` (trampoline) returns at once (`ret 4`) there. An Outrun race runs in the same state and keeps
+  both, because this logic is what ends it.
 - **HUD.** The position, lap time and outrun elements are hidden or skipped; see "Free Run HUD" in [hud](hud.md).
 
 ## Ideas (not built yet)

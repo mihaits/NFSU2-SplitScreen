@@ -103,6 +103,9 @@ position element's objects (HUD +0x20, ctor 0x4F4AC0: RacePositionNumber +0x28, 
 LapCounterBacking_2/3. The outrun element (HUD +0x6C, ctor 0x4F87E0) binds objects only the outrun packages have; with
 the split race HUDs they are null, so `OutrunElementUpdate` (call 0x4EC69A) skips it then. See [free-run](free-run.md).
 
+**Outrun HUD.** 2PHudBot_OUTRUN has `Timer_Group_01` at y 235, on P2's minimap. `HudUpdateHook` moves it to y 75, the top
+of P2's view, which is where 2PHudTop_OUTRUN has it in P1's.
+
 **Single-player gauges per player (`CreateGauges`).** Built right after each player's HUD.
 - Elements, all thiscall (fng, index); each is updated with (player):
 

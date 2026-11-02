@@ -33,6 +33,35 @@ static __declspec(naked) void FreeStatePlayersHook() {
         ret
     }
 }
+// The Outrun race setup (0x5268F8) takes a random track from a table of 4, or with a preset race the track in the race
+// settings. Extra Options' OutrunTrackSelect removes that branch so the settings always decide, but split screen's
+// Outrun has no track list, so the track would stay 0 and AddTrafficCars crashes on its null track data (0x4FEA46).
+// A split race left without a track gets the game's random pick.
+#define AT_OUTRUN_TRACK_SET  0x526921    // test bl, bl; movzx ecx, byte ptr [0x83AA1B] (9 bytes)
+#define OUTRUN_TRACK_SET_RET 0x52692A
+#define OUTRUN_TRACK         0x89E7A0
+#define OUTRUN_RANDOM_TRACKS 0x79AA3C    // int[4]
+#define FN_GAME_RANDOM       0x43C1C0    // int __cdecl (int range)
+static void __cdecl PickOutrunTrack() {
+    int i = reinterpret_cast<int(__cdecl*)(int)>(FN_GAME_RANDOM)(0x7FFFFFF) & 3;
+    at<int>(OUTRUN_TRACK) = reinterpret_cast<int*>(OUTRUN_RANDOM_TRACKS)[i];
+}
+static __declspec(naked) void OutrunTrackSetHook() {
+    __asm {
+        cmp dword ptr ds:[GAME_MODE], 4
+        jne done
+        cmp dword ptr ds:[OUTRUN_TRACK], 0
+        jne done
+        pushad
+        call PickOutrunTrack
+        popad
+    done:
+        test bl, bl
+        movzx ecx, byte ptr ds:[0x83AA1B]
+        push OUTRUN_TRACK_SET_RET
+        ret
+    }
+}
 // The screen after the mode select (0x4B2A80): in split screen Outrun goes to the race options (0x7F4460), the rest to
 // the track list - except Free Run, which goes to its own screen (0x7F446C: straight to the car select, no Players
 // row). Split screen's Free Run goes to the race options like Outrun, on track 4000 (the whole city from the airport;
@@ -85,14 +114,17 @@ static __declspec(naked) void FreeRunDirectionRowHook() {
 // Outrun challenges in Free Run (user: "the point is FREE roam"): in the free state (0x89E7B0 == 7) the race update runs
 // the challenge logic (0x607CA9..0x608C01: picks an opponent, race +0xBD0, and ends the race when the player pulls
 // away), and the player update points a 3D direction arrow at that opponent (0x5F3AE0, MARKER_DIRECTION_AID). Both
-// are skipped in split screen.
+// are skipped in split screen's Free Run. An Outrun race runs in the same state and needs both: the logic ends the race.
 #define AT_FREE_STATE_RACE  0x607C9C     // cmp dword ptr [0x89E7B0], 7; jne 0x608C01 (13 bytes)
 #define FREE_STATE_RACE_RUN 0x607CA9
 #define FREE_STATE_RACE_END 0x608C01
 static __declspec(naked) void FreeStateRaceHook() {
     __asm {
         cmp dword ptr ds:[GAME_MODE], 4
+        jne run
+        cmp dword ptr ds:[QR_RACE_TYPE], 9
         je skip
+    run:
         cmp dword ptr ds:[0x89E7B0], 7
         jne skip
         push FREE_STATE_RACE_RUN
@@ -107,7 +139,10 @@ static void* g_origDirectionArrow;
 static __declspec(naked) void DirectionArrowHook() {
     __asm {
         cmp dword ptr ds:[GAME_MODE], 4
+        jne run
+        cmp dword ptr ds:[QR_RACE_TYPE], 9
         je skip
+    run:
         jmp dword ptr [g_origDirectionArrow]
     skip:
         ret 4
@@ -586,6 +621,7 @@ static void InstallFreeRun() {
     WriteJump(AT_FREE_RUN_TRACK_CHECK, &FreeRunTrackCheckHook, 9);
     const uint8_t nops[2] = {0x90, 0x90};
     Write(AT_MODE_LIST_FREE_RUN, nops, 2);
+    WriteJump(AT_OUTRUN_TRACK_SET, &OutrunTrackSetHook, 9);
     g_origNextScreen = reinterpret_cast<NextScreenFn>(MakeTrampoline(FN_NEXT_SCREEN_AFTER_MODE, 5));
     WriteJump(FN_NEXT_SCREEN_AFTER_MODE, &NextScreenAfterMode, 5);
     g_origPrevScreen = reinterpret_cast<NextScreenFn>(MakeTrampoline(FN_PREV_SCREEN_RACE_OPTIONS, 5));

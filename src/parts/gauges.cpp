@@ -240,6 +240,24 @@ static void __fastcall HudUpdateHook(void* hud, void*, void* player, void* arg) 
             for (uint32_t hash : timerHashes)
                 if (uint8_t* obj = FindFeObject(pkg, hash)) *reinterpret_cast<uint32_t*>(obj + 0x1C) |= 1;
     }
+    // Split Outrun: 2PHudBot_OUTRUN has the timer at the bottom of the view, on the minimap. It goes to the top of the
+    // view, where 2PHudTop_OUTRUN has it in P1's (y -165 + 240).
+    if (SplitMode() && at<int>(QR_RACE_TYPE) == 8) {
+        const char* name = *reinterpret_cast<const char**>(h + 0x10);
+        if (name && strstr(name, "2PHudBot_OUTRUN")) {
+            auto* entry = reinterpret_cast<uint8_t*(__thiscall*)(void*, const char*)>(FN_FIND_PACKAGE)(
+                reinterpret_cast<void*>(FE_PACKAGE_CACHE), name);
+            auto* pkg = entry ? *reinterpret_cast<uint8_t**>(entry + 0x18) : nullptr;
+            static const uint32_t timerGroup = reinterpret_cast<uint32_t(__cdecl*)(const char*)>(FN_FE_HASH)("Timer_Group_01");
+            if (uint8_t* obj = pkg ? FindFeObject(pkg, timerGroup) : nullptr) {
+                auto* data = *reinterpret_cast<float**>(obj + 0x2C);
+                if (data && data[8] > 120.0f) {
+                    data[8] = 75.0f;
+                    *reinterpret_cast<uint32_t*>(obj + 0x1C) |= 0x400000;
+                }
+            }
+        }
+    }
     for (PlayerGauges& g : g_gauges) {
         if (g.hud != hud) continue;
         uint32_t lo = *reinterpret_cast<uint32_t*>(h + 8), hi = *reinterpret_cast<uint32_t*>(h + 0xC);

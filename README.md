@@ -82,9 +82,10 @@ and attach `scripts\NFSU2SplitScreen.log` (set `Debug = 1` in the ini to write i
 |---|---|
 | [WidescreenFix](https://github.com/ThirteenAG/WidescreenFixesPack/releases/tag/nfsu2) | recommended; works, its free camera per player included |
 | underground2.net 1.0.3 | works |
+| [NFSU2 Extra Options](https://nfsmods.xyz/mod/290) | works; keep `ExperimentalSplitScreenFix = 0`. Its default `AllowLongerProfileNames = 1` also lists saves with spaces in their names |
 | XtendedInput | not recommended: replaces the same controller input code, and this mod already handles pads per player |
 
-Not tested yet: NFSU2 Extra Options, NFSU2 Unlimiter, NFSU2 HD Reflections, NFSU2 Redux.
+Not tested yet: NFSU2 Unlimiter.
 
 ## Linux compatibility
 Tested up to 4 players with GE-Proton through Lutris. Setup, pad support and optional Bluetooth tweaks are in [docs/linux.md](docs/linux.md).
