@@ -138,10 +138,16 @@ static void __cdecl PoolFreeLocked(void* ptr) {
 // (step 3, 0x486EA0 -> 0x486C10), so the race load stayed in game state 4 forever. Each different player car has its
 // own engine bank (~115 KB, sound/Engine/CAR_nn_ENG_MB_SPU.abk); with 6 different cars the 5th engine bank no longer
 // fit (user: 6P race load hang, 2026-10-24). 6 MB fits 6 engine banks with room to spare.
+// Other mods set the same imm32 from their DllMain, and only while it still holds the vanilla value (Unlimiter: 16 MB),
+// so it's raised at the creation call instead, after every plugin has loaded: the pool is the larger of the two.
 #define AT_AUDIO_POOL_SIZE 0x4859BA      // imm32 of `and eax, 3FC000h` (pool = that + 0x4000 with sound on)
-static void EnlargeAudioPool() {
-    static const uint32_t size = 0x600000 - 0x4000;
-    if (at<uint32_t>(AT_AUDIO_POOL_SIZE) == 0x3FC000) Write(AT_AUDIO_POOL_SIZE, &size, 4);
+#define AT_AUDIO_POOL_CALL 0x57ED85      // InitializeEverything: call 0x4859B0
+#define FN_AUDIO_POOL_CREATE 0x4859B0    // void __cdecl ()
+static void __cdecl CreateAudioPool() {
+    const uint32_t size = 0x600000 - 0x4000;
+    if (at<uint32_t>(AT_AUDIO_POOL_SIZE) < size) Write(AT_AUDIO_POOL_SIZE, &size, 4);
+    Log("audio pool: %u KB", (at<uint32_t>(AT_AUDIO_POOL_SIZE) + 0x4000) / 1024);
+    reinterpret_cast<void(__cdecl*)()>(FN_AUDIO_POOL_CREATE)();
 }
 
 // Track streaming memory: race load (0x57A5E3) sizes the "Track Streaming" pool from a table by race kind

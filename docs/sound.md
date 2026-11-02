@@ -20,7 +20,11 @@
   0x457A60, which refuses a bank bigger than the largest free block − 1 KB; the EA bank load (0x7238D2) then returns
   −6 and the job never completes, so the race load stays in game state 4 (no error). Every different player car adds
   an engine bank (~115 KB, `sound\Engine\CAR_nn_ENG_MB_SPU.abk`): with 6 different cars the 5th did not fit.
-  `EnlargeAudioPool` makes the pool 6 MB (imm32 at 0x4859BA).
+  `CreateAudioPool` (the creation call 0x57ED85 in InitializeEverything) raises the size (imm32 at 0x4859BA) to at
+  least 6 MB just before the pool is made. Other mods write the same imm32 from their DllMain, and only while it still
+  holds the vanilla value (Unlimiter's `InitSoundHeap`, which runs whether or not its Car Sound Tuner is on: 16 MB).
+  Plugins load alphabetically, so a write of our own from DllMain would come first and make theirs skip; at the
+  creation call every plugin has loaded, and the pool is the larger size. The log line "audio pool: n KB" gives it.
 - **DirectSound output.** The EA engine mixes every voice itself into one streaming buffer: `DirectSoundCreate` (IAT
   0x78302C, thunk 0x770D16) on the default device, a primary buffer, probe buffers of 1/2/4/6 channels at boot, then
   one 2-channel 44.1 kHz 16-bit buffer of 88192 bytes (0.5 s, flags 0x18000) that it locks about 100 times a second;

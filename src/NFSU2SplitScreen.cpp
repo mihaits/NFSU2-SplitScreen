@@ -372,7 +372,7 @@ static void Install(HMODULE self) {
     WriteJump(FN_GAME_POOL_FREE, &PoolFreeLocked, 7);
     WriteCall(AT_SOUND_FS_CREATE_CALL, &CreateSoundFs);
     GuardSoundFsOpen();
-    EnlargeAudioPool();
+    WriteCall(AT_AUDIO_POOL_CALL, &CreateAudioPool);
     WriteCall(AT_TRACK_POOL_CALL, &CreateTrackStreamingPool);
     WriteCall(AT_SECOND_POOL_CALL, &CreateSecondStreamingPool);
     WriteCall(AT_PURGE_RELEASE, &PurgeReleaseTextures);
