@@ -17,6 +17,7 @@ static int SoundFsFreeHandles() { return g_soundFs ? *reinterpret_cast<int*>(g_s
 // debug: lowest free count seen after an open (vtable slot 3 = open(name, mode, out) __thiscall, ret 0xC)
 #define SOUND_FS_VT_OPEN   (0x7C2E2C + 0xC)
 static int g_soundFsMinFree = 1 << 30;
+static int g_soundFsEmpty;              // opens failed because the free list was empty
 static uintptr_t g_soundFsOpen;
 #define SOUND_FS_VT_CLOSE  (0x7C2E2C + 0x10)
 static uintptr_t g_soundFsClose;
@@ -67,7 +68,35 @@ static int __fastcall SoundFsOpen(void* fs, void*, const char* name, int mode, i
     }
     int free = SoundFsFreeHandles();
     if (free < g_soundFsMinFree) { g_soundFsMinFree = free; Log("sound fs: %d free handles (opened %s)", free, name); }
+    static int reported;
+    if (g_soundFsEmpty != reported) { reported = g_soundFsEmpty; Log("sound fs: no free handle for %s (%d times)", name, reported); }
     return r;
+}
+// A last net under the lock: open uses the popped handle node without checking it (crash 0x6F6AF9). An empty free list
+// now fails the open (0x6F6B2B: returns -1, file not found to every caller), which costs one sound.
+#define AT_SOUND_FS_POP   0x6F6AEC       // lea ecx,[edi+3Ch]; call 0x6F6B56; mov ebx,[ebp-4]; mov esi,eax (13 bytes)
+#define FN_SOUND_FS_POP   0x6F6B56
+#define SOUND_FS_POP_RET  0x6F6AF9
+#define SOUND_FS_POP_FAIL 0x6F6B2B
+static __declspec(naked) void SoundFsPopHook() {
+    __asm {
+        lea ecx, [edi + 0x3C]
+        mov eax, FN_SOUND_FS_POP
+        call eax
+        test eax, eax
+        jz empty
+        mov ebx, [ebp - 4]
+        mov esi, eax
+        push SOUND_FS_POP_RET
+        ret
+    empty:
+        inc g_soundFsEmpty
+        push SOUND_FS_POP_FAIL
+        ret
+    }
+}
+static void GuardSoundFsOpen() {
+    if (*reinterpret_cast<const uint32_t*>(AT_SOUND_FS_POP) == 0xE83C4F8D) WriteJump(AT_SOUND_FS_POP, &SoundFsPopHook, 13);
 }
 
 // Game memory pools (0x440390 alloc / 0x440540 free) link each block into the pool's allocated list (pool+0xC)

@@ -46,7 +46,11 @@ to the part of its subsystem (or a new part, included where its dependencies are
   loading banks. Both are wrapped in one critical section (`PoolAllocLocked` / `PoolFreeLocked`).
 - **Audio file system.** Open and close (vtable 0x7C2E2C: +0xC open, +0x10 close; `CreateSoundFs` hooks the creation)
   are called from two non-main threads, and they share an unsynchronized free-handle list. `SoundFsOpen` /
-  `SoundFsClose` serialize them.
+  `SoundFsClose` serialize them. `SoundFsPopHook` (0x6F6AEC) makes an open with no free handle return -1 instead of
+  crashing at 0x6F6AF9, and the failure is logged.
+- **Startup checks.** `Install` refuses any exe but v1.2 (entry point) and code other mods already patched
+  (`IsSupportedExe`). With `Debug = 1` it logs every `.asi` in the scripts folder. It warns when Extra Options'
+  `ExperimentalSplitScreenFix` is on, read from that mod's ini so the load order doesn't matter.
 
 ## Gotchas
 

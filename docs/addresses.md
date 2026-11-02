@@ -47,6 +47,34 @@ find an address, grep `docs/` (and the source's comment blocks) for it.
 
 Race types (0x83AAB4): 0/1/7 circuit/sprint/lap KO, 2 drag, 3 drift, 4 URL, 5/10 Street X, 8 outrun, 9 Free Run.
 
+## Function names
+Names from the public sources of NFSU2 Extra Options and Unlimiter (`mod_overlap.py --names`), for addresses we use.
+
+| address | name |
+|---|---|
+| 0x43C1C0 | bRandom |
+| 0x43DB50 | bStringHash |
+| 0x458520 | EAXSound_PlayUISoundFX |
+| 0x490150 | eUnloadStreamingTexture |
+| 0x4FFA80 | GetLocalizedString |
+| 0x505450 | FEHashUpper |
+| 0x50C900 | FEngSetLanguageHash_obj |
+| 0x50CA00 | FEngSetInvisible |
+| 0x50D2D0 | FEngMapPortToControlMask |
+| 0x51F670 | IconOption_Create |
+| 0x52CF60 | FEngIsPackagePushed |
+| 0x537A10 | FEngFindString |
+| 0x537BE0 | FEngPrintf |
+| 0x539650 | UIWidgetMenu_SetInitialOption |
+| 0x555F10 | FEngShowPackage |
+| 0x55DDA0 | FEngSendMessageToPackage |
+| 0x575620 | j__malloc |
+| 0x575630 | j__free |
+| 0x5B5350 | RidePhysicsInfo_GetCarPhysicsInfo |
+| 0x5ED960 | RaceParameters_GetDriverInfoByPlayerNumber |
+| 0x6102F0 | RideInfo_GetPart |
+| 0x61B500 | CarPart_GetAppliedAttributeUParam |
+
 ## Other
 | address | meaning |
 |---|---|

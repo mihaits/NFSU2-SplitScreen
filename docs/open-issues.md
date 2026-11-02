@@ -11,8 +11,8 @@ Tested with real controllers, 4 native DualSense pads over Bluetooth at once plu
   countdown).
 
 **Not covered yet:**
-- 5-6P in URL, Street X and Free Run; low risk: 6P on a big circuit was the worst case for streaming and memory (user,
-  2026-10-31). 5P with 1 AI opponent.
+- 5-6P in URL and Street X; low risk: 6P on a big circuit was the worst case for streaming and memory (user,
+  2026-10-31). 6P Free Run ran on autopilot only (2026-11-02), not with real pads. 5P with 1 AI opponent.
 - Controls pages P5/P6 (rebind, saved to `[Player5]`/`[Player6]`); Customize from seats 5/6.
 - USB speakers with 2 or more PlayStation pads on USB, in any mix (DualSense + DualShock 4 too): each should hear only
   their own car, and 3-6 on one USB 2.0 hub may run out of isochronous bandwidth (the stream then fails and the car stays

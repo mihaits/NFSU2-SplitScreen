@@ -1,6 +1,7 @@
 """From the split-screen mode select to a loading Free Run: Free Run (the last mode), its options screen, then each
 Press START joined on a virtual pad (P1 = pad 1, P2..P6 = pads 2, 3, 0, 4, 5) until the loading screen. Every step is
-a short polled wait and prints a timestamped line; exits 1 on the first screen that doesn't come.
+a short polled wait and prints a timestamped line; exits 1 on the first screen that doesn't come. RIGHTS=n picks another
+mode with an options screen right after the mode select (6: Outrun).
 python -I freerun_flow.py        VIRTUAL=n: join only players 1..n and stop at the next Press START (real pads)"""
 import os, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -28,7 +29,7 @@ def wait_top(pred, timeout):
 
 g.focus()
 if 'ModeSelect' not in wait_top(lambda s: 'ModeSelect' in s, 3): fail('no mode select')
-for _ in range(10): fe.press(g, 1, 'right'); time.sleep(0.12)   # the list stops at its last mode, Free Run
+for _ in range(int(os.environ.get("RIGHTS", 10))): fe.press(g, 1, "right"); time.sleep(0.12)   # 10: the list stops at its last mode, Free Run
 fe.press(g, 1, 'a')
 if 'Options' not in wait_top(lambda s: 'Options' in s, 3): fail('no Free Run options screen')
 log('options')

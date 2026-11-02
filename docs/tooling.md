@@ -8,6 +8,9 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
   - `refs.py lo hi` finds immediate references to an address range (strings).
   - `callers.py addr` lists call/jmp sites.
   - `opscan.py substr [lo hi]` finds instructions by operand text.
+  - `mod_overlap.py owner/repo ... [--names]` compares our patch sites with another mod's public source (read through
+    `gh`, in memory): byte overlaps, near misses, patches on addresses we read or call, and with `--names` that mod's
+    function names for our addresses. It sees literal patches only, so a clean result is no substitute for a test.
   - `trackmarkers.py [--track id] [--type text] [--json out] [--tracks] [--verify]` reads every track's position
     markers from the game files: start grids (`Forward/BackwardStartingPosition`, the ones 0x5EB5D0 returns),
     start and finish lines, and track 4000's shop and crib spots (x y z heading). Also the track table with each
@@ -108,6 +111,8 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
     (`freerun_flow.py`: mode select, options, Press START..., loading; a timestamped line per step, a few seconds'
     timeout each), and waits for the logged start spots. `VIRTUAL=n` joins players 1..n and stops at the next Press
     START for real pads. `go_race_nointro.sh` doesn't fit Free Run's screens (no track list).
+  - `go_outrun.sh` starts a 2P split Outrun in about 15 s (`freerun_flow.py` with `RIGHTS=6`, for modes whose options
+    screen follows the mode select). `autorace.py --players 1` then lets P1 pull away and win.
   - `go_race_nointro.sh <mode>` starts a split race without the intro, joining players on virtual pads. Optional
     `POKES="addr=value"`; `INTRO=1` keeps the intro; `TRACK=id` picks that track in the list.
   - Fewer real pads than players: set `[DEBUG] ExtraPlayers` for the player count (read at boot), then

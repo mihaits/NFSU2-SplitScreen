@@ -138,10 +138,56 @@ static void LoadConfig(HMODULE self) {
     strcpy_s(g_logPath + (dot - path), MAX_PATH - (dot - path), ".log");
 }
 
+// speed2.exe v1.2 by its entry point, which other builds and packers change.
+static bool IsExeV12() {
+    auto* dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(0x400000);
+    auto* nt = reinterpret_cast<const IMAGE_NT_HEADERS*>(0x400000 + dos->e_lfanew);
+    return nt->OptionalHeader.AddressOfEntryPoint == 0x75BCC7 - 0x400000;
+}
+
+// The folder of this plugin, with a trailing backslash.
+static bool PluginFolder(HMODULE self, char (&dir)[MAX_PATH]) {
+    DWORD n = GetModuleFileNameA(self, dir, MAX_PATH);
+    char* slash = strrchr(dir, '\\');
+    if (!n || !slash) return false;
+    slash[1] = 0;
+    return true;
+}
+
+// For bug reports: every plugin in the scripts folder, whatever order they load in.
+static void LogInstalledMods(HMODULE self) {
+    char dir[MAX_PATH], pattern[MAX_PATH];
+    if (!PluginFolder(self, dir)) return;
+    sprintf_s(pattern, "%s*.asi", dir);
+    WIN32_FIND_DATAA f;
+    HANDLE h = FindFirstFileA(pattern, &f);
+    if (h == INVALID_HANDLE_VALUE) return;
+    do Log("installed plugin: %s (%lu bytes)", f.cFileName, f.nFileSizeLow);
+    while (FindNextFileA(h, &f));
+    FindClose(h);
+}
+
+// Extra Options' ExperimentalSplitScreenFix patches the game's split-screen layout code (0x5C23A9). Read from its ini,
+// because the patch may land after this plugin loads.
+static void WarnConflictingSettings(HMODULE self) {
+    char dir[MAX_PATH], asi[MAX_PATH], ini[MAX_PATH];
+    if (!PluginFolder(self, dir)) return;
+    sprintf_s(asi, "%sNFSU2ExtraOptions.asi", dir);
+    sprintf_s(ini, "%sNFSU2ExtraOptionsSettings.ini", dir);
+    if (GetFileAttributesA(asi) == INVALID_FILE_ATTRIBUTES) return;
+    if (!GetPrivateProfileIntA("Fixes", "ExperimentalSplitScreenFix", 0, ini)) return;
+    Log("WARNING: Extra Options' ExperimentalSplitScreenFix is on");
+    MessageBoxA(nullptr, "Extra Options' ExperimentalSplitScreenFix conflicts with this mod.\n"
+                         "Set it to 0 in NFSU2ExtraOptionsSettings.ini.", "NFSU2SplitScreen", MB_ICONWARNING);
+}
+
 static void Install(HMODULE self) {
+    if (!IsExeV12()) {
+        MessageBoxA(nullptr, "This mod needs speed2.exe v1.2 (4,800,512 bytes). Disabled.", "NFSU2SplitScreen", MB_ICONWARNING);
+        return;
+    }
     if (!IsSupportedExe()) {
-        MessageBoxA(nullptr, "Unsupported speed2.exe (needs v1.2) or another mod patches the same code. Disabled.",
-                    "NFSU2SplitScreen", MB_ICONWARNING);
+        MessageBoxA(nullptr, "Another mod patches the same game code. Disabled.", "NFSU2SplitScreen", MB_ICONWARNING);
         return;
     }
     LoadConfig(self);
@@ -158,6 +204,8 @@ static void Install(HMODULE self) {
         }
     }
     Log("mailbox at %p", &g_mailbox);
+    LogInstalledMods(self);
+    WarnConflictingSettings(self);
 
     g_xinputPads = InstallXInputDevices(IMPORT_DIRECTINPUT8CREATE, g_nativeDualSense, g_dsRumbleMode, &Log);
     if (g_xinputPads)
@@ -321,6 +369,7 @@ static void Install(HMODULE self) {
     g_origPoolFree = MakeTrampoline(FN_GAME_POOL_FREE, 7);
     WriteJump(FN_GAME_POOL_FREE, &PoolFreeLocked, 7);
     WriteCall(AT_SOUND_FS_CREATE_CALL, &CreateSoundFs);
+    GuardSoundFsOpen();
     EnlargeAudioPool();
     WriteCall(AT_TRACK_POOL_CALL, &CreateTrackStreamingPool);
     WriteCall(AT_SECOND_POOL_CALL, &CreateSecondStreamingPool);
