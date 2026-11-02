@@ -85,7 +85,7 @@ and attach `scripts\NFSU2SplitScreen.log` (set `Debug = 1` in the ini to write i
 | [NFSU2 Extra Options](https://github.com/ExOptsTeam/NFSU2ExOpts) | works; keep `ExperimentalSplitScreenFix = 0` |
 | [NFSU2 Unlimiter](https://github.com/nlgxzef/NFSU2Unlimiter) | works |
 | [NFSU2 Upscaled HUD](https://nfsmods.xyz/mod/4319) | works; the Split-Screen menu icon switches to a matching HD one |
-| NFSU2 Detailed Map | works |
+| [NFSU2 Detailed Map](https://nfsmods.xyz/mod/4485) | works |
 | XtendedInput | not recommended: replaces the same controller input code, and this mod already handles pads per player |
 
 ## Linux compatibility
