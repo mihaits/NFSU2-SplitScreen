@@ -104,6 +104,9 @@ Build with Visual Studio 2022 Build Tools (C++, x86): run `build.bat`.
 [`docs/TECHNICAL.md`](docs/TECHNICAL.md) explains how everything works, for anyone (or any AI agent) continuing the
 work; [`tools/`](tools) has the testing and reverse-engineering helpers.
 
+## Support
+The mod is free. If you enjoy it, you can support it on [Ko-fi](https://ko-fi.com/mihaits) ☕
+
 ## License
 MIT. Need for Speed Underground 2 is © Electronic Arts; this project contains no game code or data.
 `third_party/opus` is libopus 1.5.2 (BSD, see its `COPYING`), built into the plugin for the DualSense speaker.
