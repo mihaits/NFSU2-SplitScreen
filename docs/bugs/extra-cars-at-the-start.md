@@ -25,5 +25,5 @@ P5/P6 also started 11-14 m behind their slots, because nothing put them back whe
 ## Measurement pitfalls
 - car +0x18's player index isn't stable within a frame: label cars by their list index.
 - Positions change once per physics tick: comparing 2 ms samples with velocity reports every tick as a jump.
-- The placement moves cars in the frame the scene ends: 1.3 m for P4 on Street X, about 7 m for P3/P4 on 4311. Whether
-  that's visible wasn't checked.
+- The placement moves cars in the frame the scene ends (1.3 m for P4 on Street X, about 7 m for P3/P4 on 4311). It
+  doesn't show in play.

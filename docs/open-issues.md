@@ -39,16 +39,11 @@ Tested with real controllers, 4 native DualSense pads over Bluetooth at once plu
 A 2P + 4 AI race stayed on the loading screen at full frame rate, game state 5, race load step 4: the car loader
 waited for `CARS\PEUGOT106\TEXTURES.BIN`, which that install doesn't have (see [streaming](streaming.md)). PEUGOT106
 and CORSA are in the car table, but their folders aren't in every install, and an AI opponent got the 106: with
-Unlimiter and ExtraOptions loaded, the AI car picker ran on a longer list holding both. `UnlockRegionalCars` (on by
-default in ExtraOptions) is the source: with it off the picker is back to the 26 stock cars and neither is in the list
-([players](players.md)).
-- The entry count was 28 before the folders were added and 30 after, with 7 and 6 in the list twice. What makes the
-  difference isn't known; each regional car then has twice the odds of another car.
-- Adding the two folders fixes that install; so should `UnlockRegionalCars = 0`, which removes them from the AI list.
+Unlimiter and ExtraOptions loaded, `UnlockRegionalCars` puts both in the AI list. ExtraOptions checks for the files and
+skips its patch, but Unlimiter adds them anyway ([players](players.md)). Outside this mod's scope.
+- Adding the two folders fixes that install, and so should `UnlockRegionalCars = 0`, which takes them out of the list.
 - A stuck load was recovered live: with the files in place, set the geometry entry's state +0x5A and the texture
   entry's state +0x52 to 0, clear busy (+0x14), and run 0x63B160 once on the main thread. The race then started.
-- Not fixed: nothing in the plugin guards against this. An option is to take car types without a folder out of the AI
-  lists at boot; a human picking such a car would still hang.
 
 ## Found by static analysis (2026-10-23)
 The others are fixed (gearbox, minimap rebuild) or measured harmless (extra players' gauge textures, hud.md).

@@ -82,11 +82,12 @@ value first (split options, `AddOpponentsRow`), followed by the game's own Diffi
   tolerance (3%, doubling) of a reference car: racer 0's (player 1's; 0x5ED900(race; 0) at 0x53EEE9). In split races
   `AiReferenceRacer` gives the fastest human car by that rating. The check only bounds the AI car from above (any
   slower car passes). The list is one of two 26-byte tables of car types chosen by the region flag 0x864F24: 0x7F6DA4
-  (0: ends with types 5 and 18) or 0x7F6DC0 (regional: 7 CORSA and 6 PEUGOT106 instead). Unlimiter moves both tables
-  into its own module (the immediates at 0x4FEBA2 / 0x4FEBA9), and both Unlimiter and ExtraOptions read
-  `UnlockRegionalCars` and patch the count at 0x4FEB9D: with it on, the picker takes 28-30 entries and the regional
-  cars join any region. Check the live code, not the exe. Those two cars' folders aren't in every install, see
-  [open issues](open-issues.md). Difficulty picks each AI driver's skill tier (0x4FED00:
+  (0: ends with types 5 and 18) or 0x7F6DC0 (regional: 7 CORSA and 6 PEUGOT106 instead). Both mods act on ExtraOptions' `[Gameplay]
+  UnlockRegionalCars`, so check the live code, not the exe. ExtraOptions runs first: if the 4 files `CARS\CORSA` and
+  `CARS\PEUGOT106` `GEOMETRY.BIN` / `TEXTURES.BIN` exist, it sets the count at 0x4FEB9D to 28 and writes types 7, 6 after
+  the list at 0x7F6DBE. Unlimiter then copies both tables into its own module at that count (the immediates at
+  0x4FEBA2 / 0x4FEBA9) and, with no file check, appends 7, 6 and adds 2. So the option off gives 26 entries, on without
+  the files 28, on with the files 30 with both cars listed twice. Difficulty picks each AI driver's skill tier (0x4FED00:
   weighted random over a 10-entry table per difficulty) and the rubber-band strength.
 - AI racers are spec index 100 + i (no clash with players 3/4). Their cars (0x4FEAF0(out, 100 + i, 2 + i, ...)) got
   DUMMY_SKIN<2 + i> (call 0x61C280 at 0x4FEB51), player 2's slot in split: `AiSetSkin` starts them after the humans.
