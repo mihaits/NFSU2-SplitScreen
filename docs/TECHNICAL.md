@@ -16,7 +16,7 @@ everything here was verified in game, except [physics](physics.md), which says s
 ## Subsystems
 | doc | covers |
 |---|---|
-| [frontend](frontend.md) | main menu entry, Players row, joining, seats and car select, shared garage, FE API |
+| [frontend](frontend.md) | main menu entry, Players and Cars rows, joining, seats and car select, garage car list, shared garage, FE API |
 | [input](input.md) | DirectInput side, XInput virtual pads, pad resolver, keyboard player, P3/P4 bindings, rumble |
 | [players](players.md) | players 3..6: relocated arrays, racers, settings, seat store, names, catch-up, AI opponents, free camera |
 | [rendering](rendering.md) | views, layout, viewports, projection; per-view passes (headlights, skins, reflections, weather, blur, streaks) |

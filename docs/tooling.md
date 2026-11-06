@@ -144,6 +144,9 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
   - `start_matrix.sh [humans:ai:mode[:track] ...]` runs each setup through start, autopilot drive-off, pause menu
     Restart and drive-off again, for changes to shared race-start code; about 1 min a setup, stops at the first failure,
     and restores the ini's counts. `grid_check.py` is its grid check: every racer's slot and position, fails below 3 m.
+  - `cars_check.sh [humans:cars[:mode] ...]` starts split races with each Cars row mode (`[DEBUG] CarsMode`; default 2P
+    and 4P Pick One, 2P / 4P / 6P Random, 3P Pick Each) and checks the logged race cars ("race: player N car"),
+    the given cars and the random ratings, then grid_check and quit; restores the ini.
   - `race_again.sh` starts the race again from the mode select; `quit_race.py` quits to the menu.
   - Pause menu: from Continue, `right` once is Restart, twice Options, three times Quit; `a`, then `left` and `a` in the
     confirmation. `b` doesn't leave Pause Options, and `left` there moves a volume slider. In a split race the menu sits

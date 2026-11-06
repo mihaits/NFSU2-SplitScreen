@@ -37,6 +37,28 @@ Outrun (race type 0x83AAB4 == 8) is a 2-player mode: the row isn't added and `Sp
 is kept for other modes. Every other mode, drag included, takes 6 racers: every track's grid has 8 spots per
 direction (drag: 4 abreast, 2 rows), and the race start placement reads 6 of them.
 
+**Cars row.** Added after the Players row in every split mode (same row type; `[DEBUG] CarsMode` gives its default):
+Pick Each (the car select as it is), Pick One (player 1 picks for everyone), Random. With the last two a seat whose car is given has no
+pick screen: its join (`JoinedSeat`) marks it, and on the next car select tick `AutoPickTick` writes the car to
+0x83AAB8[fe] and runs the after-pick step (`CarselToP2` on FE 0, `CarselStart` on FE 1), so the next seat's Press
+START opens or the race starts. There is no gearbox dialog: players 1/2 keep their FE slot's setting, players 3-6 their
+own player settings. Pick One gives player 1's pick of the round to the others. Random deals at player 1's join
+(`PickRandomCars`): one car of the pool at random, then the cars within 4% of its rating (the tolerance doubles until
+there are enough), a different one per player while there are enough. Back on the next seat's popup returns to a seat
+that had no pick screen; `BackToSeat` marks it and the game's own Back on its pick screen (sent as an FE message)
+reopens its popup, so Back still undoes only the last join.
+- The pool is what the car select offers in its categories 1 Stock, 2 My Cars, 4 Career, 8 bonus (the RB cycle at
+  0x4EED10; 0x10 entries are never listed), by the game's own tests (list builder 0x4E22E0, category count 0x534850).
+  Each entry needs +0x10 set, a valid car type (vtable slot 1), a usable car type record
+  ([0x8A1CCC] + type * 0x890: +0x840 slot passes 0x5022C0 and the record 0x610180), and to be unlocked:
+  0x534180(0x497DA0(), id, 0) for most cars, +0x7F5 for a career car. The regional CORSA / PEUGOT106 entries have no
+  rating, so they never come up.
+- Garage car list (0x844968 = P1's garage 0x83AD90 + 0x9BD8, 0x5B entry pointers, built by 0x5036F0): 0x30 stock
+  entries (0x1C bytes, vtable 0x79AADC, +0x18 car type), 0x14 My Cars (0x434, vtable 0x79B12C), then career cars,
+  0x10 entries and bonus cars (vtable 0x79AD18). Every entry: +8 id (the car id the picks store), +0xC performance rating
+  (float, 0x5B6990(ride + 0x10; 0, -1.0) as cached by the entry's ride builder, vtable slot 3: 0x503A80 stock, 0x516CA0
+  My Cars), +0x14 category.
+
 **Joining (Press START).** The 2P_PressStart popup handler 0x498070 only reacted to the console START message
 0xB5AF2461. `PressStartHook`/`PressStartFilter` instead waits for XInput Start on an unassigned pad or keyboard Enter
 (any seat, one keyboard player per round: `g_keyboardSeat`), records `g_assignedPad[seat]`, and injects START with mask 1 << player. The popup text object 0x2EBB974D is
@@ -88,6 +110,17 @@ get multiplier 0 (`ShareGarage`, kGarageIndexSites), and race setup's own lookup
 
 **Controls screen titles.** The joypad page title call at 0x4DCA18 → `SetJoypadPageTitle` → "Joypad Configuration - P1/P2".
 The slot comes from the page's input device record +0x230. Pages table: 0x835930, stride 12; current page 0x8364EC.
+
+**Simultaneous car select (not built; static study 2026-11-06).** Picking at the same time in each player's view
+can't reuse the car select: one screen with one list (+0x50/+0x54, 0x930-byte entries by 0x511DB0, cursor +0x58), a
+global FE player (0x85AD28) and category (0x7F444C), packages found by name (a second push would not be a second
+instance), and one FE ride for the 3D car (0x8371B0, load flag 0x83623C). The second ride (0x836750) belongs to
+GarageMain_2P.fng, console code that PC never pushes and whose package isn't in FRONTEND/FrontB.lzc. The FE car draw
+0x630DE0(view, mode) draws every car of its list into the view it gets, so drawing has no one-car limit. A picker the
+plugin draws itself (per-view lists from the garage list above, names `CAR_NAME_%s` via 0x4FFA80, the manufacturer /
+logo textures of 0x511E60, the picks handed over like `QuickStart`) is the workable design; Customize would stay one
+player at a time (the shop is FE player 0 on one shared garage). Open for a live test: which view draws the FE
+garage scene, the FE memory for a second car, whether the logo textures resolve in the car select.
 
 **FE API (useful)**
 - 0x55DDA0 `(msg, fng)` sends a message to a package (hooked: `SendFeMessage`).

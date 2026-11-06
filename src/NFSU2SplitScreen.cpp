@@ -100,6 +100,8 @@ static void LoadConfig(HMODULE self) {
     if (g_extraPlayers < 0) g_extraPlayers = 0;
     if (g_extraPlayers > MAX_EXTRA_PLAYERS) g_extraPlayers = MAX_EXTRA_PLAYERS;   // debug: 5/6 even past the Players row
     g_splitPlayers = 2 + g_extraPlayers;                                                      // debug default
+    g_carsMode = GetPrivateProfileIntA("DEBUG", "CarsMode", CARS_EACH, path);                // debug default
+    if (g_carsMode < 0 || g_carsMode >= CARS_MODES) g_carsMode = CARS_EACH;
     g_cloneViews = GetPrivateProfileIntA("DEBUG", "CloneViews", 0, path);
     if (g_cloneViews < 0) g_cloneViews = 0;
     if (g_cloneViews > 2) g_cloneViews = 2;

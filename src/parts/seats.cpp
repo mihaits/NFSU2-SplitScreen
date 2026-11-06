@@ -92,6 +92,17 @@ static int g_lastCar[MAX_LOCAL_PLAYERS], g_lastPort[MAX_LOCAL_PLAYERS], g_lastGe
 static int g_seat = 0;                   // car select: whose turn (0..5); the frontend serves FE player seat & 1
 static int g_splitPlayers = 2;           // players chosen on the split-screen options screen (2..6)
 static int g_splitOpponents = 0;         // AI opponents chosen there (see SplitOpponents)
+// "Cars" row: each player picks (the car select as it is), everyone races player 1's pick, or everyone gets a random
+// car of about the same performance. With the last two a player's turn is only the join (AutoPick).
+enum { CARS_EACH, CARS_SAME, CARS_RANDOM, CARS_MODES };
+static int g_carsMode = CARS_EACH;
+static bool CarsAuto(int seat) { return g_carsMode == CARS_RANDOM || (g_carsMode == CARS_SAME && seat > 0); }
+static bool g_autoSeat[MAX_LOCAL_PLAYERS];   // this round, the seat's car was given (no pick screen, no gearbox dialog)
+static int g_autoPickSeat = -1;          // joined just now: its car is given on the next car select tick
+static int g_autoBackSeat = -1;          // Back returned to a seat that has no pick: its join is undone too
+static int g_firstCar = 0;               // player 1's pick of this round (CARS_SAME)
+static int g_randomCar[MAX_LOCAL_PLAYERS];
+static const char* const kCarsModeText[CARS_MODES] = {"Pick Each", "Pick One", "Random"};
 #define QR_RACE_TYPE       0x83AAB4      // quick race type (8 = outrun)
 // Outrun is a 2-player mode (one car chases the other): no Players row and always 2 players. The choice is kept for
 // the other modes.
@@ -231,6 +242,19 @@ static bool __stdcall CarselFilter(uint8_t* carsel, uint32_t msg);
 static uint8_t* g_carsel = nullptr;      // the car select of the current round (set when switching seats)
 static int g_autoJoinSeat = -1;           // back from customize: this seat's Press START popup accepts by itself
 
+// A join (not the rematch, not the rejoin after customize): with a given car (Cars row) the seat's car comes on the
+// next car select tick instead of its pick screen. Player 1's join starts the round: random cars are dealt then.
+static void PickRandomCars(int players);
+static void JoinedSeat(int seat) {
+    if (seat == 0) {
+        for (bool& a : g_autoSeat) a = false;
+        if (g_carsMode == CARS_RANDOM) PickRandomCars(SplitPlayers());
+    }
+    g_autoSeat[seat] = CarsAuto(seat);
+    g_autoPickSeat = g_autoSeat[seat] ? seat : -1;
+    Log("cars: %s, player %d %s", kCarsModeText[g_carsMode], seat + 1, g_autoSeat[seat] ? "gets a car" : "picks");
+}
+
 static uint32_t __stdcall PressStartFilter(uint8_t* popup, uint32_t msg, uint32_t* port) {
     int player = at<int>(FE_PLAYER);
     if (player < 0 || player > 1) return msg;
@@ -270,6 +294,7 @@ static uint32_t __stdcall PressStartFilter(uint8_t* popup, uint32_t msg, uint32_
             *port = 1u << player;
             Log("player %d joined with pad %d", seat + 1, pad + 1);
             reinterpret_cast<void(__cdecl*)(int)>(FN_PLAY_FE_SOUND)(6);    // join sound (see FeSound)
+            JoinedSeat(seat);
             return MSG_START;
         }
         if (keyboard) {
@@ -279,6 +304,7 @@ static uint32_t __stdcall PressStartFilter(uint8_t* popup, uint32_t msg, uint32_
             *port = 1u << player;
             Log("player %d joined with keyboard", seat + 1);
             reinterpret_cast<void(__cdecl*)(int)>(FN_PLAY_FE_SOUND)(6);    // join sound (see FeSound)
+            JoinedSeat(seat);
             return MSG_START;
         }
         return msg;
@@ -382,10 +408,78 @@ static bool GarageHasCar(int id) {
     return false;
 }
 
+// Random cars (CARS_RANDOM): the cars the car select offers in its categories Stock (1), My Cars (2), Career (4) and
+// bonus (8), by the game's own tests (list builder 0x4E22E0, category count 0x534850): entry +0x10 set, car type
+// (vtable slot 1) valid, its car type record ([0x8A1CCC] + type * 0x890) usable (+0x840 slot 0x5022C0, 0x610180), and
+// unlocked (0x534180(context 0x497DA0(), id, 0)); a career car instead needs its +0x7F5. Entry +0xC is the car's
+// performance rating (0x5B6990 with 0, cached by the entry's ride builder, vtable slot 3: the car select's bars).
+#define GARAGE_CAR_TYPES   0x8A1CCC      // car type records, stride 0x890
+static int CarPool(int* ids, float* ratings, int max) {
+    int ctx = reinterpret_cast<int(__cdecl*)()>(0x497DA0)();
+    int n = 0;
+    for (int i = 0; i < 0x5B && n < max; ++i) {
+        uint8_t* car = reinterpret_cast<uint8_t* const*>(GARAGE_CARS)[i];
+        if (!car || !*reinterpret_cast<int*>(car + 0x10)) continue;
+        int flags = *reinterpret_cast<int*>(car + 0x14), id = *reinterpret_cast<int*>(car + 8);
+        float rating = *reinterpret_cast<float*>(car + 0xC);
+        if (!(flags & 0xF)) continue;
+        auto* vt = *reinterpret_cast<uintptr_t**>(car);
+        int type = reinterpret_cast<int(__thiscall*)(void*)>(vt[1])(car);
+        if (type < 0) continue;
+        uint8_t* rec = at<uint8_t*>(GARAGE_CAR_TYPES) + type * 0x890;
+        int slot = *reinterpret_cast<int*>(rec + 0x840);
+        if (slot == -1 || !reinterpret_cast<bool(__cdecl*)(int)>(0x5022C0)(slot) ||
+            !reinterpret_cast<bool(__thiscall*)(void*)>(0x610180)(rec)) continue;
+        bool open = flags & 4 ? car[0x7F5] != 0 : reinterpret_cast<bool(__cdecl*)(int, int, int)>(0x534180)(ctx, id, 0);
+        if (!open || !(rating > 0)) {
+            Log("random cars: %08X (category %d) left out: %s", id, flags, open ? "no rating" : "locked");
+            continue;
+        }
+        ids[n] = id, ratings[n] = rating, ++n;
+    }
+    return n;
+}
+
+static uint32_t RandomInt(uint32_t n) {         // xorshift, seeded from the clock
+    static uint32_t s = 0;
+    if (!s) s = GetTickCount() | 1;
+    s ^= s << 13, s ^= s >> 17, s ^= s << 5;
+    return n ? s % n : 0;
+}
+
+// One car at random, then the cars within 4% of its rating (doubling until there are enough for everyone); each player
+// gets a different one of them while there are enough.
+static void PickRandomCars(int players) {
+    static int ids[0x5B], near_[0x5B];
+    static float ratings[0x5B];
+    int n = CarPool(ids, ratings, 0x5B);
+    for (int k = 0; k < MAX_LOCAL_PLAYERS; ++k) g_randomCar[k] = 0;
+    if (!n) { Log("random cars: no car available"); return; }
+    float anchor = ratings[RandomInt(n)], tol = 0.04f;
+    int m = 0;
+    for (;;) {
+        m = 0;
+        for (int i = 0; i < n; ++i)
+            if (fabsf(ratings[i] - anchor) <= tol * anchor) near_[m++] = i;
+        if (m >= players || tol > 1.0f) break;
+        tol *= 2;
+    }
+    for (int i = m - 1; i > 0; --i) { int j = RandomInt(i + 1), t = near_[i]; near_[i] = near_[j]; near_[j] = t; }
+    for (int k = 0; k < players && k < MAX_LOCAL_PLAYERS; ++k) {
+        int i = near_[k % m];
+        g_randomCar[k] = ids[i];
+        Log("random cars: player %d gets %08X (rating %.1f, anchor %.1f +-%.0f%%, %d of %d cars)", k + 1, ids[i],
+            ratings[i], anchor, tol * 100, m, n);
+    }
+}
+
 static void SaveSeat(int seat) {
     g_seatCar[seat] = at<int>(CAR_IDS + (seat & 1) * 4);
     g_seatPort[seat] = at<int>(PLAYER_PORTS + (seat & 1) * 4);
-    g_seatGearbox[seat] = at<uint8_t>(GEARBOX_SETTINGS + (seat & 1) * PLAYER_SETTING_SIZE) + 1;
+    // a given car had no gearbox dialog: players 1/2 keep their own setting (their FE slot), players 3-6 theirs (0 =
+    // their player settings, see CreatePlayers)
+    g_seatGearbox[seat] = g_autoSeat[seat] && seat >= 2 ? 0
+                        : at<uint8_t>(GEARBOX_SETTINGS + (seat & 1) * PLAYER_SETTING_SIZE) + 1;
     if (seat >= 2 && g_seatStore[seat - 2].car != g_seatCar[seat]) {
         g_seatStore[seat - 2].car = g_seatCar[seat];
         SaveSeatStore(seat - 2);
@@ -410,6 +504,7 @@ static void RememberRound(int players) {
         g_lastCar[k] = k < 2 ? at<int>(CAR_IDS + k * 4) : g_seatCar[k];
         g_lastPort[k] = k < 2 ? at<int>(PLAYER_PORTS + k * 4) : g_seatPort[k];
         g_lastGearbox[k] = k < 2 ? at<uint8_t>(GEARBOX_SETTINGS + k * PLAYER_SETTING_SIZE) + 1 : g_seatGearbox[k];
+        Log("race: player %d car %08X gearbox %d", k + 1, g_lastCar[k], g_lastGearbox[k] - 1);
     }
 }
 
@@ -453,6 +548,7 @@ static void SwitchSeat(uint8_t* carsel, int seat) {
 // Seats pick in order P1 (FE 0), P2 (FE 1), P3 (FE 0), P4 (FE 1), P5 (FE 0), P6 (FE 1); each pick of a seat >= 2 is
 // saved and the FE slot gets players 1/2's own pick back.
 static void __fastcall CarselToP2(uint8_t* carsel, void*, int) {      // after FE player 1's pick
+    if (g_seat == 0) g_firstCar = at<int>(CAR_IDS);
     if (SplitPlayers() > 2 && g_seat >= 2) {   // player 3 / 5 picked
         int seat = g_seat;
         SaveSeat(seat);
@@ -502,13 +598,47 @@ static __declspec(naked) void CarselStartHook() {
     }
 }
 
+static void BackToSeat(uint8_t* carsel, int seat) {
+    SwitchSeat(carsel, seat);
+    g_autoPickSeat = -1;
+    g_autoBackSeat = g_autoSeat[seat] ? seat : -1;   // no pick screen to go back to: its join is undone too
+}
+
 static void __fastcall CarselBackToP1(uint8_t* carsel, void*, int) {  // Back on FE player 2's pick
     if (g_seat >= 3) {                         // player 4 / 6: back to player 3 / 5
         RestoreSeat(1);
-        SwitchSeat(carsel, g_seat - 1);
+        BackToSeat(carsel, g_seat - 1);
         return;
     }
-    SwitchSeat(carsel, 0);
+    BackToSeat(carsel, 0);
+}
+
+// Cars row: a seat with a given car gets it on the first car select tick after its join, as if it had picked it
+// (the game's after-pick steps CarselToP2 / CarselStart: on to the next seat's Press START, or the race). A seat that
+// Back returned to gets the game's own Back on its pick screen, which reopens its Press START popup.
+static bool AutoPickTick(uint8_t* carsel) {
+    using ActiveFn = bool(__cdecl*)(const char*);
+    if (at<int>(FE_PLAYER) != (g_seat & 1) || reinterpret_cast<ActiveFn>(FN_FE_PACKAGE_ACTIVE)("2P_PressStart.fng"))
+        return false;
+    if (g_autoBackSeat == g_seat) {
+        g_autoBackSeat = -1;
+        Log("cars: back to player %d's Press START", g_seat + 1);
+        reinterpret_cast<void(__cdecl*)(uint32_t, const char*)>(FN_FE_SEND_MSG)(MSG_BACK, "UI_QRCarSelect.fng");
+        return true;
+    }
+    if (g_autoPickSeat != g_seat) return false;
+    g_autoPickSeat = -1;
+    int car = g_carsMode == CARS_SAME ? g_firstCar : g_randomCar[g_seat];
+    if (!GarageHasCar(car)) {                  // (nothing to give: the player picks)
+        g_autoSeat[g_seat] = false;
+        Log("cars: no car %08X for player %d, picks", car, g_seat + 1);
+        return false;
+    }
+    at<int>(CAR_IDS + (g_seat & 1) * 4) = car;
+    Log("cars: player %d gets %08X (%s)", g_seat + 1, car, g_carsMode == CARS_SAME ? "same as player 1" : "random");
+    if (g_seat & 1) CarselStart(carsel);
+    else CarselToP2(carsel, nullptr, 0);
+    return true;
 }
 
 // Back on player 3 (FE player 1, whose Back would leave the car select) returns to player 2, like player 2's Back
@@ -566,13 +696,15 @@ static bool __stdcall CarselFilter(uint8_t* carsel, uint32_t msg) {
         QuickStart();
         return true;
     }
+    if (msg == MSG_FRAME_TICK && g_autoJoinSeat < 0 && g_returnSeat < 0 && !g_quickStart && AutoPickTick(carsel))
+        return true;
     if (msg != MSG_BACK || g_seat < 2 || (g_seat & 1)) return false;   // Back on player 3 / 5's popup: to player 2 / 4
     // Back on the pick screen itself undoes only this player's join: the game's own Back (0x4FC795) reopens the popup
     using ActiveFn = bool(__cdecl*)(const char*);
     if (!reinterpret_cast<ActiveFn>(FN_FE_PACKAGE_ACTIVE)("2P_PressStart.fng")) return false;
     reinterpret_cast<void(__cdecl*)(const char*)>(0x5379A0)("2P_PressStart.fng");
     RestoreSeat(0);
-    SwitchSeat(carsel, g_seat - 1);
+    BackToSeat(carsel, g_seat - 1);
     reinterpret_cast<void(__cdecl*)(int)>(0x50D180)(5);
     return true;
 }
@@ -680,7 +812,7 @@ static void UpdateSeats() {
             obj, g_lastKeyboardSeat >= 0 ? "Player One Press START\nPress Y / SPACE for Rematch"
                                          : "Player One Press START\nPress Y for Rematch");
     }
-    if (!g_inCarSelect) g_quickStart = false;
+    if (!g_inCarSelect) g_quickStart = false, g_autoPickSeat = g_autoBackSeat = -1;
     static int s_waited = 0;                       // X that didn't open the shop: forget it after 30 frames
     if (g_customizeSeat >= 0 && !g_customizeLeft && g_inCarSelect && ++s_waited > 30) g_customizeSeat = -1;
     if (g_customizeSeat < 0 || g_customizeLeft) s_waited = 0;
@@ -798,8 +930,32 @@ static void AddPlayersRow(uint8_t* screen) {
     AddRow(screen, g_playersRowVt);
 }
 
+static uint32_t g_carsRowVt[18];
+static void __fastcall CarsRowDraw(uint8_t* row) {
+    auto printf_ = reinterpret_cast<void(__cdecl*)(void*, const char*, ...)>(FN_FE_PRINTF);
+    printf_(*reinterpret_cast<void**>(row + 0x2C), "%s", "Cars");
+    printf_(*reinterpret_cast<void**>(row + 0x30), "%s", kCarsModeText[g_carsMode]);
+}
+static void __fastcall CarsRowAct(uint8_t* row, void*, const char* fng, uint32_t msg) {
+    if (msg == MSG_LEFT) g_carsMode = (g_carsMode + CARS_MODES - 1) % CARS_MODES;
+    if (msg == MSG_RIGHT) g_carsMode = (g_carsMode + 1) % CARS_MODES;
+    reinterpret_cast<void(__cdecl*)(uint32_t, const char*)>(FN_FE_SEND_MSG)(0x92B703B5, fng);
+    auto* vt = *reinterpret_cast<uintptr_t**>(row);
+    reinterpret_cast<void(__thiscall*)(void*, uint32_t)>(vt[0x40 / 4])(row, msg);
+    reinterpret_cast<void(__thiscall*)(void*)>(vt[3])(row);
+}
+static void AddCarsRow(uint8_t* screen) {
+    if (!g_carsRowVt[0]) {
+        memcpy(g_carsRowVt, reinterpret_cast<void*>(ROW_VTABLE_LAPS), sizeof(g_carsRowVt));
+        g_carsRowVt[1] = reinterpret_cast<uint32_t>(&CarsRowAct);
+        g_carsRowVt[3] = reinterpret_cast<uint32_t>(&CarsRowDraw);
+    }
+    AddRow(screen, g_carsRowVt);
+}
+
 static void __fastcall QrFinishRows(uint8_t* screen, void*, int arg) {
     if (SplitMode() && !OutrunRace()) AddPlayersRow(screen);
+    if (SplitMode()) AddCarsRow(screen);
     if (SplitMode() && AiRaceType()) AddOpponentsRow(screen), AddDifficultyRow(screen);
     reinterpret_cast<void(__thiscall*)(void*, int)>(FN_QR_FINISH_ROWS)(screen, arg);
 }

@@ -20,11 +20,12 @@ Xbox, DualSense and DualShock 4 pads are all supported natively, over USB or Blu
 
 ## Play
 1. Main menu → **Split-Screen** (next to Quick Race).
-2. Pick the race type, track, the number of **Players**, **Opponents** (AI) and their **Difficulty**. **Free Run**
-   (the last mode) drops you in the city with no race; its **Start** row picks where: a city district, Random, or a
-   closed venue (speedways, drift areas).
-3. Each player presses **START** on their own pad and picks a car. On the keyboard, press **Enter** on your Press START
-   screen. Back only undoes your own step.
+2. Pick the race type, track, the number of **Players**, **Cars** (Pick Each, Pick One: player 1 picks for all, or Random
+   cars of about the same performance), **Opponents** (AI) and their **Difficulty**. **Free Run** (the last mode)
+   drops you in the city with no race; its **Start** row picks where: a city district, Random, or a closed venue
+   (speedways, drift areas).
+3. Each player presses **START** on their own pad and picks a car (with Pick One or Random, START is all it takes). On the
+   keyboard, press **Enter** on your Press START screen. Back only undoes your own step.
 
 Every player has their own controls page (Options → Controls) and their own player options. Pausing opens the
 options of whoever paused.
@@ -44,6 +45,8 @@ options of whoever paused.
 
 **Racing**
 - AI opponents with difficulty (up to 6 racers in all), catch-up between players, traffic around every player
+- Cars: each player picks, everyone races player 1's car, or random cars of about the same performance (stock, My
+  Cars and career cars); with the last two, joining is all it takes
 - Free Run: drive the whole city together from the district or venue you pick
 - Tuned headlight colours work, also in single player: the original PC game turns bright ones white
 
