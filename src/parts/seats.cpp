@@ -93,14 +93,11 @@ static int g_seat = 0;                   // car select: whose turn (0..5); the f
 static int g_splitPlayers = 2;           // players chosen on the split-screen options screen (2..6)
 static int g_splitOpponents = 0;         // AI opponents chosen there (see SplitOpponents)
 #define QR_RACE_TYPE       0x83AAB4      // quick race type (8 = outrun)
-// Outrun is a 2-player mode (one car chases the other): no Players row and always 2 players; drag has 4 lanes. The
-// choice is kept for the other modes.
+// Outrun is a 2-player mode (one car chases the other): no Players row and always 2 players. The choice is kept for
+// the other modes.
+#define MAX_RACERS 6                     // the race start placement reads 6 start spots (0x5EB5D0(6, out))
 static bool OutrunRace() { return at<int>(QR_RACE_TYPE) == 8; }
-static int MaxRacers();
-static int SplitPlayers() {
-    int n = OutrunRace() ? 2 : g_splitPlayers, max = MaxRacers();
-    return n < max ? n : max;
-}
+static int SplitPlayers() { return OutrunRace() ? 2 : g_splitPlayers; }
 
 static void ResetAssignments() {
     for (int& pad : g_assignedPad) pad = PAD_NONE;
@@ -719,7 +716,7 @@ static void __fastcall PlayersRowDraw(uint8_t* row) {
 }
 
 static void __fastcall PlayersRowAct(uint8_t* row, void*, const char* fng, uint32_t msg) {
-    int n = SplitPlayers(), max = MaxRacers() < MAX_LOCAL_PLAYERS ? MaxRacers() : MAX_LOCAL_PLAYERS;
+    int n = SplitPlayers(), max = MAX_LOCAL_PLAYERS;
     if (msg == MSG_LEFT) g_splitPlayers = n > 2 ? n - 1 : max;
     if (msg == MSG_RIGHT) g_splitPlayers = n < max ? n + 1 : 2;
     reinterpret_cast<void(__cdecl*)(uint32_t, const char*)>(FN_FE_SEND_MSG)(0x92B703B5, fng);
@@ -732,8 +729,7 @@ static void __fastcall PlayersRowAct(uint8_t* row, void*, const char* fng, uint3
 // circuit/sprint/lap KO, 2 drag, 3 drift, 4 URL, 5/10 Street X, 8 outrun, 9 / 11 others. AI only where single player
 // offers opponents (the per-type option builders that add 0x4B3750). Drift: circuit drift only - the drift starter
 // zeroes the AI on sprint drift tracks (track info 0x5D3E40(track) +0x80 == 1, at 0x53F8B0; NFSU2 Extra Options marks
-// sprint drift AI as broken). Up to 6 racers in all (single player URL; Extra Options allows 5 opponents everywhere),
-// 4 in drag.
+// sprint drift AI as broken). Up to 6 racers in all (single player URL; Extra Options allows 5 opponents everywhere).
 static bool SprintDriftTrack() {
     int type = at<int>(QR_RACE_TYPE);
     if (type == 0xC) return false;
@@ -748,10 +744,9 @@ static bool AiRaceType() {
     default: return false;
     }
 }
-static int MaxRacers() { return at<int>(QR_RACE_TYPE) == 2 ? 4 : 6; }
 static uint32_t g_opponentsRowVt[18];
 static int SplitOpponents() {
-    int max = MaxRacers() - SplitPlayers();
+    int max = MAX_RACERS - SplitPlayers();
     if (!AiRaceType() || max < 0) return 0;
     return g_splitOpponents < 0 ? 0 : g_splitOpponents > max ? max : g_splitOpponents;
 }
@@ -761,7 +756,7 @@ static void __fastcall OpponentsRowDraw(uint8_t* row) {
     printf_(*reinterpret_cast<void**>(row + 0x30), "%d", SplitOpponents());
 }
 static void __fastcall OpponentsRowAct(uint8_t* row, void*, const char* fng, uint32_t msg) {
-    int n = SplitOpponents(), max = MaxRacers() - SplitPlayers();
+    int n = SplitOpponents(), max = MAX_RACERS - SplitPlayers();
     if (max < 0) max = 0;
     if (msg == MSG_LEFT) g_splitOpponents = n > 0 ? n - 1 : max;
     if (msg == MSG_RIGHT) g_splitOpponents = n < max ? n + 1 : 0;

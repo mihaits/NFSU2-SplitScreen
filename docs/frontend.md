@@ -33,8 +33,9 @@ select. Leaving split resets FE player 0x85AD28 and the FE ports; a stale FE pla
 `0x54F170(screen; row, 1)`, and each race type has its own row builder (switch at 0x4E2C9A).
 `0x539650(0)` is called at 10 sites (0x4E2CAC..0x4E2D5F), and `QrFinishRows` appends our row there. The row's vtable is
 copied from the laps row (0x7910B8). The value is `g_splitPlayers`; the ini `ExtraPlayers` gives its default.
-Outrun (race type 0x83AAB4 == 8) is a 2-player mode: the row isn't added and `SplitPlayers()` returns 2. Drag has 4
-lanes: `SplitPlayers()` and the row stop at `MaxRacers()` (4 in drag, else 6); the choice is kept for other modes.
+Outrun (race type 0x83AAB4 == 8) is a 2-player mode: the row isn't added and `SplitPlayers()` returns 2; the choice
+is kept for other modes. Every other mode, drag included, takes 6 racers: every track's grid has 8 spots per
+direction (drag: 4 abreast, 2 rows), and the race start placement reads 6 of them.
 
 **Joining (Press START).** The 2P_PressStart popup handler 0x498070 only reacted to the console START message
 0xB5AF2461. `PressStartHook`/`PressStartFilter` instead waits for XInput Start on an unassigned pad or keyboard Enter

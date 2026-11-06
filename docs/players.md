@@ -77,7 +77,8 @@ value first (split options, `AddOpponentsRow`), followed by the game's own Diffi
   8 outrun. AI where single player offers opponents (the option builders adding the Opponents row 0x4B3750). In drift
   only circuit drift: the drift starter zeroes the AI on sprint drift tracks (0x5D3E40(track) +0x80 == 1, at
   0x53F8B0; NFSU2 Extra Options marks sprint drift AI as broken), and so does `SprintDriftTrack`. At most 6 racers
-  (single player URL allows 5 opponents, Extra Options 5 everywhere: it only changes the menu limits), 4 in drag.
+  in every mode, drag included (single player URL allows 5 opponents, Extra Options 5 everywhere: it only changes the
+  menu limits). Drag tracks have 8 start spots per direction, 4 abreast in 2 rows.
 - AI cars (0x4FEAF0): a shuffled list of 26 car types, the first whose stock performance (0x5B6990) is within a
   tolerance (3%, doubling) of a reference car: racer 0's (player 1's; 0x5ED900(race; 0) at 0x53EEE9). In split races
   `AiReferenceRacer` gives the fastest human car by that rating. The check only bounds the AI car from above (any
