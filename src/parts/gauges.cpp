@@ -1,14 +1,15 @@
 // Part of NFSU2SplitScreen.cpp: single-player gauges and custom gauge textures.
 // Included by NFSU2SplitScreen.cpp in a fixed order (one translation unit); not compiled on its own.
 
-// ---- Single-player gauges in split screen (user: the car-specific tach / boost / nitrous gauges and the 1P drag
-// tach instead of the simplified 2P ones). The HUD ctor 0x4F8BF0 builds the same element classes for every package,
-// binding objects by name, so the look comes from the package and the classes' NUM_PLAYERS == 1 branches. Each player
-// additionally gets a Tachometer (or DragRaceTachometer), TurboMeter and NitrousGauge bound to a private copy of the 1P
-// package (HUD_SingleRace / HUD_Drag / HUD_Drift -> "HUD_SingleRac1.fng"...), built, state-switched and updated with
-// NUM_PLAYERS = 1. They read their player's car (index -> racer -> CUSTOM_HUD part 0xA3, "HUDINDEX"), so customized
-// gauges work per player; each player's custom texture pack is loaded with P1's (LoadHudTextures). The 2P package's
-// gauge objects and the copies' other objects are not drawn; the gauges are placed per view (GaugeTransform).
+// ---- Single-player gauges in split screen (user: the car-specific tach / boost / nitrous gauges and the 1P drag tach
+// instead of the simplified 2P ones). The HUD ctor 0x4F8BF0 builds the same element classes for every package, binding
+// objects by name, so the look comes from the package and the classes' NUM_PLAYERS == 1 branches. Each player
+// additionally gets a Tachometer (or DragRaceTachometer), TurboMeter, NitrousGauge and engine heat bar bound to a
+// private copy of the 1P package (HUD_SingleRace / HUD_Drag / HUD_Drift -> "HUD_SingleRac1.fng"...), built,
+// state-switched and updated with NUM_PLAYERS = 1. They read their player's car (index -> racer -> CUSTOM_HUD part
+// 0xA3, "HUDINDEX"), so customized gauges work per player; each player's custom texture pack is loaded with P1's
+// (LoadHudTextures). The 2P package's gauge objects and the copies' other objects are not drawn; the gauges are placed
+// per view (GaugeTransform).
 #define FN_FE_PUSH_PACKAGE 0x555F10      // void __cdecl (fng, 0, 0, 0)
 #define FN_FE_POP_PACKAGE  0x5379A0      // void __cdecl (fng): what the HUD dtor does with its package
 #define FN_GAME_FREE       0x575630
@@ -23,14 +24,21 @@
 #define FN_HUD_TEX_LOAD    0x577F60
 #define AT_HUD_TEX_UNLOAD_CALL 0x5816D4  // `call 0x580FC0` (thiscall: releases them)
 #define FN_HUD_TEX_UNLOAD  0x580FC0
-struct GaugeKind { uint32_t hudOffset; uintptr_t ctor; size_t size; uintptr_t update; };
+enum GaugeMode { GAUGE_ALWAYS, GAUGE_DRAG, GAUGE_NOT_DRAG };
+struct GaugeKind { uint32_t hudOffset; uintptr_t ctor; size_t size; uintptr_t update; GaugeMode mode; };
 static const GaugeKind kGauges[] = {
-    {0x18, 0x4F5100, 0xC8, 0x4C68D0},    // Tachometer (not drag)
-    {0x34, 0x4F6500, 0xA8, 0x4C7090},    // DragRaceTachometer (drag)
-    {0x1C, 0x4F5A70, 0x38, 0x4C6B80},    // TurboMeter
-    {0x28, 0x4F6A90, 0x38, 0x4C7B20},    // NitrousGauge
+    {0x18, 0x4F5100, 0xC8, 0x4C68D0, GAUGE_NOT_DRAG},   // Tachometer
+    {0x34, 0x4F6500, 0xA8, 0x4C7090, GAUGE_DRAG},       // DragRaceTachometer
+    {0x1C, 0x4F5A70, 0x38, 0x4C6B80, GAUGE_ALWAYS},     // TurboMeter
+    {0x28, 0x4F6A90, 0x38, 0x4C7B20, GAUGE_ALWAYS},     // NitrousGauge
+    {0x24, 0x4F69E0, 0x28, 0x4C7AA0, GAUGE_ALWAYS},     // engine heat bar (HEAT_Bar: only the drag packages have one)
 };
-struct PlayerGauges { void* hud; void* elem[4]; char fng[32]; uint32_t state[2]; bool stateSet; bool dead; };
+constexpr int kGaugeCount = sizeof(kGauges) / sizeof(kGauges[0]);
+// layoutX: each element object's x as the copy was built (the 1P 4:3 layout that GaugeTransform places)
+struct PlayerGauges {
+    void* hud; void* elem[kGaugeCount]; char fng[32]; uint32_t state[2]; bool stateSet; bool dead;
+    std::vector<std::pair<float*, float>> layoutX;
+};
 static PlayerGauges g_gauges[MAX_LOCAL_PLAYERS];
 static bool g_spGauges = true;
 static int g_gaugeMapFrames = 0;
@@ -184,12 +192,17 @@ static void CreateGauges(int k, void* hud) {
     if (!ok) return;
     reinterpret_cast<void(__cdecl*)(const char*, int, int, int)>(FN_FE_PUSH_PACKAGE)(g.fng, 0, 0, 0);
     NumPlayersOne one;
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < kGaugeCount; ++i) {
         g.elem[i] = nullptr;
-        if ((i == 0 && drag) || (i == 1 && !drag)) continue;
+        if (kGauges[i].mode == (drag ? GAUGE_NOT_DRAG : GAUGE_DRAG)) continue;
         void* mem = reinterpret_cast<void*(__cdecl*)(size_t)>(FN_MALLOC)(kGauges[i].size);
         if (mem) g.elem[i] = reinterpret_cast<void*(__thiscall*)(void*, const char*, int)>(kGauges[i].ctor)(mem, g.fng, k);
     }
+    g.layoutX.clear();
+    for (void* e : g.elem)
+        ForElementObjects(e, [&g](const uint8_t* obj) {
+            if (auto* data = *reinterpret_cast<float* const*>(obj + 0x2C)) g.layoutX.emplace_back(data, data[7]);
+        });
     g.hud = hud;
     g.dead = false;
     g.stateSet = false;
@@ -209,18 +222,33 @@ static void ForwardToGauges(uint32_t msg, const char* fng) {
     }
 }
 
+// The game's gauge elements never move their objects sideways (the heat bar setter 0x4C66F0 writes x back unchanged),
+// but WidescreenFix widens the 1P heat bar in its data: an inline hook in that setter (at 0x4C6753) moves an object
+// at one of its table positions (HEAT_Bar at -254, 171) by its 1P side offset. The copies are placed by GaugeTransform
+// from the 4:3 layout, so any x moved during their update goes back to the built one.
+static void RestoreLayoutX(PlayerGauges& g) {
+    for (auto& e : g.layoutX)
+        if (e.first[7] != e.second) {
+            if (g_debug) {
+                static int s_logs = 0;
+                if (s_logs++ < 8) Log("1P gauges: object x %.1f moved to %.1f during the update, restored", e.second, e.first[7]);
+            }
+            e.first[7] = e.second;
+        }
+}
+
 static void __fastcall HudUpdateHook(void* hud, void*, void* player, void* arg) {
     // the 2P package's own gauges (hidden) are not updated: both sets updating per frame for the same player
     // fought over shared state (the N2O gamebreaker overlay stayed on, the shift light blinked)
-    void* saved[4] = {};
+    void* saved[kGaugeCount] = {};
     bool mine = false;
     for (PlayerGauges& g : g_gauges) mine |= g.hud == hud;
     auto* h = static_cast<uint8_t*>(hud);
     if (mine)
-        for (int i = 0; i < 4; ++i) std::swap(saved[i], *reinterpret_cast<void**>(h + kGauges[i].hudOffset));
+        for (int i = 0; i < kGaugeCount; ++i) std::swap(saved[i], *reinterpret_cast<void**>(h + kGauges[i].hudOffset));
     reinterpret_cast<void(__thiscall*)(void*, void*, void*)>(FN_HUD_UPDATE)(hud, player, arg);
     if (mine)
-        for (int i = 0; i < 4; ++i) std::swap(saved[i], *reinterpret_cast<void**>(h + kGauges[i].hudOffset));
+        for (int i = 0; i < kGaugeCount; ++i) std::swap(saved[i], *reinterpret_cast<void**>(h + kGauges[i].hudOffset));
     // Free Run has no race position or race time: the position element (HUD +0x20, ctor 0x4F4AC0) shows "1st /3" in
     // split screen (user) - its RacePositionNumber +0x28, RacePositionNth +0x2C, NumberRacers +0x30, PositionBacking
     // +0x3C hidden - and so are the timer and its backings (by name in the HUD's package)
@@ -271,8 +299,9 @@ static void __fastcall HudUpdateHook(void* hud, void*, void* player, void* arg) 
             for (void* e : g.elem)
                 if (e) reinterpret_cast<void(__thiscall*)(void*, uint32_t, uint32_t)>(FN_ELEMENT_SET_STATE)(e, lo & 0xFDFBFFFF, hi);
         }
-        for (int i = 0; i < 4; ++i)
+        for (int i = 0; i < kGaugeCount; ++i)
             if (g.elem[i]) reinterpret_cast<void(__thiscall*)(void*, void*)>(kGauges[i].update)(g.elem[i], player);
+        RestoreLayoutX(g);
     }
 }
 

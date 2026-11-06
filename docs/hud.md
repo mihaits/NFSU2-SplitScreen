@@ -116,6 +116,7 @@ groups 27 higher, because P2's map sits that much higher in its view.
 | Tachometer (or, in drag, DragRaceTachometer) | 0x4F5100 (drag 0x4F6500) | 0xC8 (0xA8) | 0x4C68D0 (0x4C7090) |
 | TurboMeter | 0x4F5A70 | 0x38 | 0x4C6B80 |
 | NitrousGauge | 0x4F6A90 | 0x38 | 0x4C7B20 |
+| Engine heat bar (`HEAT_Bar`; only the drag packages have one) | 0x4F69E0 | 0x28 | 0x4C7AA0 |
 
 - They're bound to a copy of `HUD_SingleRace` / `HUD_Drag` / `HUD_Drift` ("HUD_SingleRac1.fng", "HUD_Dra2.fng"...),
   pushed with 0x555F10(fng, 0, 0, 0). The copy is removed with 0x5379A0 when the player's HUD is destroyed
@@ -138,6 +139,12 @@ groups 27 higher, because P2's map sits that much higher in its view.
   - Both are also scaled by `HudCellScale(k)` (as are the minimap and its corner offsets): the cell's 640x240 layout
     fit relative to quadrants, capped at view height / 240. 1 up to 4 players, about 0.67 in the narrower 5/6P cells.
 - Messages to a player's 2P HUD package are forwarded to their copy (drag shift messages).
+- The heat bar's update (HUD +0x24) maps the over-rev heat (0x5ECCD0) and its setter 0x4C66F0 sets the bar's UV top,
+  height and y so it grows upward; x is written back unchanged. WidescreenFix has an inline hook in that setter (at
+  0x4C6753) that moves the bar by its 1P side offset when it sits at its table position (`Tachometer_Pos_4`, -254,
+  171: -254 → -363), in the object's data. The copies are placed from the 4:3 layout like every other gauge object, so
+  each object's x is recorded when the copy is built and restored after the elements' update (`RestoreLayoutX`).
+  Without WidescreenFix nothing moves and the restore does nothing.
 - Custom gauge textures (`HudTexLoadHook`):
   - The race load step 0x577F60 (call 0x57F3D8) loads `GLOBAL\HUD_CustomTextures_<HUDINDEX>.bin` for P1's car only and
     makes its 8 textures resident. The names come from 0x5ED9B0(spec, car parts, units, out, index), and the index is

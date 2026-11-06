@@ -128,6 +128,9 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
     the rest on real pads. P1/P2 idle at the start line, so a real player finishing starts the Hurry timer and the
     results show the idle ones as unfinished. Set `ExtraPlayers` back afterwards.
   - `go_1p.sh <mode>` starts a single-player race (a reference for comparisons).
+  - `drag_blow.py <shot dir>` drives a started drag race to the results without steering: every engine is blown
+    (full throttle in 1st, players released 1 s apart), heat logged per car; `PERCAR=1` screenshots each player's view
+    at heat 1.0. The autopilot doesn't work in drag (0x5F3AB2 rewrites the mode every frame). Pad: A shifts up, X down.
   - `autorace.py` lets the game's AI drive every local player's car (the game's autopilot: player +0x230 = 4, see
     [addresses](addresses.md)) and follows the race to the results: a progress line every 5 s, screenshots, fails on
     a stuck car or timeout. `--players 1,3` only those (drive the rest on real pads); `--stagger s` releases the cars
