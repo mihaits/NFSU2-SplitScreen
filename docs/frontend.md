@@ -19,7 +19,14 @@ Swedish; others keep theirs). Its vtable is `{0x4AEB70 dtor, SplitMenuReact}` an
 **Garage backup.** When the quick race flow backs out to the main menu in mode 4, it restores player 1's garage
 (0x4B2A00 → 0x515D70, from backup +0x1677C / car +0x20354). PC lost the code that takes that backup, so it would restore
 zeros (no car in the main menu, and Customize crashes). The plugin takes the backup when mode 4 is entered (`BackupGarage`).
-Leaving split resets FE player 0x85AD28 and the FE ports; a stale FE player 1 crashes the next 1P car select.
+
+**FE player after a race.** FE player 0x85AD28 is the player whose car select ran last: 1 after a 2P race, 0 after 3P
+(player 3 picks on FE player 0). It stays that through the race, Event Results, Post Race (and its Quit to Main Menu?
+dialog), the track select and the mode select. These screens listen to the current FE player's input device, and
+`PadForDevice` feeds that device from the last active pad (see [input](input.md), pad resolver), so any player's pad
+drives them and Back walks them out to the main menu. Post Race's Restart reloads the race with every player on their own
+pad, and the next car select starts on FE player 0 with player 1's pick, so the FE player needs no reset after the car
+select. Leaving split resets FE player 0x85AD28 and the FE ports; a stale FE player 1 crashes the next 1P car select.
 
 **Players row (2-6).** It's added to the split race options screen. Option rows are 0x54-byte widgets: base ctor
 0x51E230, vtable slot 1 `Act(fng, msg)` (left 0x9120409E / right 0xB5971BF1), slot 3 `Draw`. Rows are added with

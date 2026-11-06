@@ -211,7 +211,9 @@ false for them and `XPadIsDs4` true, so they get no player LEDs, trigger row or 
 
 **Pad resolver (`PadForDevice`).**
 - Outside split: device 0 = the last active pad.
-- Split menus: only the current FE player's pad (its joined pad on the car select, else the last active pad).
+- Split menus: only the current FE player's device (0x85AD28) gets a pad; the other reads idle. On the car select
+  it's the joined pad of the player whose turn it is; on every other split screen (mode, track, options, results, Post
+  Race and its dialogs) it's the last active pad, whoever's it is, so any player drives them whichever FE player is current.
 - Racing: each player's assigned pad. A pad that turns off keeps its player until it comes back (DualSense: same
   slot, see above). **Takeover** (`UpdatePadTakeover`): START on a connected pad no player has gives it the first
   player whose pad is off ("player N's pad P is off: pad Q takes over"); `RacePad` reads it idle until its buttons are
