@@ -828,9 +828,35 @@ static const char* CarselStateText() {
     return s;
 }
 static bool g_feSoundMuted = false;      // a message the plugin sends for the player (no sound of its own)
+
+// List screens: one sound per mouse click. The list screens' shared handler 0x556020 (thiscall screen; msg, ...)
+// plays the sound of the input a message stands for at its end (table 0x837FE0, call at 0x55647B, the message is the
+// saved edi on top of the caller's stack), and the accept input (8, sound 4) stands for both the accept 0x0C407210 and
+// the package click 0x406415E3. A left click on the help bar's Continue delivers both, the click one frame before the
+// accept, so it sounded twice; a click on a row delivers only the click. The accept's sound is dropped when this site
+// played the same sound for a click within the last 200 ms.
+#define AT_FE_LIST_SOUND_RET 0x556480
+#define MSG_FE_CLICK       0x406415E3
+static bool ListClickEcho(int id, const uint32_t* ret) {
+    static int clickSound = -1;
+    static ULONGLONG clickTime;
+    if (*ret != AT_FE_LIST_SOUND_RET) return false;
+    uint32_t msg = ret[2];
+    ULONGLONG now = GetTickCount64();
+    if (g_debug) Log("list sound %d for message %08X", id, msg);
+    if (msg == MSG_FE_CLICK) { clickSound = id; clickTime = now; return false; }
+    bool echo = msg == MSG_ACCEPT && id == clickSound && now - clickTime < 200;
+    clickSound = -1;
+    return echo;
+}
+
 static void __fastcall FeSound(void* mgr, void*, int id) {
     if (g_feSoundMuted) {
         if (g_debug) Log("sound %d from %08X dropped (plugin's own accept)", id, reinterpret_cast<uintptr_t>(_ReturnAddress()) - 5);
+        return;
+    }
+    if (ListClickEcho(id, reinterpret_cast<const uint32_t*>(_AddressOfReturnAddress()))) {
+        if (g_debug) Log("sound %d dropped (the click already played it)", id);
         return;
     }
     if (g_inCarSelect) {

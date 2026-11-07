@@ -36,10 +36,6 @@ Tested with real controllers, 4 native DualSense pads over Bluetooth at once plu
   after adding the row). Not reproduced in 10 runs since, also with `CarsMode` missing from the ini; cause unknown. The
   join logs "cars: <mode>, player N gets a car / picks" and "cars: player N gets <car>", which show the failing step
   if it happens again.
-- **Mouse Continue on the split options screen plays the menu sound twice** (user, 2026-11-07); A / Enter play it once.
-  Not looked into. Lead: the split car select drops the generic package layer's Back / Start sounds (`FeSound`, call
-  0x51DD81, see [frontend](frontend.md) "Car select sounds"); a mouse click reaches the screen another way, so its
-  sound may come from a path that drop doesn't cover, or the options screen and the car select it opens each play one.
 - **A DualSense can drop with error 1167,** seen several times on one pad, also mid-race: likely its Bluetooth link (range,
   battery).
 

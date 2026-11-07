@@ -146,6 +146,17 @@ a Start still held after joining played it as well. In the split car select the 
 `PressStartFilter` plays 6 on each join. With `Debug = 1` every car select sound (source, "dropped") and every
 Start/Back/A/B, Enter/Esc/Backspace press is logged with the seat state (`LogCarselInput`).
 
+**List screen sounds: one per mouse click.** The list screens (the race options among them) share the handler 0x556020
+(thiscall screen; msg, ...), which plays the sound of the input a message stands for at its end (table 0x837FE0, call
+at 0x55647B; the message is the saved edi on top of the caller's stack). The accept input (8, sound 4) stands for both
+the accept 0x0C407210 and the package click 0x406415E3. The FE mouse code (0x54E0E9-0x54E23E) sends a left click as the
+clicked object's accept (with the object as the message's p3) or as the package's 0x406415E3, a right click the same
+way with 0x14DD0705. A left click on a row delivers only 0x406415E3; a left click on the help bar's Continue delivers
+0x406415E3 and, one frame later, the accept, so the game played the accept sound twice. `FeSound` (`ListClickEcho`)
+drops the accept's sound when this call site played the same sound for a click within the last 200 ms. The mode and
+track selects have their own handlers and play one sound per click. A right click (Back) plays one. With `Debug = 1`
+every sound from this site is logged ("list sound N for message M").
+
 **Seats (3-6 players).** The car select serves FE players 0/1 (0x4FA2A0(fe)). The player 1 pick switches to FE 1
 (calls at 0x4FC3A8 / 0x4FC9B6, `CarselToP2`), and the player 2 pick starts the race (0x4FC3BE / 0x4FC9C2 → 0x53FC20,
 `CarselStartHook`). With 3-6 players the seats go in order on FE seat & 1: P2's pick goes to seat 2 on FE 0, P3's to
