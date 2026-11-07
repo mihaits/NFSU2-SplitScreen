@@ -86,7 +86,9 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
     by class and player, and the EA voices each holds; `--watch` prints the ones whose voices change.
   - `unclaimed_voices.py [seconds=8]` (in a split race, read-only) prints the playing voices whose stereo balance
     follows one car's engine over time but that the pad speakers don't route, with their patch name and owning
-    object (or bank): finds car sounds missing from `PadSpeakerSounds`.
+    object (or bank): finds car sounds missing from `PadSpeakerSounds`. `--all` lists every playing voice once, with
+    its gains, routed player (or PC) and patch. A patch's voices are the live handles anywhere in its instance, as the
+    plugin finds them.
 - **Device loss / flicker log** (ini `Debug = 1`, `HookDeviceDebug`, installed from the first frame): logs Present
   failures, TestCooperativeLevel changes (with the free address space), every Reset with its call stack, and the
   activation/focus/size/display messages the game window receives ("d3d:" / "wnd:" lines). The game resets on

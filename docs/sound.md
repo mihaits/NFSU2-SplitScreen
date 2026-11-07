@@ -84,7 +84,7 @@ speakers" block of `parts/sound.cpp`; the pad side is `DsSpeakerWrite` in `DualS
     don't fit every instance: in a 2P Street X race both cars' CAR patches had the same definition, one held its
     playing layer's handle at child offset + 8 (0xC4C + 8), the other (a stock Evo) at +0xC84 and +0xD7C, so that
     car's engine layers stayed on the PC with only the turbo on the pad (user, 2026-11-07). `tools/unclaimed_voices.py`
-    and `car_sounds.py` still name children by the header's offsets, so such layers show there without a patch name.
+    names a voice's patch the same way.
   - The scan follows every field of an object as a pointer, every frame, and most fields aren't pointers. Each pointer
     is checked against a cache of VirtualQuery results first (`ReadablePointer`, dropped every 600 frames), because a
     fault caught by `__try` costs far more than the scan: without it, this was a third of the main thread at 6 players.
@@ -96,7 +96,8 @@ speakers" block of `parts/sound.cpp`; the pad side is `DsSpeakerWrite` in `DualS
     The names come from the sound banks. Car Sound Tuner (Unlimiter's, or the older standalone one) changes the data
     the patches are set up with, not the patches, so the list holds with it.
   - A new sound can play on the PC for up to a frame before it's claimed: EA starts it on the sound thread.
-  - `tools/unclaimed_voices.py` lists playing voices that follow one car but aren't routed.
+  - `tools/unclaimed_voices.py` lists playing voices that follow one car but aren't routed; `--all` lists every playing
+    voice with its gains, routed player and patch.
 - **Splitting the mix** (sound thread). Every place 0x7292BC puts a voice into the output channels or aux sends is
   patched; a routed voice goes into its player's own two float buffers (same chunk offsets, 16-bit scale) instead,
   without reverb:

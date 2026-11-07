@@ -5,6 +5,7 @@ master (correlation over time) but that the plugin hasn't claimed (g_engineVoice
 what they are: the patch (name, owning object and field) if they're a patch child, else their sample player's bank.
 
   python -I unclaimed_voices.py [seconds=8]
+  python -I unclaimed_voices.py --all   # one snapshot of every playing voice: gains, routed player, patch
 """
 import array, os, struct, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -33,7 +34,9 @@ def bal(lr):
 
 
 def main():
-    seconds = float(sys.argv[1]) if len(sys.argv) > 1 else 8
+    show_all = '--all' in sys.argv
+    args = [a for a in sys.argv[1:] if a != '--all']
+    seconds = 0 if show_all else float(args[0]) if args else 8
     vp, vh = sym('?g_engineVoicePlayer@@'), sym('?g_engineVoiceHandle@@')
     nodes = cs.audio_nodes(g)
     objs = cs.find_objects(g, nodes)
@@ -41,10 +44,12 @@ def main():
     print(f'{time.strftime("%H:%M:%S")} masters (voice: player): {masters}; sampling {seconds:.0f} s', flush=True)
     S = []
     end = time.time() + seconds
-    while time.time() < end:
+    while True:
         playing, handles, _ = e.snapshot(g)
         tb = struct.unpack('<64i', g.read(vp, 256)); th = struct.unpack('<64i', g.read(vh, 256))
         S.append((playing, {i: h for h, i in handles.items()}, tb, th))
+        if show_all or time.time() >= end:
+            break
         time.sleep(0.04)
     print(f'{time.strftime("%H:%M:%S")} {len(S)} samples; identifying', flush=True)
     mem = []
@@ -66,9 +71,12 @@ def main():
                 if g.u32(hdr + 8) != 0x721096:
                     continue
                 nm = g.read(g.u32(a[k] + 4), 24).split(b'\0')[0].decode('latin1')
-                for i in range(g.read(hdr + 0x18, 1)[0]):
-                    h = g.u32(a[k + 2] - 0x2C + g.u32(hdr + 0x30 + 4 * i) + 8)
-                    if h in live:
+                # every live handle in the instance (header +0x24 bytes from block - 0x2C), as the plugin does: the
+                # header's child offsets don't fit every instance (docs/sound.md)
+                size = min(g.u32(hdr + 0x24), 0x4000)
+                inst = array.array('I', g.read(a[k + 2] - 0x2C, size // 4 * 4))
+                for h in inst:
+                    if h > 0xFF and h in live:
                         child[live[h]] = (nm, b + 4 * k)
             except Exception:
                 pass
@@ -105,6 +113,15 @@ def main():
                 j = d.find(struct.pack('<I', h), j + 1)
         return 0
 
+    if show_all:
+        _, _, tb, th = S[-1]
+        for v in sorted(playing):
+            routed = tb[v] if tb[v] and inv.get(v) == th[v] else 0
+            nm, pl = child.get(v, (None, None))
+            print(f'  voice {v:2d} L {playing[v][0]:.3f} R {playing[v][1]:.3f}  '
+                  f'{"P%d" % routed if routed else "PC":3s}{" master of P%d" % (masters[v] + 1) if v in masters else ""}'
+                  f'{"  patch " + nm if nm else ""}', flush=True)
+        return
     found = 0
     for v in range(64):
         if v in masters:
