@@ -32,6 +32,10 @@ Tested with real controllers, 4 native DualSense pads over Bluetooth at once plu
   timing stays even. Match the refresh rates or use exclusive fullscreen. `tools/screen_pacing` shows it.
 - **Steam Input** (PlayStation support on) can expose a DualSense as an XInput pad too: one pad, two indices. Depends on
   the Steam Input config; not worth much, native input needs no Steam Input.
+- **Mouse Continue on the split options screen plays the menu sound twice** (user, 2026-11-07); A / Enter play it once.
+  Not looked into. Lead: the split car select drops the generic package layer's Back / Start sounds (`FeSound`, call
+  0x51DD81, see [frontend](frontend.md) "Car select sounds"); a mouse click reaches the screen another way, so its
+  sound may come from a path that drop doesn't cover, or the options screen and the car select it opens each play one.
 - **A DualSense can drop with error 1167,** seen several times on one pad, also mid-race: likely its Bluetooth link (range,
   battery).
 
