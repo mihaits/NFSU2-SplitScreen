@@ -158,6 +158,9 @@ also needed the nearest-racer fix ([players](players.md)).
   the following view.
 - 0x631250 (the car's own reflection) picked local player 0 for view 4, else 1; `ReflectCarPickHook` (0x631289) picks
   the reflecting player.
+- `RenderRoadReflection` repeats the game's view 4 sequence (0x5CAAD0), including 0x630DE0(view, 1) (call 0x5CABAE),
+  which returns at once in a race (game state 6, checked at 0x630DEC), so in a race only 0x631250 puts cars into the
+  reflection.
 
 **Car reflections (env map).**
 - The cube RT is 0x870858 (size 0x7FEE6C, faces 0x87085C[6]), rendered by views 0x10..0x15 from cameras 0x871BC0.

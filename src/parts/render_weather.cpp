@@ -157,7 +157,7 @@ static void HeadlightsForPlayer(int k) {
 #define FN_RT_BEGIN         0x5BA3C0     // void __cdecl (RenderTarget*, int clear)
 #define FN_WORLD_DRAW       0x5D6AD0     // void __thiscall (world views; View*, flags)
 #define FN_REFLECT_CARS     0x631250     // void __cdecl (View*)
-#define FN_DRAW_CARS        0x630DE0     // void __cdecl (View*, int)
+#define FN_DRAW_CARS        0x630DE0     // void __cdecl (View*, int); the game's view 4 calls it too; returns in a race
 #define FN_FLUSH_DRAWS      0x5CF420
 #define FN_REFLECT_POST     0x5C7E40     // racing and option 3: blur
 #define REFLECT_SURFACE     0x870890

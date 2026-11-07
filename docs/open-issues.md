@@ -32,6 +32,10 @@ Tested with real controllers, 4 native DualSense pads over Bluetooth at once plu
   timing stays even. Match the refresh rates or use exclusive fullscreen. `tools/screen_pacing` shows it.
 - **Steam Input** (PlayStation support on) can expose a DualSense as an XInput pad too: one pad, two indices. Depends on
   the Steam Input config; not worth much, native input needs no Steam Input.
+- **Cars row: player 2 picked instead of getting player 1's car once** (2026-11-06, Pick One, 2P drag, the first run
+  after adding the row). Not reproduced in 10 runs since, also with `CarsMode` missing from the ini; cause unknown. The
+  join logs "cars: <mode>, player N gets a car / picks" and "cars: player N gets <car>", which show the failing step
+  if it happens again.
 - **Mouse Continue on the split options screen plays the menu sound twice** (user, 2026-11-07); A / Enter play it once.
   Not looked into. Lead: the split car select drops the generic package layer's Back / Start sounds (`FeSound`, call
   0x51DD81, see [frontend](frontend.md) "Car select sounds"); a mouse click reaches the screen another way, so its
