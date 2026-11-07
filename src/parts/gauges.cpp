@@ -270,16 +270,20 @@ static void __fastcall HudUpdateHook(void* hud, void*, void* player, void* arg) 
     }
     // The bottom Outrun and drift packages keep their left groups low in P2's view, on the minimap. They go where the top
     // package has them in P1's (its y + 240), and the drift ones 27 higher, because P2's map sits that much higher in its
-    // view. The drift multiplier group exists twice under one name.
+    // view. The drift multiplier group exists twice under one name. The game puts player 2's Outrun timer at the bottom
+    // package's spot (y 235) every frame whichever package it uses, so in a copy of the top package (3-6 players) it
+    // goes back to the top package's own spot; off the cell's centre by that much, the quadrant layout parks it
+    // off-screen.
     if (SplitMode()) {
         struct Moved { const char* package; uint32_t hash; float y; };
         static const uint32_t timerGroup = reinterpret_cast<uint32_t(__cdecl*)(const char*)>(FN_FE_HASH)("Timer_Group_01");
         const Moved moved[] = {{"2PHudBot_OUTRUN", timerGroup, 75.0f},
+                               {"2PHudTop_OUTRU", timerGroup, -165.0f},
                                {"2PHudBot_DRIFT", 0xF90B0AC6, 17.0f},    // best drift
                                {"2PHudBot_DRIFT", 0x1AC732CD, 82.0f},    // total
                                {"2PHudBot_DRIFT", 0x7BE44FAC, 135.0f}};  // multiplier
         const char* name = *reinterpret_cast<const char**>(h + 0x10);
-        auto* entry = name && strstr(name, "2PHudBot_") ? reinterpret_cast<uint8_t*(__thiscall*)(void*, const char*)>(FN_FIND_PACKAGE)(
+        auto* entry = name && (strstr(name, "2PHudBot_") || strstr(name, "2PHudTop_OUTRU")) ? reinterpret_cast<uint8_t*(__thiscall*)(void*, const char*)>(FN_FIND_PACKAGE)(
             reinterpret_cast<void*>(FE_PACKAGE_CACHE), name) : nullptr;
         if (auto* pkg = entry ? *reinterpret_cast<uint8_t**>(entry + 0x18) : nullptr)
             for (auto* obj = *reinterpret_cast<uint8_t**>(pkg + 0x4C); obj; obj = *reinterpret_cast<uint8_t**>(obj + 4))

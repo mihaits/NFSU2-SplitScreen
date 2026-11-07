@@ -115,6 +115,8 @@ static __declspec(naked) void FreeRunDirectionRowHook() {
 // the challenge logic (0x607CA9..0x608C01: picks an opponent, race +0xBD0, and ends the race when the player pulls
 // away), and the player update points a 3D direction arrow at that opponent (0x5F3AE0, MARKER_DIRECTION_AID). Both
 // are skipped in split screen's Free Run. An Outrun race runs in the same state and needs both: the logic ends the race.
+// Split Outrun's time limit runs first (standings.cpp).
+static void __cdecl OutrunTimeLimitFrame();
 #define AT_FREE_STATE_RACE  0x607C9C     // cmp dword ptr [0x89E7B0], 7; jne 0x608C01 (13 bytes)
 #define FREE_STATE_RACE_RUN 0x607CA9
 #define FREE_STATE_RACE_END 0x608C01
@@ -127,6 +129,9 @@ static __declspec(naked) void FreeStateRaceHook() {
     run:
         cmp dword ptr ds:[0x89E7B0], 7
         jne skip
+        pushad
+        call OutrunTimeLimitFrame
+        popad
         push FREE_STATE_RACE_RUN
         ret
     skip:

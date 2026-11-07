@@ -77,7 +77,8 @@ race HUD, from the start the Start row picks (a city district or a closed venue)
   opponent, race +0xBD0, ends the race when the player pulls away). `FreeStateRaceHook` (0x607C9C) skips it in split
   screen's Free Run. The player update aims a 3D direction arrow at that opponent (0x5F3AE0, MARKER_DIRECTION_AID);
   `DirectionArrowHook` (trampoline) returns at once (`ret 4`) there. An Outrun race runs in the same state and keeps
-  both, because this logic is what ends it.
+  both, because this logic is what ends it; the hook runs split Outrun's time-limit step first
+  ([race-flow](race-flow.md)).
 - **HUD.** The position, lap time and outrun elements are hidden or skipped; see "Free Run HUD" in [hud](hud.md).
 
 ## Ideas (not built yet)

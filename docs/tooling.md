@@ -121,8 +121,14 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
     (`freerun_flow.py`: mode select, options, Press START..., loading; a timestamped line per step, a few seconds'
     timeout each), and waits for the logged start spots. `VIRTUAL=n` joins players 1..n and stops at the next Press
     START for real pads. `go_race_nointro.sh` doesn't fit Free Run's screens (no track list).
-  - `go_outrun.sh` starts a 2P split Outrun in about 15 s (`freerun_flow.py` with `RIGHTS=6`, for modes whose options
-    screen follows the mode select). `autorace.py --players 1` then lets P1 pull away and win.
+  - `go_outrun.sh` starts a split Outrun in about 15 s (`freerun_flow.py` with `RIGHTS=6`, for modes whose options
+    screen follows the mode select); `PLAYERS=n` joins n players (the ini's `ExtraPlayers` must be n - 2).
+    `autorace.py --players 1` then lets P1 pull away and win; the autopilot can turn back toward the others, so give it
+    a long `--stall` (Outrun has no route progress). `outrun_watch.py` prints the race's racer list live (order, state,
+    place, gap). `outrun_check.sh [n ...]` (default 2 3 6) plays 2 rounds per player count with a screenshot per
+    post-race screen and the logged grid and session points; `POINTS=i` sets Number of Points to Win and reports
+    the tournament's end. `outrun_timelimit.py` checks the Time Limit end on a round loaded with it set (see its
+    docstring): places by the time in the lead the plugin logs.
   - `go_race_nointro.sh <mode>` starts a split race without the intro, joining players on virtual pads. Optional
     `POKES="addr=value"`; `INTRO=1` keeps the intro; `TRACK=id` picks that track in the list.
   - Fewer real pads than players: set `[DEBUG] ExtraPlayers` for the player count (read at boot), then

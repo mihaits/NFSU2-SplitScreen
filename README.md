@@ -43,7 +43,7 @@ options of whoever paused.
 
 ## Features
 **Split screen**
-- 2 to 6 players in every race mode (Outrun: 2 players)
+- 2 to 6 players in every race mode
 - 2P top / bottom or left / right, quadrants, 3 + 2, 3 × 2
 - Each player has their own view, HUD, gauges, minimap, camera, controls, options and last car
 - Full graphics in every view: reflections, rain, headlights, blur, light streaks, overbright, anti-aliasing
@@ -56,6 +56,8 @@ options of whoever paused.
   or a random series that rolls mode and track for every race
 - Session points: after each race a standings screen sums every player's points (10 / 6 / 4 / 3 / 2 / 1 by place
   among the players) until you leave split screen or change the number of players
+- Outrun for 2-6 players: the car in front leads, a car 300 m away from the leader is out, and each round starts the
+  last round's order in reverse. With a time limit, the most time in the lead wins
 - Free Run: drive the whole city together from the district or venue you pick
 - Tuned headlight colours work, also in single player: the original PC game turns bright ones white
 

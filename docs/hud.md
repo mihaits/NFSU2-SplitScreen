@@ -106,7 +106,11 @@ the split race HUDs they are null, so `OutrunElementUpdate` (call 0x4EC69A) skip
 **P2's left groups.** 2PHudBot_OUTRUN and 2PHudBot_DRIFT keep their left groups low in the view, on P2's minimap: the
 Outrun timer `Timer_Group_01`, and the drift best (0xF90B0AC6), total (0x1AC732CD) and multiplier (0x7BE44FAC, two
 objects) groups. `HudUpdateHook` moves them to where the top package has them in P1's view, its y + 240, and the drift
-groups 27 higher, because P2's map sits that much higher in its view.
+groups 27 higher, because P2's map sits that much higher in its view. With 3-6 players P2 uses a copy of the top
+package, but the game still puts player 2's Outrun timer at the bottom package's spot (y 235) every frame (not
+player 4's or 6's, so it follows the game's player 2, not the layout); the quadrant layout parks an object that far
+from the cell's centre off-screen, so P2 had no timer. `HudUpdateHook` puts it back at the top package's -165 in the
+top copies (`2PHudTop_OUTRU*`).
 
 **Single-player gauges per player (`CreateGauges`).** Built right after each player's HUD.
 - Elements, all thiscall (fng, index); each is updated with (player):

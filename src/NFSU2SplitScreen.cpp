@@ -311,6 +311,7 @@ static void Install(HMODULE self) {
     WriteCall(AT_CARSEL_BACK_TO_P1, &CarselBackToP1);
     InstallNextRace();
     InstallStandings();
+    InstallOutrun();
     for (uintptr_t a : kQrFinishRowsCalls) WriteCall(a, &QrFinishRows);
     WriteJump(AT_CARSELECT, &CarSelectHook, 5);
     g_origHelpBarSet = reinterpret_cast<HelpBarSetFn>(MakeTrampoline(FN_HELP_BAR_SET, 5));

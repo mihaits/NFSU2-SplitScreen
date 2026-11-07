@@ -111,11 +111,8 @@ static int g_firstCar = 0;               // player 1's pick of this round (CARS_
 static int g_randomCar[MAX_LOCAL_PLAYERS];
 static const char* const kCarsModeText[CARS_MODES] = {"Pick Each", "Pick One", "Random"};
 #define QR_RACE_TYPE       0x83AAB4      // quick race type (8 = outrun)
-// Outrun is a 2-player mode (one car chases the other): no Players row and always 2 players. The choice is kept for
-// the other modes.
 #define MAX_RACERS 6                     // the race start placement reads 6 start spots (0x5EB5D0(6, out))
-static bool OutrunRace() { return at<int>(QR_RACE_TYPE) == 8; }
-static int SplitPlayers() { return OutrunRace() ? 2 : g_splitPlayers; }
+static int SplitPlayers() { return g_splitPlayers; }
 
 static void ResetAssignments() {
     for (int& pad : g_assignedPad) pad = PAD_NONE;
@@ -1063,7 +1060,7 @@ static void AddCarsRow(uint8_t* screen) {
 }
 
 static void __fastcall QrFinishRows(uint8_t* screen, void*, int arg) {
-    if (SplitMode() && !OutrunRace()) AddPlayersRow(screen);
+    if (SplitMode()) AddPlayersRow(screen);
     if (SplitMode()) AddCarsRow(screen);
     if (SplitMode() && AiRaceType()) AddOpponentsRow(screen), AddDifficultyRow(screen);
     reinterpret_cast<void(__thiscall*)(void*, int)>(FN_QR_FINISH_ROWS)(screen, arg);
