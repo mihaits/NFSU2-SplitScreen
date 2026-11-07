@@ -8,8 +8,8 @@ cd "$(dirname "$0")"
 LOG=../../../scripts/NFSU2SplitScreen.log
 ts() { date +%H:%M:%S; }
 mkdir -p ../build/nr
-echo "$(ts) boot circuit 4011 (shortest), 1 lap"
-TRACK=4011 POKES="83AACE=1" sh go_race_nointro.sh 0 2>&1 | tail -1
+echo "$(ts) boot circuit 4013 (shortest), 1 lap"
+TRACK=4013 POKES="83AACE=1" sh go_race_nointro.sh 0 2>&1 | tail -1
 for r in $(seq 1 "${1:-2}"); do
     echo "$(ts) == race $r: racing"
     python -I -u autorace.py --stagger 1 2>&1 | tail -1

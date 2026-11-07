@@ -29,6 +29,8 @@ if os.environ.get('TRACK'):
         seen.append(track())
         if seen.count(seen[0]) > 1: sys.exit(f'FAIL: track {os.environ["TRACK"]} not in the list: {seen}')
         fe.press(g, 1, 'right'); time.sleep(0.4)
+    screen = g.u32(0x836344) - 0x118                      # the track select; its selected list node +0x54, +8 locked
+    if g.read(g.u32(screen + 0x54) + 8, 1)[0]: sys.exit(f'FAIL: track {track()} is locked on this save')
     print('track', track(), flush=True)
     first_event = '6'
 subprocess.run([sys.executable, '-I', 'rec.py', 'play', 'start_to_split2p', '--from', first_event, '--to', '10'], stdout=subprocess.DEVNULL)
