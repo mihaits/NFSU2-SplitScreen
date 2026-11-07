@@ -92,6 +92,7 @@ static int g_lastCar[MAX_LOCAL_PLAYERS], g_lastPort[MAX_LOCAL_PLAYERS], g_lastGe
 // round by itself (or can't: then the round is picked as usual).
 static bool g_nextRace = false;
 static int g_lastRaceType = -1;          // quick race type (0x83AAB4) of the last round
+static int g_lastTrack = -1;             // and its track
 static void CarryRaceOptions(int from, int to);   // next_race.cpp
 
 static int g_seat = 0;                   // car select: whose turn (0..5); the frontend serves FE player seat & 1
@@ -517,6 +518,8 @@ static void RestoreSeat(int seat) {            // players 1/2's picks back into 
 static void RememberRound(int players) {
     g_lastPlayers = players;
     g_lastRaceType = at<int>(QR_RACE_TYPE);
+    g_lastTrack = g_lastRaceType >= 0 && g_lastRaceType < QR_RACE_TYPES ?
+                  at<uint16_t>(QR_SETTINGS + g_lastRaceType * 0x14 + 8) : -1;
     g_lastKeyboardSeat = g_keyboardSeat;
     for (int k = 0; k < players; ++k) {
         g_lastPad[k] = g_assignedPad[k];

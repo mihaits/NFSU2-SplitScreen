@@ -103,6 +103,14 @@ copied only when the new track can be raced reversed (0x5D3E40(track) +0x86 == 1
 - A Quit from Post Race whose A is still held when the mode select loads goes on to the track select: that's the held
   A on the mode select, not the quit's destination.
 
+**Random Track.** `RandomTrackTick` (`parts/next_race.cpp`): Y on any pad or Space on the split track select picks
+one of the listed tracks at random, steps the list to it with the screen's own left / right (one per frame) and
+accepts it, so after Next Race the race loads and otherwise the options come next. Locked tracks and the track just
+raced (same type) are left out. The screen is [0x836344] - 0x118 (its ctor 0x4E2F30 stores that; vtable 0x7974F0).
+Its icon list (built by 0x4CDED0) is at +0x4C: node +0 next, +8 locked, +0x14 track id, +0x2C track record or 0
+(record +0x8A track id); +0x54 is the selected node. A list entry for Random would need a track record: the icon,
+map, distance and best time are all drawn from it.
+
 **Car select sounds: one per action.** Every FE sound goes through 0x458520 (thiscall sound manager [0x82B884]; id),
 hooked by `FeSound`. Two layers play them: the generic package layer (0x51DD40: runs the package's handler, then plays
 the table 0x837FE0 sound of the input it handled, call at 0x51DD81) plays Back (5) / Start (6) for whatever the
