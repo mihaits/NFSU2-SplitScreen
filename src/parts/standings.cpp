@@ -2,7 +2,7 @@
 // Included by NFSU2SplitScreen.cpp in a fixed order (one translation unit); not compiled on its own.
 
 // ---------------------------------------------------------------- session standings
-// Every split race that reaches its results (each Outrun round too, not Free Run) gives the human players points by
+// Every split race that reaches its results (each Outrun too, not Free Run) gives the human players points by
 // their place among the humans: 10 / 6 / 4 / 3 / 2 / 1, nothing without a finish (AI racers don't score). A session
 // lasts until the main menu or a change in the number of players. After the race's Event Results the game's own tournament standings
 // screen (UI_PostRace_TournStandings.fng, class cPostRaceTournamentStandings, ctor 0x4F4610) shows the totals.
@@ -114,19 +114,21 @@ static void __fastcall StandingsSetup(uint8_t* screen) {
 }
 
 // ---------------------------------------------------------------- split Outrun
-// Outrun is a tournament of rounds; each ends when every chaser has dropped out (300 m behind the leader, see
-// race-flow.md), the post-race screens follow and A on the last one loads the next round. In split screen the post-race
-// list (0x4F3EA0) would show the Tournament Race Results (0x4C0050 is true for mode 4 + Outrun) instead of Event
-// Results, with rows from two lobby records and the game's 2-player points (+10 / +6 into 0x83ABC8 / 0x83ABC9, every
-// racer after the first into the second byte). Split Outrun takes the race path instead: Event Results, session points,
-// standings. Both checks test mode 4 last, so a jmp there leaves split screen on the plain race path.
+// The game's Outrun is a tournament of rounds; each ends when every chaser has dropped out (300 m behind the leader,
+// see race-flow.md), the post-race screens follow and A on the last one loads the next round, until a player reaches
+// the options' Number of Points to Win. Split Outrun is a single round that ends like any race: Event Results, the
+// session standings, Post Race. In split screen the post-race list (0x4F3EA0) would show the Tournament Race Results
+// (0x4C0050 is true for mode 4 + Outrun) instead of Event Results, with rows from two lobby records and the game's
+// 2-player points (+10 / +6 into 0x83ABC8 / 0x83ABC9, every racer after the first into the second byte), and would
+// leave out Post Race. All three checks test mode 4 last, so a jmp / nop there leaves split screen on the race path.
 #define AT_EVENT_RESULTS_MODE4 0x4F3F3C   // jne 0x4F3F47 (Event Results unless mode 4 Outrun) -> jmp
 #define AT_TOURN_RESULTS_MODE4 0x4C00A5   // jne 0x4C00AF (false unless mode 4 Outrun) -> jmp
+#define AT_POST_RACE_MODE4     0x4F40A9   // je 0x4F40CE after `cmp [0x83AAB4], 8` (no Post Race) -> nops
 // Every round's starter (0x526830; a new round skips creating the racers) ends in a jump to the grid setup 0x5264A0(1):
 // it numbers the human racer specs' grid slots 1..n (slot 1 = the front spot), then in split Outrun swaps players 1 and
 // 2 so that the loser of the last round (0x83ABCC, 0xFF in the first round = a random pick) starts in front, and copies
-// each human's slot to 0x89E7D0[player]. `OutrunGrid` replaces that swap for any number of players: the grid is the last
-// round's places reversed (the fewest session points of the last race in front), random in the first round.
+// each human's slot to 0x89E7D0[player]. `OutrunGrid` replaces that swap for any number of players: the grid is the
+// session's last race reversed (the fewest points of it in front), random in a new session.
 #define AT_OUTRUN_GRID_JUMP 0x526965      // jmp 0x5264A0 (cdecl, arg 1 on the stack)
 #define FN_OUTRUN_GRID      0x5264A0
 #define RACER_SPECS         0x89E810      // spec*, count at +4, stride 0x940: +1 player index, +3 grid slot, +4 1 = human
@@ -166,33 +168,41 @@ static void __cdecl OutrunGrid(int arg) {
         if (player >= 0 && player < MAX_LOCAL_PLAYERS) at<uint8_t>(HUMAN_GRID_SLOTS + player) = static_cast<uint8_t>(slots[i]);
         sprintf_s(order + strlen(order), sizeof(order) - strlen(order), " P%d", player + 1);
     }
-    Log("outrun: grid front to back%s (%s)", order, seeded ? "last round reversed" : "random");
+    Log("outrun: grid front to back%s (%s)", order, seeded ? "last race reversed" : "random");
 }
 
 // The tournament is over when exactly one player has the most points and they reach the options' Number of Points to
 // Win: 0x5027B0 (thiscall on the race settings 0x83AAB4: +0x108 the option, 6 = endless; target byte table 0x7992CC
-// = 10 / 20 / 30 / 40 / 50 / 100) reads the game's points of players 1..4 (0x83ABC8..CB). It decides A on the
-// standings (0x4BFFC4: next round, or back to the options screen) and the standings' button text (0x4EA659).
-// `OutrunOver` answers from the session points in split Outrun. A tournament started from the options screen (the
-// quick race starter's call 0x53FC82, arg 0; the next rounds come from 0x4BFFCF, arg 1) starts a new session.
+// = 10 / 20 / 30 / 40 / 50 / 100) reads the game's points of players 1..4 (0x83ABC8..CB). It decides A at the end of
+// the post-race list (0x4BFFC4: next round, or back to the options screen) and the standings' button text (0x4EA659).
+// `OutrunOver` says over after every split round. The options' row builder for Outrun (0x4CDA20) adds Number of
+// Points to Win (vtable 0x7914A0), then Time Limit; `OutrunPointsRowHook` leaves the first out in split screen.
 #define FN_OUTRUN_OVER       0x5027B0      // bool __thiscall (settings)
-#define OUTRUN_POINTS_OPTION 0x108
-#define OUTRUN_TARGETS       0x7992CC      // int8 [6]
-#define AT_OUTRUN_FIRST_ROUND 0x53FC82     // call 0x526830 (cdecl, arg 0)
-#define FN_OUTRUN_START      0x526830
+#define AT_OUTRUN_POINTS_ROW 0x4CDA52      // push edi; push 0x54; call 0x575620 (8 bytes): the Points to Win row
+#define OUTRUN_POINTS_ROW_RUN  0x4CDA5A
+#define OUTRUN_POINTS_ROW_SKIP 0x4CDAB0    // the Time Limit row (edi pushed, popped at 0x4CDB0D)
+#define FN_GAME_ALLOC        0x575620      // void* __cdecl (size)
 static void* g_origOutrunOver = nullptr;
 
 static bool __fastcall OutrunOver(uint8_t* settings, void*) {
     if (!SplitMode() || at<int>(QR_RACE_TYPE) != 8)
         return reinterpret_cast<bool(__fastcall*)(void*, void*)>(g_origOutrunOver)(settings, nullptr);
-    int option = *reinterpret_cast<int*>(settings + OUTRUN_POINTS_OPTION);
-    if (option < 0 || option >= 6) return false;
-    int target = reinterpret_cast<const int8_t*>(OUTRUN_TARGETS)[option], best = 0, leaders = 0;
-    for (int k = 0; k < g_session.players; ++k) {
-        if (g_session.points[k] > best) best = g_session.points[k], leaders = 1;
-        else if (g_session.points[k] == best) ++leaders;
+    return true;
+}
+static __declspec(naked) void OutrunPointsRowHook() {
+    __asm {
+        push edi
+        cmp dword ptr ds:[GAME_MODE], 4
+        je skip
+        push 0x54
+        mov eax, FN_GAME_ALLOC
+        call eax
+        push OUTRUN_POINTS_ROW_RUN
+        ret
+    skip:
+        push OUTRUN_POINTS_ROW_SKIP
+        ret
     }
-    return best >= target && leaders == 1;
 }
 
 // Time Limit (option settings +0x10C, minutes byte table 0x7992D4 = 0 / 2 / 5 / 8 / 10): once the race time
@@ -269,20 +279,15 @@ static void __cdecl OutrunTimeLimitFrame() {
     *reinterpret_cast<float*>(least + 0x24) = OUTRUN_DROP_GAP;
 }
 
-static void __cdecl OutrunFirstRound(int nextRound) {
-    if (SplitMode()) ResetSession("new Outrun tournament");
-    reinterpret_cast<void(__cdecl*)(int)>(FN_OUTRUN_START)(nextRound);
-}
-
 static void InstallOutrun() {
     auto* events = reinterpret_cast<uint8_t*>(AT_EVENT_RESULTS_MODE4);
     auto* tourn = reinterpret_cast<uint8_t*>(AT_TOURN_RESULTS_MODE4);
     auto* grid = reinterpret_cast<uint8_t*>(AT_OUTRUN_GRID_JUMP);
-    auto* first = reinterpret_cast<uint8_t*>(AT_OUTRUN_FIRST_ROUND);
     static const uint8_t overStart[] = {0x57, 0x8B, 0xB9, 0x08, 0x01, 0x00, 0x00};   // push edi; mov edi, [ecx+0x108]
     if (events[0] != 0x75 || events[1] != 0x09 || tourn[0] != 0x75 || tourn[1] != 0x08 || grid[0] != 0xE9 ||
-        AT_OUTRUN_GRID_JUMP + 5 + *reinterpret_cast<int32_t*>(grid + 1) != FN_OUTRUN_GRID || first[0] != 0xE8 ||
-        AT_OUTRUN_FIRST_ROUND + 5 + *reinterpret_cast<int32_t*>(first + 1) != FN_OUTRUN_START ||
+        AT_OUTRUN_GRID_JUMP + 5 + *reinterpret_cast<int32_t*>(grid + 1) != FN_OUTRUN_GRID ||
+        memcmp(reinterpret_cast<void*>(AT_POST_RACE_MODE4), "\x74\x23", 2) != 0 ||
+        memcmp(reinterpret_cast<void*>(AT_OUTRUN_POINTS_ROW), "\x57\x6A\x54\xE8", 4) != 0 ||
         memcmp(reinterpret_cast<void*>(FN_OUTRUN_OVER), overStart, sizeof(overStart)) != 0 ||
         *reinterpret_cast<uint8_t*>(AT_TIME_LIMIT_OPTION) != 0xE8 ||
         AT_TIME_LIMIT_OPTION + 5 + *reinterpret_cast<int32_t*>(AT_TIME_LIMIT_OPTION + 1) != FN_TIME_LIMIT_OPTION) {
@@ -293,7 +298,9 @@ static void InstallOutrun() {
     Write(AT_EVENT_RESULTS_MODE4, &jmp, 1);
     Write(AT_TOURN_RESULTS_MODE4, &jmp, 1);
     WriteJump(AT_OUTRUN_GRID_JUMP, &OutrunGrid, 5);
-    WriteCall(AT_OUTRUN_FIRST_ROUND, &OutrunFirstRound);
+    const uint8_t nops[2] = {0x90, 0x90};
+    Write(AT_POST_RACE_MODE4, nops, 2);
+    WriteJump(AT_OUTRUN_POINTS_ROW, &OutrunPointsRowHook, 8);
     WriteCall(AT_TIME_LIMIT_OPTION, &TimeLimitOption);
     g_origOutrunOver = MakeTrampoline(FN_OUTRUN_OVER, sizeof(overStart));
     WriteJump(FN_OUTRUN_OVER, &OutrunOver, sizeof(overStart));

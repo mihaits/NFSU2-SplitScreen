@@ -104,6 +104,7 @@ static void LoadConfig(HMODULE self) {
     g_splitPlayers = 2 + g_extraPlayers;                                                      // debug default
     g_carsMode = GetPrivateProfileIntA("DEBUG", "CarsMode", CARS_EACH, path);                // debug default
     if (g_carsMode < 0 || g_carsMode >= CARS_MODES) g_carsMode = CARS_EACH;
+    g_debugRollMode = GetPrivateProfileIntA("DEBUG", "RollMode", 0, path);                  // debug: forced mode roll
     g_cloneViews = GetPrivateProfileIntA("DEBUG", "CloneViews", 0, path);
     if (g_cloneViews < 0) g_cloneViews = 0;
     if (g_cloneViews > 2) g_cloneViews = 2;

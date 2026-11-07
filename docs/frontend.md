@@ -87,7 +87,7 @@ remembered pad.
 **Next Race.** `parts/next_race.cpp`. Post Race's builder 0x4BEE10 (fastcall menu) adds its icon options with
 `0x51F670(option, icon, text, 0)` and `menu->vtbl[0x18](option)`: career's Next Race (icon 0x12BB5EA2, text "Next Race"
 0x23F359B8, react 0x4BEC90), Restart (0x4BECC0), Race Stats, Replay (not in split) and Quit to Main Menu (0x4BED40).
-In split (mode 4, not outrun) `PostRaceBuildHook` (at 0x4BEE26) adds Next Race first with the game's own icon and
+In split (mode 4) `PostRaceBuildHook` (at 0x4BEE26) adds Next Race first with the game's own icon and
 localized text. Its react sends UI_PostRace.fng 0x30ED2368, the message Quit's confirm dialog sends on OK. The screen's
 handler 0x4F39A0 answers with 0x24DD40CF, then 0xD78D7BF1 → 0x4A3E80, which leaves the race for the screen 0x502FF0
 names (stored at 0x8384C8): the quick race mode select in split (garage scene behind it, the race's mode selected).
@@ -101,9 +101,12 @@ the popup takes the last round), since its options screen is skipped. Quick race
 +0xC direction (dword); the split options rows offer (measured by changing each row): direction in circuit, sprint,
 drag, Street X (type 10), URL (4) and Lap KO (7; from its row builder 0x4CDB40), laps in circuit, drift, Street X and
 URL, traffic in circuit, sprint and drag, catch-up in all but drift, difficulty in every type with AI. Direction is
-copied only when the new track can be raced reversed (0x5D3E40(track) +0x86 == 1, the Direction row's own test). That mode list leaves out Outrun
-(a tournament of its own) and Free Run (not a race): `ModeListOutrunHook` (0x4B2F2A) skips past both entries (to
-0x4B2FE0) while `g_nextRace` is set. The main menu ends Next Race, so the next visit to split lists every mode. Quit to Main Menu stays as it is.
+copied only when the new track can be raced reversed (0x5D3E40(track) +0x86 == 1, the Direction row's own test). That mode list leaves out Free
+Run (not a race): `ModeListFreeRunHook` (0x4B2F8A, the entry's first test) skips past it (to 0x4B2FE0) while
+`g_nextRace` is set. Outrun has no track select (its track is random), so Next Race into an Outrun (after one, or
+picked on the mode select) starts it straight away: `RandomTick` accepts its options screen, which comes up in place
+of a track select, like the skipped options of every other mode. To change its Time Limit, Quit on Post Race to
+reach the mode select without Next Race. The main menu ends Next Race, so the next visit to split lists every mode. Quit to Main Menu stays as it is.
 - The quick race screens step through a chain (0x4E2900: mode select, options, track select, each with a next and a
   previous screen function; [0x836340], current node +0xC) that the mode select builds (0x4EF1B0) when it is accepted.
   A track select opened straight from the race (by pointing 0x8384C8 at it) has no chain, and A on it crashes in
@@ -121,8 +124,10 @@ at that speed; the track select plays none); the accept sounds.
   that; vtable 0x7974F0). Its icon list (built by 0x4CDED0) is at +0x4C: node +0 next, +8 locked, +0x14 track id,
   +0x2C track record or 0 (record +0x8A track id); +0x54 is the selected node. A list entry for Random would need a
   track record: the icon, map, distance and best time are all drawn from it.
-- Mode select: one of the six race modes (entries 1-6: circuit 0, sprint 1, drag 2, drift 3, Street X 10, URL 4), then
-  the track select that opens rolls its track by itself. The highlighted entry is in the frontend's per-screen table at
+- Mode select: one of the seven race modes (entries 1-7: circuit 0, sprint 1, drag 2, drift 3, Street X 10, URL 4,
+  Outrun 8), then the track select that opens rolls its track by itself. Outrun opens its options screen instead:
+  after a roll on the mode select the player accepts it, after Next Race it is accepted by itself.
+  `[DEBUG] RollMode = n` makes every mode roll pick entry n (tests). The highlighted entry is in the frontend's per-screen table at
   0x7F7DC8 (stride 0x1C up to 0x7F9178: +0 screen name, +0x10 entry, 1-based, 0 = the first; 0x50B8A0 reads it when a
   screen is built, the screen updates it as the cursor moves). The entries' react calls 0x4B2C00(type), which sets the
   race type and its quick race settings, and the screen then goes on by that type (0x4FA470); an accept message

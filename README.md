@@ -52,12 +52,12 @@ options of whoever paused.
 - AI opponents with difficulty (up to 6 racers in all), catch-up between players, traffic around every player
 - Cars: each player picks, everyone races player 1's car, or random cars of about the same performance (stock, My
   Cars and career cars); with the last two, joining is all it takes
-- Next Race after every race (not Outrun): pick the next track or mode and race on, no menus or car picks in between;
+- Next Race after every race: pick the next track or mode and race on, no menus or car picks in between;
   or a random series that rolls mode and track for every race
 - Session points: after each race a standings screen sums every player's points (10 / 6 / 4 / 3 / 2 / 1 by place
   among the players) until you leave split screen or change the number of players
-- Outrun for 2-6 players: the car in front leads, a car 300 m away from the leader is out, and each round starts the
-  last round's order in reverse. With a time limit, the most time in the lead wins
+- Outrun for 2-6 players, one round per race: the car in front leads, a car 300 m away from the leader is out, and
+  the grid is the last race's order in reverse. With a time limit, the most time in the lead wins
 - Free Run: drive the whole city together from the district or venue you pick
 - Tuned headlight colours work, also in single player: the original PC game turns bright ones white
 

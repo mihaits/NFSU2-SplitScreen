@@ -4,14 +4,15 @@
 // ---------------------------------------------------------------- next race
 // Post Race (builder 0x4BEE10, fastcall menu) adds its icon options with 0x51F670(option, icon, text, 0) and
 // menu->vtbl[0x18](option): career's Next Race (icon 0x12BB5EA2, text "Next Race" 0x23F359B8), Restart, Race Stats,
-// Replay (not in split) and Quit to Main Menu. In split, Next Race is added first (not in outrun). Its react sends
+// Replay (not in split) and Quit to Main Menu. In split, Next Race is added first. Its react sends
 // UI_PostRace.fng what Quit's confirm dialog sends on OK (0x30ED2368); the screen's handler 0x4F39A0 then leaves the
 // race (0x24DD40CF, 0xD78D7BF1 -> 0x4A3E80) for the screen 0x502FF0 names: the quick race mode select in split. Once
 // that is up (with the garage scene and the race's mode selected), NextRaceTick accepts it like A would, which opens
 // the track select of the same mode through the game's own screen chain (Back returns to the mode select). With
 // g_nextRace set, the track select's next screen (0x498240) is the car select instead of the options, and the car
 // select's player 1 popup takes the last round (seats.cpp, PressStartFilter): same players, pads and cars, random
-// cars dealt again.
+// cars dealt again. Outrun has no track select (its track is random); the screen after its mode select is its
+// options, which Next Race skips like any mode's: RandomTick accepts it by itself while g_nextRace is set.
 #define AT_POSTRACE_BUILD     0x4BEE26    // `cmp dword ptr [0x850078], 1` (7 bytes), ecx = the menu
 #define AT_POSTRACE_BUILD_RET 0x4BEE2D
 #define FN_QR_TRACK_NEXT      0x498240    // the screen after the track select: `mov eax, [0x850078]` (5 bytes)
@@ -59,7 +60,7 @@ static void __cdecl AddNextRaceOption(void* menu) {
     using InitFn = void(__thiscall*)(void*, uint32_t, uint32_t, uint32_t);
     using AddFn = void(__thiscall*)(void*, void*);
     g_nextRace = false;
-    if (at<int>(GAME_MODE) != 4 || at<int>(QR_RACE_TYPE) == 8) return;
+    if (at<int>(GAME_MODE) != 4) return;
     void* option = reinterpret_cast<MallocFn>(FN_MALLOC)(0x48);
     if (!option) return;
     reinterpret_cast<InitFn>(FN_MENU_OPTION_INIT)(option, NEXT_RACE_ICON, NEXT_RACE_TEXT, 0);
@@ -127,18 +128,19 @@ static void CarryRaceOptions(int from, int to) {
 }
 
 // The mode list (UIQRModeSelect::Setup) adds Outrun (0x4B2F2A..0x4B2F85) and Free Run (0x4B2F8A..0x4B2FDD) last.
-// After Next Race both are left out: Outrun is a tournament of its own and Free Run isn't a race.
-#define AT_MODE_LIST_OUTRUN   0x4B2F2A    // mov eax, [0x850078] (5 bytes)
+// After Next Race Free Run is left out: it isn't a race.
+#define AT_FREE_RUN_ENTRY 0x4B2F8A    // cmp eax, 8; je 0x4B2FE0 (5 bytes; eax = the game mode)
 #define AT_MODE_LIST_END      0x4B2FE0    // after the Free Run entry
-static __declspec(naked) void ModeListOutrunHook() {
+static __declspec(naked) void ModeListFreeRunHook() {
     __asm {
         cmp byte ptr g_nextRace, 0
-        je normal
-        push AT_MODE_LIST_END
+        jne skip
+        cmp eax, 8
+        je skip
+        push AT_FREE_RUN_ENTRY + 5
         ret
-    normal:
-        mov eax, dword ptr ds:[GAME_MODE]
-        push AT_MODE_LIST_OUTRUN + 5
+    skip:
+        push AT_MODE_LIST_END
         ret
     }
 }
@@ -148,19 +150,24 @@ static __declspec(naked) void ModeListOutrunHook() {
 //   screen's own left / right, one per frame, then accepted: after Next Race the race loads, otherwise the options
 //   come next. The screen: [0x836344] - 0x118 (set by its ctor 0x4E2F30, vtable 0x7974F0); its icon list at +0x4C
 //   (node: +0 next, +8 locked, +0x14 track id, +0x2C track record or 0, record +0x8A track id), the selected node +0x54.
-// - On the split mode select: one of the six race modes (entries 1-6: circuit, sprint, drag, drift, Street X, URL;
-//   in a series not the mode just raced), stepped to and accepted the same way; the track select that opens rolls its
-//   track by itself. That starts a random series: Next Race then rolls mode and track again with no input
-//   (NextRaceTick). The series ends when the mode select comes up any other way (Quit, Back) or at the main menu.
+// - On the split mode select: one of the seven race modes (entries 1-7: circuit, sprint, drag, drift, Street X, URL,
+//   Outrun; in a series not the mode just raced), stepped to and accepted the same way; the track select that opens
+//   rolls its track by itself. Outrun has no track select: its options screen comes up instead (accepted by itself
+//   after Next Race, like any Outrun reached by it). That starts a random series: Next Race then rolls mode and track
+//   again with no input (NextRaceTick). The series ends when the mode select comes up any other way (Quit, Back) or
+//   at the main menu.
 //   The highlighted entry: the frontend's per-screen table at 0x7F7DC8 (stride 0x1C up to 0x7F9178: +0 screen name,
 //   +0x10 entry, 1-based, 0 = the first; read by 0x50B8A0 when a screen is built, updated as the player moves).
 #define QR_TRACKSEL_NAME      0x7F4464    // char*: "UI_QRTrackSelect.fng"
+#define QR_OPTIONS_NAME       0x7F4460    // char*: "UI_QRModeOptions.fng"
 #define QR_TRACKSEL_SCREEN    0x836344    // screen + 0x118
 #define QR_TRACKSEL_VTBL      0x7974F0
 #define FE_ENTRY_TABLE        0x7F7DC8
 #define FE_ENTRY_TABLE_END    0x7F9178
 #define MSG_HELP_CUSTOMIZE    0xC519BFC0  // the help bar's Customize button clicked (sent to the active screen)
-static const int kRollModeTypes[6] = {0, 1, 2, 3, 10, 4};   // mode select entries 1-6
+static const int kRollModeTypes[7] = {0, 1, 2, 3, 10, 4, 8};   // mode select entries 1-7
+static int g_debugRollMode = 0;           // [DEBUG] RollMode = 1..7: mode rolls pick that entry (tests)
+#define OUTRUN_TYPE           8
 static bool g_randomClicked = false;      // that button, labelled Random on the mode / track select (SendFeMessage)
 static bool g_randomTrackPending = false; // a mode roll was accepted: its track select rolls by itself
 // The mode select's entries set the race type in their react (0x4B2C00(type): type 0x83AAB4 and its quick race
@@ -186,10 +193,11 @@ static void StartModeRoll() {
         if (name && _stricmp(name, modes) == 0) { current = *reinterpret_cast<int*>(e + 0x10); break; }
     }
     if (current < 1) current = 1;
-    int pool[6], n = 0;
-    for (int i = 0; i < 6; ++i)
+    int pool[7], n = 0;
+    for (int i = 0; i < 7; ++i)
         if (!(g_randomSeries && kRollModeTypes[i] == g_lastRaceType)) pool[n++] = i + 1;
     int target = pool[RandomInt(n)];
+    if (g_debugRollMode >= 1 && g_debugRollMode <= 7) target = g_debugRollMode;
     g_randomSeries = g_randomTrackPending = true;
     StartRoll(modes, target - current, kRollModeTypes[target - 1]);
     Log("random mode: entry %d (type %d) from %d", target, kRollModeTypes[target - 1], current);
@@ -234,6 +242,17 @@ static void RandomTick() {
             Log("random: %s accepted (type %d, track %d)", fng, at<int>(QR_RACE_TYPE),
                 at<uint16_t>(QR_SETTINGS + at<int>(QR_RACE_TYPE) * 0x14 + 8));
             reinterpret_cast<SendFn>(FN_FE_SEND_MSG)(MSG_ACCEPT, fng);
+        }
+        return;
+    }
+    bool onOutrunOptions = SplitMode() && at<int>(QR_RACE_TYPE) == OUTRUN_TYPE && active(at<const char*>(QR_OPTIONS_NAME));
+    if (onOutrunOptions && (g_nextRace || g_randomTrackPending)) {   // no track to pick or roll
+        if (++trackWait < 3) return;           // let the screen take input first
+        trackWait = 0;
+        g_randomTrackPending = false;
+        if (g_nextRace) {                      // Next Race skips the options: on with the same players
+            Log("next race: Outrun options accepted");
+            reinterpret_cast<SendFn>(FN_FE_SEND_MSG)(MSG_ACCEPT, at<const char*>(QR_OPTIONS_NAME));
         }
         return;
     }
@@ -283,7 +302,8 @@ static void InstallNextRace() {
     }
     WriteJump(AT_POSTRACE_BUILD, &PostRaceBuildHook, 7);
     WriteJump(FN_QR_TRACK_NEXT, &QrTrackNextHook, 5);
-    if (memcmp(reinterpret_cast<void*>(AT_MODE_LIST_OUTRUN), trackNext, sizeof(trackNext)) == 0)
-        WriteJump(AT_MODE_LIST_OUTRUN, &ModeListOutrunHook, 5);
-    else Log("next race: unexpected mode list code, Outrun and Free Run stay listed");
+    const uint8_t freeRunEntry[] = {0x83, 0xF8, 0x08, 0x74, 0x51};   // cmp eax, 8; je 0x4B2FE0
+    if (memcmp(reinterpret_cast<void*>(AT_FREE_RUN_ENTRY), freeRunEntry, sizeof(freeRunEntry)) == 0)
+        WriteJump(AT_FREE_RUN_ENTRY, &ModeListFreeRunHook, 5);
+    else Log("next race: unexpected mode list code, Free Run stays listed after Next Race");
 }
