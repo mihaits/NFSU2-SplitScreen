@@ -103,14 +103,26 @@ copied only when the new track can be raced reversed (0x5D3E40(track) +0x86 == 1
 - A Quit from Post Race whose A is still held when the mode select loads goes on to the track select: that's the held
   A on the mode select, not the quit's destination.
 
-**Random Track.** `RandomTrackTick` (`parts/next_race.cpp`): Y on any pad or Space on the split track select picks
-one of the listed tracks at random, steps the list to it with the screen's own left / right (one per frame) and
-accepts it, so after Next Race the race loads and otherwise the options come next. Locked tracks and the track just
-raced (same type) are left out. The screen is [0x836344] - 0x118 (its ctor 0x4E2F30 stores that; vtable 0x7974F0).
-Its icon list (built by 0x4CDED0) is at +0x4C: node +0 next, +8 locked, +0x14 track id, +0x2C track record or 0
-(record +0x8A track id); +0x54 is the selected node. A list entry for Random would need a track record: the icon,
-map, distance and best time are all drawn from it.
-- Help bar: `HelpBarSet` adds the Customize button (flag 0x1000; label from 0x52D330) on the split track select and
+**Random.** `RandomTick` (`parts/next_race.cpp`): Y on any pad, Space or the help bar's Random button rolls on the
+split track and mode selects. A roll steps the list to the drawn entry with the screen's own left / right (one per
+frame), then accepts it. The steps are silent (the mode select plays its tick, sound 3, for each step message, a buzz
+at that speed; the track select plays none); the accept sounds.
+- Track select: one of the listed tracks; locked tracks and the track just raced (same type) are left out. After Next
+  Race the race loads, otherwise the options come next. The screen is [0x836344] - 0x118 (its ctor 0x4E2F30 stores
+  that; vtable 0x7974F0). Its icon list (built by 0x4CDED0) is at +0x4C: node +0 next, +8 locked, +0x14 track id,
+  +0x2C track record or 0 (record +0x8A track id); +0x54 is the selected node. A list entry for Random would need a
+  track record: the icon, map, distance and best time are all drawn from it.
+- Mode select: one of the six race modes (entries 1-6: circuit 0, sprint 1, drag 2, drift 3, Street X 10, URL 4), then
+  the track select that opens rolls its track by itself. The highlighted entry is in the frontend's per-screen table at
+  0x7F7DC8 (stride 0x1C up to 0x7F9178: +0 screen name, +0x10 entry, 1-based, 0 = the first; 0x50B8A0 reads it when a
+  screen is built, the screen updates it as the cursor moves). The entries' react calls 0x4B2C00(type), which sets the
+  race type and its quick race settings, and the screen then goes on by that type (0x4FA470); an accept message
+  skips the react (it went on with the previous type), so the roll calls 0x4B2C00 before accepting.
+- A mode roll starts a random series (`g_randomSeries`): Next Race rolls mode (not the one just raced) and track
+  again with no input (`NextRaceTick` starts the mode roll in place of its accept). The series ends when the mode
+  select comes up any other way (Quit, Back) and at the main menu.
+- Help bar: `HelpBarSet` adds the Customize button (flag 0x1000; label from 0x52D330) on the split track and mode
+  selects and
   sets its text (`RandomButtonText`). The bar's buttons are a list at bar +0x4C (button = node - 4: +0x10 text
   object, +0x1C its flag). The game's PC buttons are plain clickable words; WidescreenFix (`[MISC]
   ImproveGamepadSupport`) swaps a fixed list of English labels for "(A) Continue"-style ones while the last input was

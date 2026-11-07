@@ -241,7 +241,7 @@ static void __cdecl LayoutApplyHook() {
     UpdateBindSwap();
     UpdateSeats();
     NextRaceTick();
-    RandomTrackTick();
+    RandomTick();
     LogCarselInput();
     UpdatePadLights();
     RunMailbox();

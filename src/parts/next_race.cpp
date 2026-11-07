@@ -30,6 +30,8 @@ static void __fastcall NextRaceReact(void*, void*, const char*, uint32_t msg, ui
     reinterpret_cast<void(__cdecl*)(uint32_t, const char*)>(FN_FE_SEND_MSG)(MSG_POSTRACE_QUIT, "UI_PostRace.fng");
 }
 
+static bool g_randomSeries = false;       // the race came from a mode roll: Next Race rolls mode and track again
+static void StartModeRoll();
 static void NextRaceTick() {
     using ActiveFn = bool(__cdecl*)(const char*);
     static int frames = 0;
@@ -43,6 +45,7 @@ static void NextRaceTick() {
     if (++frames < 3) return;                  // let the screen take input first
     g_nextRaceToTrack = false;
     frames = 0;
+    if (g_randomSeries) { StartModeRoll(); return; }   // a random series: roll mode and track again
     Log("next race: mode select accepted");
     g_feSoundMuted = true;                     // the player already heard Next Race's accept
     reinterpret_cast<void(__cdecl*)(uint32_t, const char*)>(FN_FE_SEND_MSG)(MSG_ACCEPT, modes);
@@ -140,51 +143,111 @@ static __declspec(naked) void ModeListOutrunHook() {
     }
 }
 
-// Random Track: Y on any pad, Space or a click on the help bar's "(Y) Random" (its Customize button, HelpBarSet) on
-// the split track select picks one of the listed, unlocked tracks
-// at random (not the last one raced), steps the list to it with the screen's own left / right, one per frame, and
-// accepts it: after Next Race the race loads, otherwise the options come next. The screen: [0x836344] - 0x118 (set by
-// its ctor 0x4E2F30, vtable 0x7974F0); its icon list at +0x4C (node: +0 next, +8 locked, +0x14 track id, +0x2C track
-// record or 0, record +0x8A track id), the selected node at +0x54.
+// Random: Y on any pad, Space or a click on the help bar's "(Y) Random" (its Customize button, HelpBarSet) rolls.
+// - On the split track select: one of the listed, unlocked tracks (not the track just raced), stepped to with the
+//   screen's own left / right, one per frame, then accepted: after Next Race the race loads, otherwise the options
+//   come next. The screen: [0x836344] - 0x118 (set by its ctor 0x4E2F30, vtable 0x7974F0); its icon list at +0x4C
+//   (node: +0 next, +8 locked, +0x14 track id, +0x2C track record or 0, record +0x8A track id), the selected node +0x54.
+// - On the split mode select: one of the six race modes (entries 1-6: circuit, sprint, drag, drift, Street X, URL;
+//   in a series not the mode just raced), stepped to and accepted the same way; the track select that opens rolls its
+//   track by itself. That starts a random series: Next Race then rolls mode and track again with no input
+//   (NextRaceTick). The series ends when the mode select comes up any other way (Quit, Back) or at the main menu.
+//   The highlighted entry: the frontend's per-screen table at 0x7F7DC8 (stride 0x1C up to 0x7F9178: +0 screen name,
+//   +0x10 entry, 1-based, 0 = the first; read by 0x50B8A0 when a screen is built, updated as the player moves).
 #define QR_TRACKSEL_NAME      0x7F4464    // char*: "UI_QRTrackSelect.fng"
 #define QR_TRACKSEL_SCREEN    0x836344    // screen + 0x118
 #define QR_TRACKSEL_VTBL      0x7974F0
+#define FE_ENTRY_TABLE        0x7F7DC8
+#define FE_ENTRY_TABLE_END    0x7F9178
 #define MSG_HELP_CUSTOMIZE    0xC519BFC0  // the help bar's Customize button clicked (sent to the active screen)
-static bool g_randomTrackClicked = false; // that button, labelled Random on the split track select (SendFeMessage)
-static int g_randomTrackSteps = 0;        // > 0 right, < 0 left, still to send
-static int g_randomTrackAccept = 0;       // frames until the accept (0: none)
+static const int kRollModeTypes[6] = {0, 1, 2, 3, 10, 4};   // mode select entries 1-6
+static bool g_randomClicked = false;      // that button, labelled Random on the mode / track select (SendFeMessage)
+static bool g_randomTrackPending = false; // a mode roll was accepted: its track select rolls by itself
+// The mode select's entries set the race type in their react (0x4B2C00(type): type 0x83AAB4 and its quick race
+// settings) when A is pressed; the screen then goes on by that type (0x4FA470). An accept message skips the react, so a
+// mode roll sets the type itself before accepting.
+#define FN_QR_SET_MODE        0x4B2C00    // void __cdecl (race type)
+static struct { const char* fng; int steps, accept, type; } g_roll = {};
 static int TrackNodeId(uint8_t* node) {
     auto* record = *reinterpret_cast<uint8_t**>(node + 0x2C);
     return record ? *reinterpret_cast<int16_t*>(record + 0x8A) : *reinterpret_cast<int*>(node + 0x14);
 }
-static void RandomTrackTick() {
+static void StartRoll(const char* fng, int steps, int type = -1) {
+    g_roll.fng = fng;
+    g_roll.steps = steps;
+    g_roll.accept = steps ? 0 : 3;
+    g_roll.type = type;
+}
+static void StartModeRoll() {
+    const char* modes = at<const char*>(QR_MODESEL_NAME);
+    int current = 1;
+    for (uintptr_t e = FE_ENTRY_TABLE; e < FE_ENTRY_TABLE_END; e += 0x1C) {
+        const char* name = *reinterpret_cast<const char**>(e);
+        if (name && _stricmp(name, modes) == 0) { current = *reinterpret_cast<int*>(e + 0x10); break; }
+    }
+    if (current < 1) current = 1;
+    int pool[6], n = 0;
+    for (int i = 0; i < 6; ++i)
+        if (!(g_randomSeries && kRollModeTypes[i] == g_lastRaceType)) pool[n++] = i + 1;
+    int target = pool[RandomInt(n)];
+    g_randomSeries = g_randomTrackPending = true;
+    StartRoll(modes, target - current, kRollModeTypes[target - 1]);
+    Log("random mode: entry %d (type %d) from %d", target, kRollModeTypes[target - 1], current);
+}
+static void StartTrackRoll();
+static void RandomTick() {
     using ActiveFn = bool(__cdecl*)(const char*);
     using SendFn = void(__cdecl*)(uint32_t, const char*);
-    static bool spaceDown = false;
-    const char* fng = at<const char*>(QR_TRACKSEL_NAME);
+    auto active = [](const char* fng) { return reinterpret_cast<ActiveFn>(FN_FE_PACKAGE_ACTIVE)(fng); };
+    static bool spaceDown = false, wasOnModes = false;
+    static int trackWait = 0;
     bool space = KeyPressed(VK_SPACE, spaceDown);
-    if (!SplitMode() || !reinterpret_cast<ActiveFn>(FN_FE_PACKAGE_ACTIVE)(fng)) {
-        g_randomTrackSteps = g_randomTrackAccept = 0;
-        g_randomTrackClicked = false;
-        return;
+    bool clicked = g_randomClicked;
+    g_randomClicked = false;
+    const char* tracks = at<const char*>(QR_TRACKSEL_NAME);
+    const char* modes = at<const char*>(QR_MODESEL_NAME);
+    bool onTracks = SplitMode() && active(tracks), onModes = SplitMode() && active(modes);
+    if (onModes && !wasOnModes && !g_nextRace && (g_randomSeries || g_randomTrackPending)) {
+        g_randomSeries = g_randomTrackPending = false;   // the mode select came up by Quit or Back
+        Log("random: series ended");
     }
-    if (g_randomTrackSteps) {                  // one step per frame, like a player pressing left / right
-        reinterpret_cast<SendFn>(FN_FE_SEND_MSG)(g_randomTrackSteps > 0 ? MSG_RIGHT : MSG_LEFT, fng);
-        g_randomTrackSteps += g_randomTrackSteps > 0 ? -1 : 1;
-        if (!g_randomTrackSteps) g_randomTrackAccept = 3;
-        return;
-    }
-    if (g_randomTrackAccept) {
-        if (--g_randomTrackAccept == 0) {
-            Log("random track: %d accepted", at<uint16_t>(QR_SETTINGS + at<int>(QR_RACE_TYPE) * 0x14 + 8));
+    wasOnModes = onModes;
+    if (!SplitMode() || active("UI_Main.fng")) g_randomSeries = g_randomTrackPending = false;
+    if (g_roll.fng && !active(g_roll.fng)) g_roll = {};
+    if (g_roll.fng) {                          // one step per frame, like a player pressing left / right
+        if (g_roll.steps) {
+            // silent steps: the mode select plays its menu tick for each step message (the track select doesn't),
+            // which at one step per frame is a buzz; the accept still sounds
+            g_feSoundMuted = true;
+            reinterpret_cast<SendFn>(FN_FE_SEND_MSG)(g_roll.steps > 0 ? MSG_RIGHT : MSG_LEFT, g_roll.fng);
+            g_feSoundMuted = false;
+            g_roll.steps += g_roll.steps > 0 ? -1 : 1;
+            if (!g_roll.steps) g_roll.accept = 3;
+        } else if (--g_roll.accept <= 0) {
+            const char* fng = g_roll.fng;
+            if (g_roll.type >= 0) reinterpret_cast<void(__cdecl*)(int)>(FN_QR_SET_MODE)(g_roll.type);
+            g_roll = {};
+            Log("random: %s accepted (type %d, track %d)", fng, at<int>(QR_RACE_TYPE),
+                at<uint16_t>(QR_SETTINGS + at<int>(QR_RACE_TYPE) * 0x14 + 8));
             reinterpret_cast<SendFn>(FN_FE_SEND_MSG)(MSG_ACCEPT, fng);
         }
         return;
     }
-    bool y = space || g_randomTrackClicked;
-    g_randomTrackClicked = false;
+    if (onTracks && g_randomTrackPending) {    // after a mode roll; let the screen take input first
+        if (++trackWait < 3) return;
+        trackWait = 0;
+        g_randomTrackPending = false;
+        StartTrackRoll();
+        return;
+    }
+    trackWait = 0;
+    bool y = space || clicked;
     for (int pad = 0; pad < XPadMax() && !y; ++pad) y = XPadYPressed(pad);
     if (!y) return;
+    if (onTracks) StartTrackRoll();
+    else if (onModes) StartModeRoll();
+}
+static void StartTrackRoll() {
     uint8_t* screen = at<uint8_t*>(QR_TRACKSEL_SCREEN);
     if (!screen) return;
     screen -= 0x118;
@@ -202,9 +265,8 @@ static void RandomTrackTick() {
     }
     if (!n || currentIndex < 0) return;
     int target = pool[RandomInt(n)];
-    g_randomTrackSteps = target - currentIndex;
-    if (!g_randomTrackSteps) g_randomTrackAccept = 3;
-    Log("random track: %d of %d tracks, %d steps", n, count, g_randomTrackSteps);
+    StartRoll(at<const char*>(QR_TRACKSEL_NAME), target - currentIndex);
+    Log("random track: %d of %d tracks, %d steps", n, count, target - currentIndex);
 }
 
 static void InstallNextRace() {

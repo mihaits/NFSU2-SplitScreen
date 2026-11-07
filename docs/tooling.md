@@ -150,6 +150,10 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
   - `next_race_check.sh [rounds]` starts a split drag race, drives it to the results (drag_blow.py), then per round
     takes Post Race → Next Race → track select → A and checks that the race loads without the options screen and with
     the last round (log "next race", "last round again"); screenshots in build/nr/.
+  - `random_check.sh [rounds]` boots to the split mode select, presses Y (mode and track roll), joins every player
+    and races (drag_blow.py for drag, autorace.py otherwise, 1 lap); per round Post Race -> Next Race must roll a new
+    mode and track and load the race with no input. Stopping it mid-run can leave its Python children pressing virtual
+    pads: end them by process id.
   - `race_again.sh` starts the race again from the mode select; `quit_race.py` quits to the menu.
   - Pause menu: from Continue, `right` once is Restart, twice Options, three times Quit; `a`, then `left` and `a` in the
     confirmation. `b` doesn't leave Pause Options, and `left` there moves a volume slider. In a split race the menu sits

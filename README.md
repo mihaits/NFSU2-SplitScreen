@@ -37,7 +37,8 @@ options of whoever paused.
 - **Mute** (DualSense), **touchpad click** (DualShock 4): moves your car's sound between your pad's speaker and the PC.
   With more than 2 Bluetooth DualSense players the speakers start off (too much for one adapter); Mute turns yours on.
 - **Y / Space** on player 1's Press START: rematch with the same cars and controllers.
-- **Y / Space** (or the Random button) on the track select: a random track (never the one just raced).
+- **Y / Space** (or the Random button) on the track select: a random track (never the one just raced). On the mode
+  select: a random race mode and track, and from then on Next Race rolls a new one by itself until you quit.
 - **START** on a spare pad: take over a player whose controller turned off.
 
 ## Features
@@ -51,7 +52,8 @@ options of whoever paused.
 - AI opponents with difficulty (up to 6 racers in all), catch-up between players, traffic around every player
 - Cars: each player picks, everyone races player 1's car, or random cars of about the same performance (stock, My
   Cars and career cars); with the last two, joining is all it takes
-- Next Race after every race (not Outrun): pick the next track or mode and race on, no menus or car picks in between
+- Next Race after every race (not Outrun): pick the next track or mode and race on, no menus or car picks in between;
+  or a random series that rolls mode and track for every race
 - Free Run: drive the whole city together from the district or venue you pick
 - Tuned headlight colours work, also in single player: the original PC game turns bright ones white
 
@@ -102,7 +104,6 @@ Tested up to 4 players with GE-Proton through Lutris. Setup, pad support and opt
 ## To do
 - [ ] Pad speakers (DualSense and DualShock 4) with an adaptive bitrate, so 3-6 pads can stream at once over Bluetooth
 - [ ] Session points: standings across Next Race races
-- [ ] Random mode: a race series with no mode or track picks
 - [ ] Replays of split-screen races
 - [ ] Rear-view mirror in the bumper and hood cameras, like single player
 - [ ] Maybe: everyone picking a car at once; press START to join at any time
