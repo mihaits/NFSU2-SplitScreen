@@ -5,7 +5,8 @@ race HUD, from the start the Start row picks (a city district or a closed venue)
 `InstallFreeRun`.
 
 - **Mode list.** The quick race mode list (UIQRModeSelect::Setup, 0x4B2E..) adds Outrun in modes 8/0x200/4 and Free
-  Run (icon class 0x790FFC) only in the others. The `je` at 0x4B2F99 is NOPed, so Free Run is listed in split screen.
+  Run (icon class 0x790FFC) only in the others. The `je` at 0x4B2F99 is NOPed, so Free Run is listed in split screen (not after Next Race, see
+  [frontend](frontend.md)).
 - **Next screen.** After the mode select (0x4B2A80) split screen's Outrun goes to the race options (0x7F4460) and the
   rest to the track list, except Free Run, which goes to its own screen (0x7F446C: straight to the car select, no
   Players row). `NextScreenAfterMode`: split screen + type 9 → the race options screen, track word (0x83AAC4 + 9 ×

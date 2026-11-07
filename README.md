@@ -27,7 +27,7 @@ Xbox, DualSense and DualShock 4 pads are all supported natively, over USB or Blu
 3. Each player presses **START** on their own pad and picks a car (with Pick One or Random, START is all it takes). On the
    keyboard, press **Enter** on your Press START screen. Back only undoes your own step.
 4. After the race, **Next Race** (first on Post Race) opens the track select: pick a track (or Back for another
-   mode) and the race starts right away with the same players and cars (Random deals new ones). **Quit to Main Menu**
+   race mode) and the race starts right away with the same players and cars (Random deals new ones). **Quit to Main Menu**
    goes through the options and Press START again, to change players or cars.
 
 Every player has their own controls page (Options → Controls) and their own player options. Pausing opens the

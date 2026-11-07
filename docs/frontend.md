@@ -86,7 +86,9 @@ names (stored at 0x8384C8): the quick race mode select in split (garage scene be
 of that mode; the accept's menu sound (id 4) is dropped (`g_feSoundMuted`), since Next Race's own accept already played it. While `g_nextRace` is set, the track select's next screen (0x498240, `QrTrackNextHook`) is the car
 select instead of the options, and player 1's Press START popup takes the last round by itself, as Rematch does
 (Random deals new cars first); if `LastRoundReady` fails, the round is joined as usual. Back from the track select
-reaches the mode select, and another mode also starts without its options screen. Quit to Main Menu stays as it is.
+reaches the mode select, and another mode also starts without its options screen. That mode list leaves out Outrun
+(a tournament of its own) and Free Run (not a race): `ModeListOutrunHook` (0x4B2F2A) skips past both entries (to
+0x4B2FE0) while `g_nextRace` is set. The main menu ends Next Race, so the next visit to split lists every mode. Quit to Main Menu stays as it is.
 - The quick race screens step through a chain (0x4E2900: mode select, options, track select, each with a next and a
   previous screen function; [0x836340], current node +0xC) that the mode select builds (0x4EF1B0) when it is accepted.
   A track select opened straight from the race (by pointing 0x8384C8 at it) has no chain, and A on it crashes in

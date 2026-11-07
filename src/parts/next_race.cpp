@@ -33,6 +33,10 @@ static void __fastcall NextRaceReact(void*, void*, const char*, uint32_t msg, ui
 static void NextRaceTick() {
     using ActiveFn = bool(__cdecl*)(const char*);
     static int frames = 0;
+    if (g_nextRace && reinterpret_cast<ActiveFn>(FN_FE_PACKAGE_ACTIVE)("UI_Main.fng")) {
+        g_nextRace = false;                    // backed out to the main menu: the next split visit starts fresh
+        Log("next race: main menu, ended");
+    }
     if (!g_nextRaceToTrack || !g_nextRace) { g_nextRaceToTrack = false; frames = 0; return; }
     const char* modes = at<const char*>(QR_MODESEL_NAME);
     if (!reinterpret_cast<ActiveFn>(FN_FE_PACKAGE_ACTIVE)(modes)) { frames = 0; return; }
@@ -87,6 +91,23 @@ static __declspec(naked) void QrTrackNextHook() {
     }
 }
 
+// The mode list (UIQRModeSelect::Setup) adds Outrun (0x4B2F2A..0x4B2F85) and Free Run (0x4B2F8A..0x4B2FDD) last.
+// After Next Race both are left out: Outrun is a tournament of its own and Free Run isn't a race.
+#define AT_MODE_LIST_OUTRUN   0x4B2F2A    // mov eax, [0x850078] (5 bytes)
+#define AT_MODE_LIST_END      0x4B2FE0    // after the Free Run entry
+static __declspec(naked) void ModeListOutrunHook() {
+    __asm {
+        cmp byte ptr g_nextRace, 0
+        je normal
+        push AT_MODE_LIST_END
+        ret
+    normal:
+        mov eax, dword ptr ds:[GAME_MODE]
+        push AT_MODE_LIST_OUTRUN + 5
+        ret
+    }
+}
+
 static void InstallNextRace() {
     const uint8_t build[] = {0x83, 0x3D, 0x78, 0x00, 0x85, 0x00, 0x01};
     const uint8_t trackNext[] = {0xA1, 0x78, 0x00, 0x85, 0x00};
@@ -97,4 +118,7 @@ static void InstallNextRace() {
     }
     WriteJump(AT_POSTRACE_BUILD, &PostRaceBuildHook, 7);
     WriteJump(FN_QR_TRACK_NEXT, &QrTrackNextHook, 5);
+    if (memcmp(reinterpret_cast<void*>(AT_MODE_LIST_OUTRUN), trackNext, sizeof(trackNext)) == 0)
+        WriteJump(AT_MODE_LIST_OUTRUN, &ModeListOutrunHook, 5);
+    else Log("next race: unexpected mode list code, Outrun and Free Run stay listed");
 }
