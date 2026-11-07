@@ -78,8 +78,13 @@ speakers" block of `parts/sound.cpp`; the pad side is `DsSpeakerWrite` in `DualS
     first used). A patch field holds a param struct whose [0] is the patch player {definition, ?, +8 block};
     definition [0] = program header (+8 = 0x721096 in every one seen), definition +4 = the patch's name; header
     +0x18 low byte = number of children, +0x24 instance size, +0x30 + 4i = child i's offset from the instance
-    (block - 0x2C); a child is a sample player {+0/+4 bank, +8 channel handle, +0xC flags}. Each playing child of a
-    patch named in `PadSpeakerSounds` (case-insensitive, comma list) is recorded for the car's player.
+    (block - 0x2C); a child is a sample player {+0/+4 bank, +8 channel handle, +0xC flags}. Of a patch named in
+    `PadSpeakerSounds` (case-insensitive, comma list), every dword of the instance that is a live channel's current
+    handle (low byte = channel, use count above it) is recorded for the car's player. The header's child offsets
+    don't fit every instance: in a 2P Street X race both cars' CAR patches had the same definition, one held its
+    playing layer's handle at child offset + 8 (0xC4C + 8), the other (a stock Evo) at +0xC84 and +0xD7C, so that
+    car's engine layers stayed on the PC with only the turbo on the pad (user, 2026-11-07). `tools/unclaimed_voices.py`
+    and `car_sounds.py` still name children by the header's offsets, so such layers show there without a patch name.
   - The scan follows every field of an object as a pointer, every frame, and most fields aren't pointers. Each pointer
     is checked against a cache of VirtualQuery results first (`ReadablePointer`, dropped every 600 frames), because a
     fault caught by `__try` costs far more than the scan: without it, this was a third of the main thread at 6 players.

@@ -504,6 +504,7 @@ static void __fastcall EngineUpdateHook(uint8_t* obj, void* edx) {
 #define AT_SOUND_OBJECT_LOOP_CALL 0x469CC0   // 8B 06 8B CE FF 50 28 (7 bytes)
 #define EA_PATCH_HEADER_SIGNATURE 0x721096
 #define EA_CHANNELS 0x8B466C                  // channels, stride 0x90, +0 handle
+#define EA_CHANNEL_COUNT 0x8B460C             // int16
 static int CarSoundLocalPlayer(const uint8_t* obj) {   // local player of a per-car sound object, or -1
     __try {
         uint32_t vt = *reinterpret_cast<const uint32_t*>(obj);
@@ -551,18 +552,24 @@ static uint8_t* PatchHeaderAt(const uint8_t* obj, int off, uint8_t** block, cons
     }
     return nullptr;
 }
+// The children aren't always where the header's offsets say: in a 2P Street X race both cars' CAR patches had the same
+// definition, but only one instance held its live handle at child offset + 8 (0xC4C + 8); in the other (a stock Evo)
+// the engine layers' handles sat at +0xC84 and +0xD7C, so its engine stayed on the PC and only the turbo moved (user,
+// 2026-11-07). So every dword of the instance (header +0x24 bytes) that is a live channel's current handle counts: a
+// handle carries the channel index in its low byte and a use count above it, so a stray value equal to one is unlikely.
 static void RecordPatchChildren(int k, const uint8_t* hdr, uint8_t* block) {
     __try {
-        int n = hdr[0x18];
         uint32_t size = *reinterpret_cast<const uint32_t*>(hdr + 0x24);
-        uint8_t* inst = block - 0x2C;
+        if (size > 0x4000) size = 0x4000;
+        auto* inst = reinterpret_cast<const int32_t*>(block - 0x2C);
         auto* chans = at<uint8_t*>(EA_CHANNELS);
+        int channels = at<int16_t>(EA_CHANNEL_COUNT);
+        if (channels > 64) channels = 64;
         DWORD now = GetTickCount();
-        for (int i = 0; i < n && i < 16; ++i) {
-            uint32_t off = *reinterpret_cast<const uint32_t*>(hdr + 0x30 + 4 * i);
-            if (off >= size) break;
-            int32_t h = *reinterpret_cast<int32_t*>(inst + off + 8);
-            if (h < 0 || *reinterpret_cast<int32_t*>(chans + (h & 0xFF) * 0x90) != h) continue;   // not playing now
+        for (uint32_t i = 0; i < size / 4; ++i) {
+            int32_t h = inst[i];
+            if (h <= 0xFF || (h & 0xFF) >= channels) continue;
+            if (*reinterpret_cast<int32_t*>(chans + (h & 0xFF) * 0x90) != h) continue;   // not this channel's now
             g_engineVoicePlayer[h & 0x3F] = k + 1;
             g_engineVoiceHandle[h & 0x3F] = h;
             g_engineVoiceSeen[h & 0x3F] = now;
