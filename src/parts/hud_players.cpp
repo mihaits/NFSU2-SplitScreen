@@ -87,6 +87,7 @@ static void ForwardToGauges(uint32_t msg, const char* fng);
 using SendMsgFn = void(__cdecl*)(uint32_t, const char*);
 static SendMsgFn g_origSendMsg;
 static void __cdecl SendFeMessage(uint32_t msg, const char* fng) {
+    if (msg == MSG_HELP_CUSTOMIZE && fng && _stricmp(fng, "UI_QRTrackSelect.fng") == 0) g_randomTrackClicked = true;
     g_origSendMsg(msg, fng);
     if (!fng) return;
     for (int k = 1; k < MAX_LOCAL_PLAYERS; ++k)

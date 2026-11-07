@@ -110,6 +110,15 @@ raced (same type) are left out. The screen is [0x836344] - 0x118 (its ctor 0x4E2
 Its icon list (built by 0x4CDED0) is at +0x4C: node +0 next, +8 locked, +0x14 track id, +0x2C track record or 0
 (record +0x8A track id); +0x54 is the selected node. A list entry for Random would need a track record: the icon,
 map, distance and best time are all drawn from it.
+- Help bar: `HelpBarSet` adds the Customize button (flag 0x1000; label from 0x52D330) on the split track select and
+  sets its text (`RandomButtonText`). The bar's buttons are a list at bar +0x4C (button = node - 4: +0x10 text
+  object, +0x1C its flag). The game's PC buttons are plain clickable words; WidescreenFix (`[MISC]
+  ImproveGamepadSupport`) swaps a fixed list of English labels for "(A) Continue"-style ones while the last input was
+  a pad, so with it loaded the button reads "(Y) Random" ("(Triangle) Random" with PlayStation text). Otherwise it
+  is `$BUTTON_Y$ Random`: the PC font skips `$...$` console button tokens (plain "Random"), and the coming FusionFix
+  draws them as button images ([plan](plans/fusionfix-compat.md)). A click sends the screen 0xC519BFC0 (the shared
+  Customize action), which `SendFeMessage` turns into a roll. The text is set with 0x535FE0, which grows the string;
+  the FE printf 0x537BE0 cuts at the object's current length (+0x68, 17 here).
 
 **Car select sounds: one per action.** Every FE sound goes through 0x458520 (thiscall sound manager [0x82B884]; id),
 hooked by `FeSound`. Two layers play them: the generic package layer (0x51DD40: runs the package's handler, then plays

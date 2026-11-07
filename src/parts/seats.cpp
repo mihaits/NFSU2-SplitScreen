@@ -739,7 +739,29 @@ static bool __stdcall CarselFilter(uint8_t* carsel, uint32_t msg) {
 // bar is shown before the buttons are set.
 #define FN_HELP_BAR_SHOW   0x54E6A0      // void __thiscall (bar)
 #define FN_HELP_BAR_SET    0x54E6E0      // void __thiscall (bar; flags, arg) - 5 bytes stolen
+#define FN_FE_SET_STRING   0x535FE0      // void __thiscall (FEString*, const char*): sets its text, grows the buffer
+#define HELP_RANDOM_TRACK  0x1000        // the help bar's Customize button: Random on the split track select (a click
+                                         // sends the screen MSG_HELP_CUSTOMIZE, see RandomTrackTick)
 typedef void(__thiscall* HelpBarSetFn)(void*, uint32_t, uint32_t);
+// The Random button's text. The released WidescreenFix ([MISC] ImproveGamepadSupport 1-3) gives the help bar's buttons
+// "(A)"-style prefixes by swapping known English labels, so with it the button gets the same style here: "(Y) Random",
+// or "(Triangle) Random" with PlayStation text (2). Otherwise "$BUTTON_Y$ Random": "$...$" is a console button token
+// the PC font skips (plain "Random", like the game's own buttons) and FusionFix draws as the Y button.
+static const char* RandomButtonText() {
+    static int style = -1;                 // 0 none, 1 Xbox text, 2 PlayStation text
+    if (style < 0) {
+        style = 0;
+        char path[MAX_PATH];
+        HMODULE wsf = GetModuleHandleA("NFSUnderground2.WidescreenFix.asi");
+        if (wsf && GetModuleFileNameA(wsf, path, MAX_PATH)) {
+            if (char* dot = strrchr(path, '.')) strcpy_s(dot, MAX_PATH - (dot - path), ".ini");
+            int mode = GetPrivateProfileIntA("MISC", "ImproveGamepadSupport", 0, path);
+            style = mode == 2 ? 2 : mode == 1 || mode == 3 ? 1 : 0;
+        }
+        Log("help bar: Random button style %d (WidescreenFix %s)", style, wsf ? "loaded" : "not loaded");
+    }
+    return style == 1 ? "(Y) Random" : style == 2 ? "(Triangle) Random" : "$BUTTON_Y$ Random";
+}
 static HelpBarSetFn g_origHelpBarSet;
 static void __fastcall HelpBarSet(uint8_t* bar, void*, uint32_t flags, uint32_t arg) {
     extern void* GetLocalPlayer(int);
@@ -747,7 +769,25 @@ static void __fastcall HelpBarSet(uint8_t* bar, void*, uint32_t flags, uint32_t 
         reinterpret_cast<void(__thiscall*)(void*)>(FN_HELP_BAR_SHOW)(bar);
         Log("help bar shown again (split menus, buttons %X)", flags);
     }
+    bool trackHint = bar && SplitMode() &&
+        reinterpret_cast<bool(__cdecl*)(const char*)>(FN_FE_PACKAGE_ACTIVE)("UI_QRTrackSelect.fng");
+    if (trackHint) flags |= HELP_RANDOM_TRACK;
     g_origHelpBarSet(bar, flags, arg);
+    if (!trackHint) return;
+    // the bar's buttons: list at +0x4C (node - 4 = button; +4 next node, +0x10 text object, +0x1C its flag)
+    auto* head = bar + 0x48;
+    for (auto* node = *reinterpret_cast<uint8_t**>(bar + 0x4C); node && node - 4 != head;
+         node = *reinterpret_cast<uint8_t**>(node - 4 + 4)) {
+        uint8_t* button = node - 4;
+        if (*reinterpret_cast<uint32_t*>(button + 0x1C) != HELP_RANDOM_TRACK) continue;
+        // Set with the store 0x535FE0, which grows the string to fit; the printf 0x537BE0 cuts at the object's current
+        // length (16 here).
+        if (auto* text = *reinterpret_cast<uint8_t**>(button + 0x10)) {
+            reinterpret_cast<void(__thiscall*)(void*, const char*)>(FN_FE_SET_STRING)(text, RandomButtonText());
+            *reinterpret_cast<uint32_t*>(text + 0x1C) |= 2;   // text set by code, as 0x537B30 marks it
+        }
+        break;
+    }
 }
 
 // Car select sounds: one per action. Every FE sound goes through 0x458520 (thiscall sound manager [0x82B884]; id),

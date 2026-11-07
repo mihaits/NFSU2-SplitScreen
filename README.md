@@ -37,7 +37,7 @@ options of whoever paused.
 - **Mute** (DualSense), **touchpad click** (DualShock 4): moves your car's sound between your pad's speaker and the PC.
   With more than 2 Bluetooth DualSense players the speakers start off (too much for one adapter); Mute turns yours on.
 - **Y / Space** on player 1's Press START: rematch with the same cars and controllers.
-- **Y / Space** on the track select: a random track (never the one just raced).
+- **Y / Space** (or the Random button) on the track select: a random track (never the one just raced).
 - **START** on a spare pad: take over a player whose controller turned off.
 
 ## Features

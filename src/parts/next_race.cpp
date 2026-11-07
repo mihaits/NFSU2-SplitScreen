@@ -140,7 +140,8 @@ static __declspec(naked) void ModeListOutrunHook() {
     }
 }
 
-// Random Track: Y on any pad (Space on the keyboard) on the split track select picks one of the listed, unlocked tracks
+// Random Track: Y on any pad, Space or a click on the help bar's "(Y) Random" (its Customize button, HelpBarSet) on
+// the split track select picks one of the listed, unlocked tracks
 // at random (not the last one raced), steps the list to it with the screen's own left / right, one per frame, and
 // accepts it: after Next Race the race loads, otherwise the options come next. The screen: [0x836344] - 0x118 (set by
 // its ctor 0x4E2F30, vtable 0x7974F0); its icon list at +0x4C (node: +0 next, +8 locked, +0x14 track id, +0x2C track
@@ -148,6 +149,8 @@ static __declspec(naked) void ModeListOutrunHook() {
 #define QR_TRACKSEL_NAME      0x7F4464    // char*: "UI_QRTrackSelect.fng"
 #define QR_TRACKSEL_SCREEN    0x836344    // screen + 0x118
 #define QR_TRACKSEL_VTBL      0x7974F0
+#define MSG_HELP_CUSTOMIZE    0xC519BFC0  // the help bar's Customize button clicked (sent to the active screen)
+static bool g_randomTrackClicked = false; // that button, labelled Random on the split track select (SendFeMessage)
 static int g_randomTrackSteps = 0;        // > 0 right, < 0 left, still to send
 static int g_randomTrackAccept = 0;       // frames until the accept (0: none)
 static int TrackNodeId(uint8_t* node) {
@@ -162,6 +165,7 @@ static void RandomTrackTick() {
     bool space = KeyPressed(VK_SPACE, spaceDown);
     if (!SplitMode() || !reinterpret_cast<ActiveFn>(FN_FE_PACKAGE_ACTIVE)(fng)) {
         g_randomTrackSteps = g_randomTrackAccept = 0;
+        g_randomTrackClicked = false;
         return;
     }
     if (g_randomTrackSteps) {                  // one step per frame, like a player pressing left / right
@@ -177,7 +181,8 @@ static void RandomTrackTick() {
         }
         return;
     }
-    bool y = space;
+    bool y = space || g_randomTrackClicked;
+    g_randomTrackClicked = false;
     for (int pad = 0; pad < XPadMax() && !y; ++pad) y = XPadYPressed(pad);
     if (!y) return;
     uint8_t* screen = at<uint8_t*>(QR_TRACKSEL_SCREEN);
