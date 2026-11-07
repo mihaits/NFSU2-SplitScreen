@@ -240,6 +240,7 @@ static void __cdecl LayoutApplyHook() {
     UpdateEditingSlot2();
     UpdateBindSwap();
     UpdateSeats();
+    NextRaceTick();
     LogCarselInput();
     UpdatePadLights();
     RunMailbox();

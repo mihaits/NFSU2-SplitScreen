@@ -75,6 +75,26 @@ player 1 (`PressStartFilter`), restores every seat's assignment, and on the next
 cars, ports and gearboxes back and starts the race (0x53FC20) without the picks. A pad takeover in a race updates the
 remembered pad.
 
+**Next Race.** `parts/next_race.cpp`. Post Race's builder 0x4BEE10 (fastcall menu) adds its icon options with
+`0x51F670(option, icon, text, 0)` and `menu->vtbl[0x18](option)`: career's Next Race (icon 0x12BB5EA2, text "Next Race"
+0x23F359B8, react 0x4BEC90), Restart (0x4BECC0), Race Stats, Replay (not in split) and Quit to Main Menu (0x4BED40).
+In split (mode 4, not outrun) `PostRaceBuildHook` (at 0x4BEE26) adds Next Race first with the game's own icon and
+localized text. Its react sends UI_PostRace.fng 0x30ED2368, the message Quit's confirm dialog sends on OK. The screen's
+handler 0x4F39A0 answers with 0x24DD40CF, then 0xD78D7BF1 → 0x4A3E80, which leaves the race for the screen 0x502FF0
+names (stored at 0x8384C8): the quick race mode select in split (garage scene behind it, the race's mode selected).
+`NextRaceTick` accepts the mode select once it has been up for 3 frames, the same as A, which opens the track select
+of that mode. While `g_nextRace` is set, the track select's next screen (0x498240, `QrTrackNextHook`) is the car
+select instead of the options, and player 1's Press START popup takes the last round by itself, as Rematch does
+(Random deals new cars first); if `LastRoundReady` fails, the round is joined as usual. Back from the track select
+reaches the mode select, and another mode also starts without its options screen. Quit to Main Menu stays as it is.
+- The quick race screens step through a chain (0x4E2900: mode select, options, track select, each with a next and a
+  previous screen function; [0x836340], current node +0xC) that the mode select builds (0x4EF1B0) when it is accepted.
+  A track select opened straight from the race (by pointing 0x8384C8 at it) has no chain, and A on it crashes in
+  0x4B29A0 (null chain), and the garage scene (pushed by the quick race screen manager 0x4F9930,
+  `0x555F50(0, "GarageMain.fng", 0, 0, 0)`) is missing. Going through the mode select avoids both.
+- A Quit from Post Race whose A is still held when the mode select loads goes on to the track select: that's the held
+  A on the mode select, not the quit's destination.
+
 **Car select sounds: one per action.** Every FE sound goes through 0x458520 (thiscall sound manager [0x82B884]; id),
 hooked by `FeSound`. Two layers play them: the generic package layer (0x51DD40: runs the package's handler, then plays
 the table 0x837FE0 sound of the input it handled, call at 0x51DD81) plays Back (5) / Start (6) for whatever the

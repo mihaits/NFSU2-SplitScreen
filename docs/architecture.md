@@ -12,7 +12,7 @@ to the part of its subsystem (or a new part, included where its dependencies are
 | frontend, garage | main menu entry, Players row, garage backup, help bar; shared My Cars |
 | log, debug_tools | debug log; hardware write watch and command mailbox |
 | crash | crash report: `scripts\NFSU2SplitScreen_crash.txt` (+ log) and a minidump per crash, always on |
-| seats | players 3..6 data, controller assignment, car select seats |
+| seats, next_race | players 3..6 data, controller assignment, car select seats, Cars row, rematch; Next Race on Post Race |
 | input, input_ports | input merge, P3/P4 joypad bindings; 4 input port tables |
 | render_core, render_passes, render_weather, render_envmap | layout and device hooks; streaks, blur, headlights; rain, weather, road reflections, overbright; car reflections, projectors, projection |
 | local_players, racers | 6-player arrays; extra local players, standings, results, post-race scene, names, skins, AI cars |

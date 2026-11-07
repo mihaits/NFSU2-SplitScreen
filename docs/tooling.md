@@ -147,6 +147,9 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
   - `cars_check.sh [humans:cars[:mode] ...]` starts split races with each Cars row mode (`[DEBUG] CarsMode`; default 2P
     and 4P Pick One, 2P / 4P / 6P Random, 3P Pick Each) and checks the logged race cars ("race: player N car"),
     the given cars and the random ratings, then grid_check and quit; restores the ini.
+  - `next_race_check.sh [rounds]` starts a split drag race, drives it to the results (drag_blow.py), then per round
+    takes Post Race → Next Race → track select → A and checks that the race loads without the options screen and with
+    the last round (log "next race", "last round again"); screenshots in build/nr/.
   - `race_again.sh` starts the race again from the mode select; `quit_race.py` quits to the menu.
   - Pause menu: from Continue, `right` once is Restart, twice Options, three times Quit; `a`, then `left` and `a` in the
     confirmation. `b` doesn't leave Pause Options, and `left` there moves a volume slider. In a split race the menu sits

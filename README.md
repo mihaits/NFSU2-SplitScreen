@@ -26,6 +26,9 @@ Xbox, DualSense and DualShock 4 pads are all supported natively, over USB or Blu
    (speedways, drift areas).
 3. Each player presses **START** on their own pad and picks a car (with Pick One or Random, START is all it takes). On the
    keyboard, press **Enter** on your Press START screen. Back only undoes your own step.
+4. After the race, **Next Race** (first on Post Race) opens the track select: pick a track (or Back for another
+   mode) and the race starts right away with the same players and cars (Random deals new ones). **Quit to Main Menu**
+   goes through the options and Press START again, to change players or cars.
 
 Every player has their own controls page (Options → Controls) and their own player options. Pausing opens the
 options of whoever paused.
@@ -47,6 +50,7 @@ options of whoever paused.
 - AI opponents with difficulty (up to 6 racers in all), catch-up between players, traffic around every player
 - Cars: each player picks, everyone races player 1's car, or random cars of about the same performance (stock, My
   Cars and career cars); with the last two, joining is all it takes
+- Next Race after every race (not Outrun): pick the next track or mode and race on, no menus or car picks in between
 - Free Run: drive the whole city together from the district or venue you pick
 - Tuned headlight colours work, also in single player: the original PC game turns bright ones white
 
@@ -96,7 +100,8 @@ Tested up to 4 players with GE-Proton through Lutris. Setup, pad support and opt
 
 ## To do
 - [ ] Pad speakers (DualSense and DualShock 4) with an adaptive bitrate, so 3-6 pads can stream at once over Bluetooth
-- [ ] Session results: standings across back-to-back races
+- [ ] Session points: standings across Next Race races
+- [ ] Random mode and Random Track: a race series with no track picks
 - [ ] Replays of split-screen races
 - [ ] Rear-view mirror in the bumper and hood cameras, like single player
 - [ ] Maybe: everyone picking a car at once; press START to join at any time

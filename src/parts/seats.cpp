@@ -88,6 +88,9 @@ static int g_keyboardSeat = -1;          // the player who joined with the keybo
 static int g_lastPlayers = 0;            // 0: no round yet
 static int g_lastPad[MAX_LOCAL_PLAYERS], g_lastKeyboardSeat = -1;
 static int g_lastCar[MAX_LOCAL_PLAYERS], g_lastPort[MAX_LOCAL_PLAYERS], g_lastGearbox[MAX_LOCAL_PLAYERS];
+// Next Race (Post Race, next_race.cpp): set when it's chosen, until the car select's player 1 popup takes the last
+// round by itself (or can't: then the round is picked as usual).
+static bool g_nextRace = false;
 
 static int g_seat = 0;                   // car select: whose turn (0..5); the frontend serves FE player seat & 1
 static int g_splitPlayers = 2;           // players chosen on the split-screen options screen (2..6)
@@ -269,10 +272,22 @@ static uint32_t __stdcall PressStartFilter(uint8_t* popup, uint32_t msg, uint32_
             Log("player %d rejoined after customize", seat + 1);
             return MSG_START;
         }
+        if (seat == 0 && g_nextRace && !LastRoundReady()) {
+            g_nextRace = false;
+            Log("next race: the last round can't start again (players, pads or cars changed): joins as usual");
+        }
         if (seat == 0 && LastRoundReady()) {
-            bool again = space && g_lastKeyboardSeat >= 0;
+            bool again = g_nextRace || (space && g_lastKeyboardSeat >= 0);
             for (int k = 0; k < g_lastPlayers && !again; ++k)
                 again = k != g_lastKeyboardSeat && XPadYPressed(g_lastPad[k]);
+            if (again && g_nextRace) {                // Next Race: random cars are dealt again, given cars are kept
+                g_nextRace = false;
+                if (g_carsMode == CARS_RANDOM) {
+                    PickRandomCars(g_lastPlayers);
+                    for (int k = 0; k < g_lastPlayers; ++k) if (g_randomCar[k]) g_lastCar[k] = g_randomCar[k];
+                }
+                Log("next race: %s", g_carsMode == CARS_RANDOM ? "new random cars" : "same cars");
+            }
             if (again) {                              // player 1 joins; the race starts on the next car select tick
                 for (int k = 0; k < MAX_LOCAL_PLAYERS; ++k) g_assignedPad[k] = k < g_lastPlayers ? g_lastPad[k] : PAD_NONE;
                 g_keyboardSeat = g_lastKeyboardSeat;
@@ -817,7 +832,7 @@ static void UpdateSeats() {
     if (g_customizeSeat >= 0 && !g_customizeLeft && g_inCarSelect && ++s_waited > 30) g_customizeSeat = -1;
     if (g_customizeSeat < 0 || g_customizeLeft) s_waited = 0;
     if (g_customizeSeat >= 0 && !g_inCarSelect) g_customizeLeft = true;
-    if (!SplitMode()) g_customizeSeat = g_returnSeat = g_autoJoinSeat = -1;
+    if (!SplitMode()) g_customizeSeat = g_returnSeat = g_autoJoinSeat = -1, g_nextRace = false;
     if (g_seat >= 2 && !g_inCarSelect && g_customizeSeat < 0) {
         RestoreSeat(0);
         RestoreSeat(1);
