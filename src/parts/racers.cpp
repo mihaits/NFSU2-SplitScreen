@@ -184,6 +184,7 @@ static void CapAiCountToCars() {
         at<int>(AI_COUNT) = ai;
     }
 }
+static void AwardSessionPoints();
 static bool g_postRace = false;          // results computed until the next race's players (CreatePlayers)
 static void __fastcall RaceResults(void* results, void*, void* race) {
     g_postRace = true;
@@ -199,6 +200,7 @@ static void __fastcall RaceResults(void* results, void*, void* race) {
     g_resultsExtra = missing;
     g_resultsCountB = at<int>(RACE_COUNT_B);
     reinterpret_cast<void(__thiscall*)(void*, void*)>(FN_RACE_RESULTS)(results, race);
+    AwardSessionPoints();                  // standings.cpp
 }
 // A car the post-race scene doesn't feature is driven to the world origin and falls there forever (no ground): a
 // human car's own sounds play to its player's listener wherever it is, so the fall's wind rush was heard (user, P1

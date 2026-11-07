@@ -154,6 +154,12 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
     and races (drag_blow.py for drag, autorace.py otherwise, 1 lap); per round Post Race -> Next Race must roll a new
     mode and track and load the race with no input. Stopping it mid-run can leave its Python children pressing virtual
     pads: end them by process id.
+  - `standings_check.sh [races]` runs split circuit races (4011, 1 lap, every car on autopilot released 1 s apart) joined
+    by Next Race and checks that the standings screen with the session totals comes between Event Results and Post
+    Race (log "session: race", screenshots build/nr/standings_<n>.png).
+  - Shortest track per mode (track records [0x883DA0], 0x128 each: +0x8A id, +0x98 length in metres): circuit 4011
+    (1.57 km), sprint 4123 (3.9 km), drag 4213 / 4221-4223 (1.61 km), drift 4311 (0.3 km), Street X 4602 (0.49 km),
+    URL 4701 (1.63 km). Test races use these (`TRACK=id`) at 1 lap.
   - `race_again.sh` starts the race again from the mode select; `quit_race.py` quits to the menu.
   - Pause menu: from Continue, `right` once is Restart, twice Options, three times Quit; `a`, then `left` and `a` in the
     confirmation. `b` doesn't leave Pause Options, and `left` there moves a volume slider. In a split race the menu sits

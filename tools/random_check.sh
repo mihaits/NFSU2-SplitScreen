@@ -10,7 +10,7 @@ LOG=../../../scripts/NFSU2SplitScreen.log
 ts() { date +%H:%M:%S; }
 mkdir -p ../build/nr
 # 1 lap: circuit, drift, URL, Street X (quick race settings +0xA)
-export POKES="83AACE=1 83AB0A=1 83AB12=1 83AB96=1"
+export POKES="83AACE=1 83AB0A=1 83AB1E=1 83AB96=1"
 echo "$(ts) boot"
 sh restart.sh --noskip >/dev/null 2>&1
 python -I boot.py 20 || exit 1

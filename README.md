@@ -54,6 +54,8 @@ options of whoever paused.
   Cars and career cars); with the last two, joining is all it takes
 - Next Race after every race (not Outrun): pick the next track or mode and race on, no menus or car picks in between;
   or a random series that rolls mode and track for every race
+- Session points: after each race a standings screen sums every player's points (10 / 6 / 4 / 3 / 2 / 1 by place
+  among the players) until you leave split screen or change the number of players
 - Free Run: drive the whole city together from the district or venue you pick
 - Tuned headlight colours work, also in single player: the original PC game turns bright ones white
 
@@ -103,7 +105,6 @@ Tested up to 4 players with GE-Proton through Lutris. Setup, pad support and opt
 
 ## To do
 - [ ] Pad speakers (DualSense and DualShock 4) with an adaptive bitrate, so 3-6 pads can stream at once over Bluetooth
-- [ ] Session points: standings across Next Race races
 - [ ] Replays of split-screen races
 - [ ] Rear-view mirror in the bumper and hood cameras, like single player
 - [ ] Maybe: everyone picking a car at once; press START to join at any time

@@ -61,6 +61,24 @@
   or a human with exactly 2 local players ([0x8900BC]). `InstallHurry`: the `jne` at 0x606FE8 → `jl`, so 2 or more.
 - **Standings.** 0x56D850 (calls at 0x5F7B3F, 0x5F94C7, 0x6052F8) → `BuildStandings`, which counts the extra racers for
   the call. Drift scoring needs it.
+- **Session points** (`parts/standings.cpp`). Each split race that reaches its results (not Outrun or Free Run) gives
+  the human players 10 / 6 / 4 / 3 / 2 / 1 by place among the humans, nothing without a finish; AI racers don't score
+  (`AwardSessionPoints` after the results builder in `RaceResults`; places as the pad lights read them,
+  `FinishedPosition`). A session lasts until the main menu or a change in the number of players.
+  - Shown on the game's tournament standings screen (UI_PostRace_TournStandings.fng, class
+    cPostRaceTournamentStandings, ctor 0x4F4610) between Event Results and Post Race. The post-race screen list
+    (0x4F3EA0: Event Results unless Outrun, tournament results if 0x4C0050, standings if 0x4C00C0, career reward and
+    sponsor screens, Post Race) only adds it for career tournaments and split Outrun; its call to 0x4C00C0 (0x4F3F9A)
+    goes through `ShowStandings`. Split Outrun shows both tournament screens with its own points: +10 to the winner and
+    +6 to the other into 0x83ABC8[racer] (0x607076 and others), rows from two lobby-style records at 0x85036C
+    (stride 0x224).
+  - The screen's setup 0x4EA570 (its call 0x4F4657, `StandingsSetup`) normally builds rows from those records
+    (0x4C07A0, 0x4D77A0). The plugin writes the row texts itself: `RANKING_DATA_n`, `PLAYER_DATA_n`, `PLAYER_POINT_DATA_n`
+    through 0x537B80(package, 0x50B990(name), fmt, ...), and `CAR_DATA_n` from the car's language hash
+    (0x50C900(0x537A10(package, hash), 0x50B990("CAR_NAME_%s", car +0xC))); then [0x8363DC] + 0x1C = package and
+    0x4A4770(screen; 6, rows). Names as the game's row setter 0x4C03A0 picks them: the profile name (0x5F41B0, thiscall
+    car +0x18) for the car whose spec (car +0x14) is the local human's (+4 == 1, +0x900 == 0), otherwise spec +0x90C.
+    Equal totals share a rank; the last race's points order them.
 - **Camera.** Per-player settings mirror ([players](players.md)); the drift camera works for all players.
 - **HUD binding list (4P quit).** The element at hud+0x70 (0x4F89D0) keeps a data-binding list. P4's last node
   sometimes has next == 0. `ClearHudBindings` (call 0x4F8BAE) stops at broken nodes. The root cause is unknown.
