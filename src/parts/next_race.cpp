@@ -40,7 +40,9 @@ static void NextRaceTick() {
     g_nextRaceToTrack = false;
     frames = 0;
     Log("next race: mode select accepted");
+    g_feSoundMuted = true;                     // the player already heard Next Race's accept
     reinterpret_cast<void(__cdecl*)(uint32_t, const char*)>(FN_FE_SEND_MSG)(MSG_ACCEPT, modes);
+    g_feSoundMuted = false;
 }
 
 static void* g_nextRaceVtbl[2] = {reinterpret_cast<void*>(FN_MENU_OPTION_DTOR), &NextRaceReact};

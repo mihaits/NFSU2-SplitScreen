@@ -83,7 +83,7 @@ localized text. Its react sends UI_PostRace.fng 0x30ED2368, the message Quit's c
 handler 0x4F39A0 answers with 0x24DD40CF, then 0xD78D7BF1 → 0x4A3E80, which leaves the race for the screen 0x502FF0
 names (stored at 0x8384C8): the quick race mode select in split (garage scene behind it, the race's mode selected).
 `NextRaceTick` accepts the mode select once it has been up for 3 frames, the same as A, which opens the track select
-of that mode. While `g_nextRace` is set, the track select's next screen (0x498240, `QrTrackNextHook`) is the car
+of that mode; the accept's menu sound (id 4) is dropped (`g_feSoundMuted`), since Next Race's own accept already played it. While `g_nextRace` is set, the track select's next screen (0x498240, `QrTrackNextHook`) is the car
 select instead of the options, and player 1's Press START popup takes the last round by itself, as Rematch does
 (Random deals new cars first); if `LastRoundReady` fails, the round is joined as usual. Back from the track select
 reaches the mode select, and another mode also starts without its options screen. Quit to Main Menu stays as it is.

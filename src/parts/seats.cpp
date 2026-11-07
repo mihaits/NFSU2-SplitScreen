@@ -764,7 +764,12 @@ static const char* CarselStateText() {
               g_assignedPad[3]);
     return s;
 }
+static bool g_feSoundMuted = false;      // a message the plugin sends for the player (no sound of its own)
 static void __fastcall FeSound(void* mgr, void*, int id) {
+    if (g_feSoundMuted) {
+        if (g_debug) Log("sound %d from %08X dropped (plugin's own accept)", id, reinterpret_cast<uintptr_t>(_ReturnAddress()) - 5);
+        return;
+    }
     if (g_inCarSelect) {
         uintptr_t ret = reinterpret_cast<uintptr_t>(_ReturnAddress());
         bool generic = ret == AT_FE_GENERIC_SOUND_RET && (id == 5 || id == 6);
