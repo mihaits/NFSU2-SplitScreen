@@ -91,6 +91,38 @@ static __declspec(naked) void QrTrackNextHook() {
     }
 }
 
+// Next Race skips the options screen, so a new mode takes the last race's options it also has. Quick race settings
+// per type at QR_SETTINGS + type * 0x14; the split options rows of each type (measured; Lap KO from its row builder):
+//   +0xC direction (dword)  circuit, sprint, drag, Street X, URL, Lap KO: when the track can be raced reversed
+//   +0xA laps (word)        circuit, drift, Street X, URL
+//   +4 traffic              circuit, sprint, drag
+//   +5 catch-up             circuit, sprint, drag, Street X, URL, Lap KO
+//   +2 AI difficulty        every type with AI opponents (players, cars and opponents are the plugin's rows)
+// Types: 0 circuit, 1 sprint, 2 drag, 3 drift, 4 URL, 7 Lap KO, 10 Street X.
+#define FN_TRACK_INFO         0x5D3E40    // track record* __cdecl (track id); +0x86 == 1: can be raced reversed
+static void CarryRaceOptions(int from, int to) {
+    struct Field { int off, size; uint32_t types; const char* name; };
+    static const Field kFields[] = {
+        {0xC, 4, 1u << 0 | 1u << 1 | 1u << 2 | 1u << 4 | 1u << 7 | 1u << 10, "direction"},
+        {0xA, 2, 1u << 0 | 1u << 3 | 1u << 4 | 1u << 10, "laps"},
+        {0x4, 1, 1u << 0 | 1u << 1 | 1u << 2, "traffic"},
+        {0x5, 1, 1u << 0 | 1u << 1 | 1u << 2 | 1u << 4 | 1u << 7 | 1u << 10, "catch-up"},
+        {0x2, 1, 1u << 0 | 1u << 1 | 1u << 2 | 1u << 3 | 1u << 4 | 1u << 5 | 1u << 7 | 1u << 10, "difficulty"},
+    };
+    if (from == to || from < 0 || from >= QR_RACE_TYPES || to < 0 || to >= QR_RACE_TYPES) return;
+    uint8_t* src = reinterpret_cast<uint8_t*>(QR_SETTINGS + from * 0x14);
+    uint8_t* dst = reinterpret_cast<uint8_t*>(QR_SETTINGS + to * 0x14);
+    for (const Field& f : kFields) {
+        if (!(f.types >> from & 1) || !(f.types >> to & 1)) continue;
+        if (f.off == 0xC && *reinterpret_cast<int*>(src + 0xC)) {
+            uint8_t* track = reinterpret_cast<uint8_t*(__cdecl*)(int)>(FN_TRACK_INFO)(*reinterpret_cast<uint16_t*>(dst + 8));
+            if (!track || track[0x86] != 1) continue;
+        }
+        memcpy(dst + f.off, src + f.off, f.size);
+        Log("next race: %s from type %d to %d", f.name, from, to);
+    }
+}
+
 // The mode list (UIQRModeSelect::Setup) adds Outrun (0x4B2F2A..0x4B2F85) and Free Run (0x4B2F8A..0x4B2FDD) last.
 // After Next Race both are left out: Outrun is a tournament of its own and Free Run isn't a race.
 #define AT_MODE_LIST_OUTRUN   0x4B2F2A    // mov eax, [0x850078] (5 bytes)

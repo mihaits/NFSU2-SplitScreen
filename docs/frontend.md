@@ -86,7 +86,13 @@ names (stored at 0x8384C8): the quick race mode select in split (garage scene be
 of that mode; the accept's menu sound (id 4) is dropped (`g_feSoundMuted`), since Next Race's own accept already played it. While `g_nextRace` is set, the track select's next screen (0x498240, `QrTrackNextHook`) is the car
 select instead of the options, and player 1's Press START popup takes the last round by itself, as Rematch does
 (Random deals new cars first); if `LastRoundReady` fails, the round is joined as usual. Back from the track select
-reaches the mode select, and another mode also starts without its options screen. That mode list leaves out Outrun
+reaches the mode select, and another mode also starts without its options screen. Another mode takes the last race's options it also has (`CarryRaceOptions`, run when
+the popup takes the last round), since its options screen is skipped. Quick race settings per type at 0x83AAC4 + type ×
+0x14: +0 local players, +1 opponents, +2 AI difficulty, +4 traffic, +5 catch-up, +8 track (word), +0xA laps (word),
++0xC direction (dword); the split options rows offer (measured by changing each row): direction in circuit, sprint,
+drag, Street X (type 10), URL (4) and Lap KO (7; from its row builder 0x4CDB40), laps in circuit, drift, Street X and
+URL, traffic in circuit, sprint and drag, catch-up in all but drift, difficulty in every type with AI. Direction is
+copied only when the new track can be raced reversed (0x5D3E40(track) +0x86 == 1, the Direction row's own test). That mode list leaves out Outrun
 (a tournament of its own) and Free Run (not a race): `ModeListOutrunHook` (0x4B2F2A) skips past both entries (to
 0x4B2FE0) while `g_nextRace` is set. The main menu ends Next Race, so the next visit to split lists every mode. Quit to Main Menu stays as it is.
 - The quick race screens step through a chain (0x4E2900: mode select, options, track select, each with a next and a

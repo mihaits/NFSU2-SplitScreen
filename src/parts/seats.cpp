@@ -91,6 +91,8 @@ static int g_lastCar[MAX_LOCAL_PLAYERS], g_lastPort[MAX_LOCAL_PLAYERS], g_lastGe
 // Next Race (Post Race, next_race.cpp): set when it's chosen, until the car select's player 1 popup takes the last
 // round by itself (or can't: then the round is picked as usual).
 static bool g_nextRace = false;
+static int g_lastRaceType = -1;          // quick race type (0x83AAB4) of the last round
+static void CarryRaceOptions(int from, int to);   // next_race.cpp
 
 static int g_seat = 0;                   // car select: whose turn (0..5); the frontend serves FE player seat & 1
 static int g_splitPlayers = 2;           // players chosen on the split-screen options screen (2..6)
@@ -287,6 +289,7 @@ static uint32_t __stdcall PressStartFilter(uint8_t* popup, uint32_t msg, uint32_
                     for (int k = 0; k < g_lastPlayers; ++k) if (g_randomCar[k]) g_lastCar[k] = g_randomCar[k];
                 }
                 Log("next race: %s", g_carsMode == CARS_RANDOM ? "new random cars" : "same cars");
+                CarryRaceOptions(g_lastRaceType, at<int>(QR_RACE_TYPE));
             }
             if (again) {                              // player 1 joins; the race starts on the next car select tick
                 for (int k = 0; k < MAX_LOCAL_PLAYERS; ++k) g_assignedPad[k] = k < g_lastPlayers ? g_lastPad[k] : PAD_NONE;
@@ -513,6 +516,7 @@ static void RestoreSeat(int seat) {            // players 1/2's picks back into 
 // the others' in the seat arrays.
 static void RememberRound(int players) {
     g_lastPlayers = players;
+    g_lastRaceType = at<int>(QR_RACE_TYPE);
     g_lastKeyboardSeat = g_keyboardSeat;
     for (int k = 0; k < players; ++k) {
         g_lastPad[k] = g_assignedPad[k];

@@ -44,7 +44,7 @@ find an address, grep `docs/` (and the source's comment blocks) for it.
 | [0x890080]+0x118 | traffic update object (0x42F910 per World update) |
 | car +0x24 | driver controller (0x5EBA30(car, type), object at car +0x2C): 1 human (pad), 2 drag, 3 AI racer, 0/4/5 other |
 | 0x827B98 + track*0x14 | NIS car binding table (+0 track, +4 x, +8 y, +0x10 car array index, -1 none) |
-| 0x83AAC4 + type*0x14 | quick race settings per type: +0 local players, +1 opponents, +8 track |
+| 0x83AAC4 + type*0x14 | quick race settings per type: +0 local players, +1 opponents, +2 AI difficulty, +4 traffic, +5 catch-up, +8 track (word), +0xA laps (word), +0xC direction (dword) |
 
 Race types (0x83AAB4): 0/1/7 circuit/sprint/lap KO, 2 drag, 3 drift, 4 URL, 5/10 Street X, 8 outrun, 9 Free Run.
 
