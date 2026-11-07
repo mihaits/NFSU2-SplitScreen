@@ -56,6 +56,12 @@ reopens its popup, so Back still undoes only the last join.
   ([0x8A1CCC] + type * 0x890: +0x840 slot passes 0x5022C0 and the record 0x610180), and to be unlocked:
   0x534180(0x497DA0(), id, 0) for most cars, +0x7F5 for a career car. The regional CORSA / PEUGOT106 entries have no
   rating, so they never come up.
+- Rating: the game's performance rating of the car as built, upgrades included (`CarRating`, about 2 ms a car): the
+  entry's own build into a scratch RideInfo (ctor 0x5AC6E0 on ride +0x10; vtable slot 3, thiscall (entry; mode 0,
+  ride, 0): 0x503A80 stock, 0x516AC0 My Cars / career, 0x5039D0 bonus), then 0x5B6990(ride +0x10; 0, -1.0f) and the
+  release 0x4022C0(ride +0x384). Entry +0xC is no use for this: a My Cars / career entry's setup (0x516B90) stores
+  the rating of a fresh stock build of its car type (0x610270(type, 1, 0, 0)) and nothing updates it; a stock entry's
+  slot 3 stores its own, which matches.
 - Garage car list (0x844968 = P1's garage 0x83AD90 + 0x9BD8, 0x5B entry pointers, built by 0x5036F0): 0x30 stock
   entries (0x1C bytes, vtable 0x79AADC, +0x18 car type), 0x14 My Cars (0x434, vtable 0x79B12C), then career cars,
   0x10 entries and bonus cars (vtable 0x79AD18). Every entry: +8 id (the car id the picks store), +0xC performance rating

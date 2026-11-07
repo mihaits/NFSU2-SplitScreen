@@ -431,9 +431,27 @@ static bool GarageHasCar(int id) {
 // Random cars (CARS_RANDOM): the cars the car select offers in its categories Stock (1), My Cars (2), Career (4) and
 // bonus (8), by the game's own tests (list builder 0x4E22E0, category count 0x534850): entry +0x10 set, car type
 // (vtable slot 1) valid, its car type record ([0x8A1CCC] + type * 0x890) usable (+0x840 slot 0x5022C0, 0x610180), and
-// unlocked (0x534180(context 0x497DA0(), id, 0)); a career car instead needs its +0x7F5. Entry +0xC is the car's
-// performance rating (0x5B6990 with 0, cached by the entry's ride builder, vtable slot 3: the car select's bars).
+// unlocked (0x534180(context 0x497DA0(), id, 0)); a career car instead needs its +0x7F5.
+// The rating is the game's performance rating of the car as built, upgrades included (`CarRating`). Entry +0xC holds a
+// rating too, but a My Cars / career entry's setup (0x516B90) rates a fresh stock build of the car type
+// (0x610270(type, 1, 0, 0)) and nothing rates it again, so a maxed career car kept its stock rating. `CarRating` does
+// what that setup does with the entry's own build instead: RideInfo ctor 0x5AC6E0 (on ride +0x10), the entry's vtable
+// slot 3 (thiscall (entry; mode 0, ride, 0): the build from its parts, 0x516AC0 for My Cars / career, 0x503A80 stock,
+// 0x5039D0 bonus), 0x5B6990(ride +0x10; 0, -1.0f) and the release 0x4022C0 (ride +0x384).
 #define GARAGE_CAR_TYPES   0x8A1CCC      // car type records, stride 0x890
+#define FN_RIDE_CTOR       0x5AC6E0
+#define FN_CAR_RATING      0x5B6990
+#define FN_RIDE_RELEASE    0x4022C0
+static float CarRating(uint8_t* car) {
+    alignas(16) static uint8_t ride[0x1000];
+    memset(ride, 0, sizeof(ride));
+    auto* vt = *reinterpret_cast<uintptr_t**>(car);
+    reinterpret_cast<void(__thiscall*)(void*)>(FN_RIDE_CTOR)(ride + 0x10);
+    reinterpret_cast<void(__thiscall*)(void*, int, void*, int)>(vt[3])(car, 0, ride, 0);
+    float rating = reinterpret_cast<float(__thiscall*)(void*, int, float)>(FN_CAR_RATING)(ride + 0x10, 0, -1.0f);
+    reinterpret_cast<void(__thiscall*)(void*)>(FN_RIDE_RELEASE)(ride + 0x384);
+    return rating;
+}
 static int CarPool(int* ids, float* ratings, int max) {
     int ctx = reinterpret_cast<int(__cdecl*)()>(0x497DA0)();
     int n = 0;
@@ -441,7 +459,6 @@ static int CarPool(int* ids, float* ratings, int max) {
         uint8_t* car = reinterpret_cast<uint8_t* const*>(GARAGE_CARS)[i];
         if (!car || !*reinterpret_cast<int*>(car + 0x10)) continue;
         int flags = *reinterpret_cast<int*>(car + 0x14), id = *reinterpret_cast<int*>(car + 8);
-        float rating = *reinterpret_cast<float*>(car + 0xC);
         if (!(flags & 0xF)) continue;
         auto* vt = *reinterpret_cast<uintptr_t**>(car);
         int type = reinterpret_cast<int(__thiscall*)(void*)>(vt[1])(car);
@@ -451,6 +468,9 @@ static int CarPool(int* ids, float* ratings, int max) {
         if (slot == -1 || !reinterpret_cast<bool(__cdecl*)(int)>(0x5022C0)(slot) ||
             !reinterpret_cast<bool(__thiscall*)(void*)>(0x610180)(rec)) continue;
         bool open = flags & 4 ? car[0x7F5] != 0 : reinterpret_cast<bool(__cdecl*)(int, int, int)>(0x534180)(ctx, id, 0);
+        float rating = open ? CarRating(car) : 0.0f;
+        if (g_debug && open) Log("random cars: %08X (category %d) rating %.1f (stored %.1f)", id, flags, rating,
+                                 *reinterpret_cast<float*>(car + 0xC));
         if (!open || !(rating > 0)) {
             Log("random cars: %08X (category %d) left out: %s", id, flags, open ? "no rating" : "locked");
             continue;
