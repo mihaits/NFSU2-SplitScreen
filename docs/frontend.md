@@ -40,9 +40,13 @@ direction (drag: 4 abreast, 2 rows), and the race start placement reads 6 of the
 **Cars row.** Added after the Players row in every split mode (same row type; `[DEBUG] CarsMode` gives its default):
 Pick Each (the car select as it is), Pick One (player 1 picks for everyone), Random. With the last two a seat whose car is given has no
 pick screen: its join (`JoinedSeat`) marks it, and on the next car select tick `AutoPickTick` writes the car to
-0x83AAB8[fe] and runs the after-pick step (`CarselToP2` on FE 0, `CarselStart` on FE 1), so the next seat's Press
-START opens or the race starts. There is no gearbox dialog: players 1/2 keep their FE slot's setting, players 3-6 their
-own player settings. Pick One gives player 1's pick of the round to the others. Random deals at player 1's join
+0x83AAB8[fe] and goes on as a pick would. Where a pick asks for the gearbox (0x4FC3D4: not drag, the FE slot's ask
+setting 0x83AA6A + fe * 0x28 on) it opens the same dialog (0x497D50(carsel)), whose answer (0x1A2826E1 automatic /
+0x5F5E3886 manual, then 0xBA5B5FCE) runs the after-pick calls; otherwise it runs the after-pick step itself
+(`CarselToP2` on FE 0, `CarselStart` on FE 1), and players 1/2 keep their FE slot's gearbox, players 3-6 their own
+player settings. Either way the next seat's Press START opens or the race starts. The pick also stores the pressing
+device's port (0x50D2A0(port)); a given car keeps its join's port (calling 0x50D2A0 without the port stored garbage
+there and crashed the race in 0x579434, which indexes a per-port table). Pick One gives player 1's pick of the round to the others. Random deals at player 1's join
 (`PickRandomCars`): one car of the pool at random, then the cars within 4% of its rating (the tolerance doubles until
 there are enough), a different one per player while there are enough. Back on the next seat's popup returns to a seat
 that had no pick screen; `BackToSeat` marks it and the game's own Back on its pick screen (sent as an FE message)

@@ -103,7 +103,8 @@ static int g_splitOpponents = 0;         // AI opponents chosen there (see Split
 enum { CARS_EACH, CARS_SAME, CARS_RANDOM, CARS_MODES };
 static int g_carsMode = CARS_EACH;
 static bool CarsAuto(int seat) { return g_carsMode == CARS_RANDOM || (g_carsMode == CARS_SAME && seat > 0); }
-static bool g_autoSeat[MAX_LOCAL_PLAYERS];   // this round, the seat's car was given (no pick screen, no gearbox dialog)
+static bool g_autoSeat[MAX_LOCAL_PLAYERS];   // this round, the seat's car was given (no pick screen)
+static bool g_autoPrompted[MAX_LOCAL_PLAYERS];   // and the gearbox dialog came up for it (AutoPickTick)
 static int g_autoPickSeat = -1;          // joined just now: its car is given on the next car select tick
 static int g_autoBackSeat = -1;          // Back returned to a seat that has no pick: its join is undone too
 static int g_firstCar = 0;               // player 1's pick of this round (CARS_SAME)
@@ -254,6 +255,7 @@ static void PickRandomCars(int players);
 static void JoinedSeat(int seat) {
     if (seat == 0) {
         for (bool& a : g_autoSeat) a = false;
+        for (bool& a : g_autoPrompted) a = false;
         if (g_carsMode == CARS_RANDOM) PickRandomCars(SplitPlayers());
     }
     g_autoSeat[seat] = CarsAuto(seat);
@@ -413,6 +415,8 @@ static int g_seatCar[MAX_LOCAL_PLAYERS], g_seatPort[MAX_LOCAL_PLAYERS];
 // The gearbox dialog after a pick writes the FE player's settings +0x15 (0x4FC267 / 0x4FC5B3): kept per seat as well
 #define SETTING_GEARBOX    0x15
 #define GEARBOX_SETTINGS   (0x83AA64 + SETTING_GEARBOX)   // FE player k's at + k * PLAYER_SETTING_SIZE
+#define GEARBOX_ASK        0x83AA6A      // FE player k's at + k * PLAYER_SETTING_SIZE: a pick asks manual / automatic (0x4FC3DA)
+#define FN_CARSEL_GEARBOX_DIALOG 0x497D50 // __thiscall (carsel): opens the gearbox dialog
 static int g_seatGearbox[MAX_LOCAL_PLAYERS];   // + 1 (0: no pick yet)
 
 // Players 1/2's last cars are kept by the game (CAR_IDS in their profile blocks); players 3/4's in their seat store.
@@ -495,9 +499,9 @@ static void PickRandomCars(int players) {
 static void SaveSeat(int seat) {
     g_seatCar[seat] = at<int>(CAR_IDS + (seat & 1) * 4);
     g_seatPort[seat] = at<int>(PLAYER_PORTS + (seat & 1) * 4);
-    // a given car had no gearbox dialog: players 1/2 keep their own setting (their FE slot), players 3-6 theirs (0 =
-    // their player settings, see CreatePlayers)
-    g_seatGearbox[seat] = g_autoSeat[seat] && seat >= 2 ? 0
+    // a given car without the gearbox dialog: players 1/2 keep their own setting (their FE slot), players 3-6 theirs
+    // (0 = their player settings, see CreatePlayers); with the dialog the answer is in the FE slot, as for a pick
+    g_seatGearbox[seat] = g_autoSeat[seat] && !g_autoPrompted[seat] && seat >= 2 ? 0
                         : at<uint8_t>(GEARBOX_SETTINGS + (seat & 1) * PLAYER_SETTING_SIZE) + 1;
     if (seat >= 2 && g_seatStore[seat - 2].car != g_seatCar[seat]) {
         g_seatStore[seat - 2].car = g_seatCar[seat];
@@ -658,6 +662,16 @@ static bool AutoPickTick(uint8_t* carsel) {
     }
     at<int>(CAR_IDS + (g_seat & 1) * 4) = car;
     Log("cars: player %d gets %08X (%s)", g_seat + 1, car, g_carsMode == CARS_SAME ? "same as player 1" : "random");
+    // the gearbox dialog when a pick would bring it up (0x4FC3D4: not drag, the FE slot's ask setting +0x12 on):
+    // 0x497D50 opens it; its answer (0x1A2826E1 / 0x5F5E3886 -> 0xBA5B5FCE) runs the same after-pick calls (0x4FC9B6 /
+    // 0x4FC9C2, CarselToP2 / CarselStartHook). The pick also stores the port of the pressing device (0x50D2A0(port));
+    // the seat's port is already its join's.
+    if (at<int>(QR_RACE_TYPE) != 2 && at<uint8_t>(GEARBOX_ASK + (g_seat & 1) * PLAYER_SETTING_SIZE)) {
+        g_autoPrompted[g_seat] = true;
+        reinterpret_cast<void(__thiscall*)(void*)>(FN_CARSEL_GEARBOX_DIALOG)(carsel);
+        Log("cars: player %d's gearbox dialog", g_seat + 1);
+        return true;
+    }
     if (g_seat & 1) CarselStart(carsel);
     else CarselToP2(carsel, nullptr, 0);
     return true;
