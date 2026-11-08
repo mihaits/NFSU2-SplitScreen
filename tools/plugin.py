@@ -25,7 +25,7 @@ def symbol(name):
     raise KeyError(name)
 
 def max_players():
-    """MAX_LOCAL_PLAYERS of the checkout that built the map (4 on main, 6 on 6p-support): the plugin's array size."""
+    """MAX_LOCAL_PLAYERS of the checkout that built the map: the plugin's array size."""
     src = open(os.path.join(paths.HERE, '..', 'src', 'parts', 'core.cpp')).read()
     return int(re.search(r'#define MAX_LOCAL_PLAYERS (\d+)', src).group(1))
 

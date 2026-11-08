@@ -487,7 +487,7 @@ static void __stdcall RenderFeObjectWith(void* obj, int arg, void* ctx) {
                     // off this player's map (too far away): the game parks it far from the map centre
                     auto* md = *reinterpret_cast<const float**>(m + 0x2C);
                     static unsigned s_mmLog;
-                    if (g_debug && (s_mmLog++ % 600) < markers * g_mmPlayers)
+                    if (g_debug && (s_mmLog++ % 600) < static_cast<unsigned>(markers * g_mmPlayers))
                         Log("minimap %d: marker %d at %.3f,%.3f (%08X %08X) d %.3f %.3f flags %08X %s", k + 1,
                             (k + n) % markers + 1, md ? md[7] : 0.0f, md ? md[8] : 0.0f,
                             md ? reinterpret_cast<const uint32_t*>(md)[7] : 0, md ? reinterpret_cast<const uint32_t*>(md)[8] : 0,
