@@ -24,6 +24,8 @@ Two layers:
 The heat bar element is one of the per-player gauge kinds. `CreateGauges` records each element object's x as built,
 and `RestoreLayoutX` puts it back after the elements' update. The game's elements never move x (the setter passes it
 through), so only an outside move is undone; without WidescreenFix nothing changes.
+2026-11-08 (code review): the restore went back to the built x, so it would also have undone an x change made outside
+the update. Now x is saved right before the update (`SaveLayoutX`) and only the update's own move is undone.
 
 Tested 2026-11-06: 2P, 3P and 6P drag on City Drag (staggered release, every engine blown, `drag_blow.py PERCAR=1`):
 each player's bar along the left of their own tach from 0 upward like single player, growing with their own heat;

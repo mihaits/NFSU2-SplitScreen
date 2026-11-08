@@ -149,8 +149,8 @@ so P2 had no timer).
   height and y so it grows upward; x is written back unchanged. WidescreenFix has an inline hook in that setter (at
   0x4C6753) that moves the bar by its 1P side offset when it sits at its table position (`Tachometer_Pos_4`, -254,
   171: -254 → -363), in the object's data. The copies are placed from the 4:3 layout like every other gauge object, so
-  each object's x is recorded when the copy is built and restored after the elements' update (`RestoreLayoutX`).
-  Without WidescreenFix nothing moves and the restore does nothing.
+  each object's x is saved right before the elements' update and put back after it (`SaveLayoutX`, `RestoreLayoutX`):
+  only a move made during the update is undone. Without WidescreenFix nothing moves and the restore does nothing.
 - Custom gauge textures (`HudTexLoadHook`):
   - The race load step 0x577F60 (call 0x57F3D8) loads `GLOBAL\HUD_CustomTextures_<HUDINDEX>.bin` for P1's car only and
     makes its 8 textures resident. The names come from 0x5ED9B0(spec, car parts, units, out, index), and the index is

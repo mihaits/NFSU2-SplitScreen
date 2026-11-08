@@ -34,7 +34,8 @@ static const GaugeKind kGauges[] = {
     {0x24, 0x4F69E0, 0x28, 0x4C7AA0, GAUGE_ALWAYS},     // engine heat bar (HEAT_Bar: only the drag packages have one)
 };
 constexpr int kGaugeCount = sizeof(kGauges) / sizeof(kGauges[0]);
-// layoutX: each element object's x as the copy was built (the 1P 4:3 layout that GaugeTransform places)
+// layoutX: each element object's data and its x before this frame's update (the 1P 4:3 layout that GaugeTransform
+// places)
 struct PlayerGauges {
     void* hud; void* elem[kGaugeCount]; char fng[32]; uint32_t state[2]; bool stateSet; bool dead;
     std::vector<std::pair<float*, float>> layoutX;
@@ -225,13 +226,19 @@ static void ForwardToGauges(uint32_t msg, const char* fng) {
 // The game's gauge elements never move their objects sideways (the heat bar setter 0x4C66F0 writes x back unchanged),
 // but WidescreenFix widens the 1P heat bar in its data: an inline hook in that setter (at 0x4C6753) moves an object
 // at one of its table positions (HEAT_Bar at -254, 171) by its 1P side offset. The copies are placed by GaugeTransform
-// from the 4:3 layout, so any x moved during their update goes back to the built one.
+// from the 4:3 layout, so an x moved during their update goes back to what it was before it; a change made anywhere
+// else stays.
+static void SaveLayoutX(PlayerGauges& g) {
+    for (auto& e : g.layoutX) e.second = e.first[7];
+}
 static void RestoreLayoutX(PlayerGauges& g) {
     for (auto& e : g.layoutX)
         if (e.first[7] != e.second) {
             if (g_debug) {
                 static int s_logs = 0;
-                if (s_logs++ < 8) Log("1P gauges: object x %.1f moved to %.1f during the update, restored", e.second, e.first[7]);
+                if (s_logs++ < 8)
+                    Log("1P gauges: object data %p x %.1f moved to %.1f during the update, restored", e.first, e.second,
+                        e.first[7]);
             }
             e.first[7] = e.second;
         }
@@ -300,6 +307,7 @@ static void __fastcall HudUpdateHook(void* hud, void*, void* player, void* arg) 
             for (void* e : g.elem)
                 if (e) reinterpret_cast<void(__thiscall*)(void*, uint32_t, uint32_t)>(FN_ELEMENT_SET_STATE)(e, lo & 0xFDFBFFFF, hi);
         }
+        SaveLayoutX(g);
         for (int i = 0; i < kGaugeCount; ++i)
             if (g.elem[i]) reinterpret_cast<void(__thiscall*)(void*, void*)>(kGauges[i].update)(g.elem[i], player);
         RestoreLayoutX(g);

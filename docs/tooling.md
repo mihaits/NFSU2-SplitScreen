@@ -165,6 +165,9 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
     and races (drag_blow.py for drag, autorace.py otherwise, 1 lap); per round Post Race -> Next Race must roll a new
     mode and track and load the race with no input. Stopping it mid-run can leave its Python children pressing virtual
     pads: end them by process id.
+  - `gauge_x_check.sh` (WidescreenFix FixHUD, `Debug = 1`) starts a split drag race, takes a heat bar object from the
+    "1P gauges: object data ... moved" log line and checks that WidescreenFix's move is undone every frame while an x
+    set from outside the update stays.
   - `next_race_options_check.sh` runs a split circuit race, then Next Race → Back → Sprint with P2's virtual pad off:
     the round is joined as usual and Sprint must have the circuit's options (set apart before, then compared).
   - `random_back_check.sh` starts a random series of drag races (`[DEBUG] RollMode = 3`, restored), then Next Race with
