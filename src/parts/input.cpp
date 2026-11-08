@@ -321,25 +321,121 @@ static void* __cdecl PollPortHook(int port, int* type, void** prev) {
     return g_portCur[port];
 }
 
-// ---------------------------------------------------------------- separate pedal channels
-// A pad's triggers share Z, so held together they cancel. A joypad record also has separate throttle and brake bytes
-// (+0x10, +0x11), which the game clears at 0x5C2044 when the pedals share an axis. The input handlers take the larger of
-// the separate and shared channels, so filling these from the triggers keeps the shared channel's tuning alone and
-// gives both pedals when both are held.
-#define AT_SEPARATE_PEDALS  0x5C2044
-#define AT_PEDALS_DONE      0x5C204C
-static void __fastcall SeparatePedals(uint8_t* record) {
-    const auto* state = at<const uint8_t*>(0x870760) + *reinterpret_cast<int*>(record + 0x230) * 0x110;
-    const auto* sliders = reinterpret_cast<const LONG*>(state + 0x18);
-    record[0x10] = static_cast<uint8_t>(sliders[0]);
-    record[0x11] = static_cast<uint8_t>(sliders[1]);
+// ---------------------------------------------------------------- analog bytes (docs/input.md, "Analog bytes")
+// A joypad record's analog bytes: +0x10 throttle, +0x11 brake, +0x12 steering stick X, +0x13 steering stick Y.
+// The pedal events all read +0x10/+0x11 (records 0x93/0x96, which read the shared pedal byte +0x13, are retargeted
+// at install), and +0x13 carries the Y of the stick steering is bound to, which the menus (0x2E/0x2F) and hydraulics
+// (0xA8/0xAD) read, as on console. Both ends of the decoder's axis part (0x5C2044 shared pedals, 0x5C20D0 separate
+// pedals) jump to AnalogBytes, then to the common epilogue.
+#define AT_SHARED_PEDALS_END    0x5C2044   // mov byte [esi+0x11], 0; mov byte [esi+0x10], 0 (8 bytes)
+#define AT_SEPARATE_PEDALS_END  0x5C20D0   // mov byte [esi+0x13], 0x80; pop edi (5 bytes)
+#define AT_AXES_EPILOGUE        0x5C204C   // pop edi; pop esi; pop ebp; pop ebx; mov esp, ebp; pop ebp; ret
+#define EVENT_RECORDS           0x7FDD10   // 83 records of 0x20: +8 event, +0x12 bit, +0x14 mode, +0x15 curve
+#define EVENT_RECORD_COUNT      83
+static const float kAxisScale = 0.0127f;   // the decoder's axis scale (0x7A3C18): range +-10000 -> +-127
+
+static uint8_t* EventRecord(uint32_t event) {
+    for (int i = 0; i < EVENT_RECORD_COUNT; ++i) {
+        auto* r = reinterpret_cast<uint8_t*>(EVENT_RECORDS + i * 0x20);
+        if (*reinterpret_cast<uint32_t*>(r + 8) == event) return r;
+    }
+    return nullptr;
 }
 
-static __declspec(naked) void SeparatePedalsHook() {
+// THROTTLE/BRAKE_ANALOG_ALTERNATE (0x93/0x96) read the shared pedal byte with mode 1/2; they become copies of
+// THROTTLE/BRAKE_ANALOG (0x92/0x95): the separate channel, mode 0, same curve.
+static bool RetargetPedalEvents() {
+    const uint32_t pairs[2][2] = {{0x93, 0x92}, {0x96, 0x95}};
+    for (const auto& p : pairs) {
+        uint8_t* alt = EventRecord(p[0]);
+        const uint8_t* base = EventRecord(p[1]);
+        if (!alt || !base || alt[0x12] != 0x58) return false;
+        uint8_t fields[4] = {base[0x12], alt[0x13], 0, base[0x15]};   // +0x12 bit, +0x13, +0x14 mode, +0x15 curve
+        Write(reinterpret_cast<uintptr_t>(alt + 0x12), fields, sizeof(fields));
+    }
+    return true;
+}
+
+// The game turns floats into ints by truncation (0x75BED4), here too.
+// The pedal curve (curve 3: (0,0) (123,128) (133,128) (255,255)) and its inverse, to turn a shared-axis pedal value
+// into the separate-channel byte that decodes to the same value.
+static int PedalCurve(int x) {
+    if (x <= 123) return static_cast<int>(x * 128.0f / 123.0f);
+    if (x <= 133) return 128;
+    return static_cast<int>(128.0f + (x - 133) * 127.0f / 122.0f);
+}
+static uint8_t PedalByteFor(int value) {
+    // the smallest curve input that reaches the value; the decoder XORs the byte with 1 (the record's polarity) first
+    const int x = value <= 128 ? (value * 123 + 127) / 128 : 133 + ((value - 128) * 122 + 126) / 127;
+    return static_cast<uint8_t>((x > 255 ? 255 : x) ^ 1);
+}
+
+static LONG AxisOf(const uint8_t* record, int offset) {
+    const auto* state = at<const uint8_t*>(0x870760) + *reinterpret_cast<const int*>(record + 0x230) * 0x110;
+    return *reinterpret_cast<const LONG*>(state + offset);
+}
+
+// A trigger value 0..255 as a separate-channel byte: XORed with 1 so that the decoder, which XORs it back, runs the
+// curve on the trigger's own value (a full pull gives 255: brake 1.0); a released trigger stays 0 (reads 1, as idle).
+static uint8_t TriggerByte(LONG v) { return v > 0 ? static_cast<uint8_t>((v > 255 ? 255 : v) ^ 1) : 0; }
+
+// Shared pedals: +0x10/+0x11 from the bound axis. Z is the triggers (StateOf), whose own values ride in
+// rglSlider[0..1]; another axis is split at its centre, each half giving the value the game's shared decoding gives.
+static void SharedPedals(uint8_t* record) {
+    const int axis = *reinterpret_cast<const int*>(record + 0x350);
+    if (axis == 8) {
+        record[0x10] = TriggerByte(AxisOf(record, 0x18));
+        record[0x11] = TriggerByte(AxisOf(record, 0x1C));
+        return;
+    }
+    const int sign = static_cast<int8_t>(record[0x360]);
+    const int shared = 0x7F - static_cast<int>(AxisOf(record, axis) * kAxisScale) * sign;   // the byte 0x5C2029 makes
+    const int c = PedalCurve(shared ^ 1);
+    const int throttle = c < 0x7F ? (0x7F - c) * 2 : 0;    // the decoder's mode 1 / mode 2 (0x5795C0)
+    const int brake = c > 0x80 ? (c - 0x80) * 2 : 0;
+    record[0x10] = throttle ? PedalByteFor(throttle) : 0;
+    record[0x11] = brake ? PedalByteFor(brake) : 0;
+}
+
+// +0x13: Y of the steering stick (offset of a stick's X + 4: lX -> lY, lRx -> lRy), written like +0x12 (up = low).
+static void SteeringStickY(uint8_t* record) {
+    const int x = *reinterpret_cast<const int*>(record + 0x344);
+    int value = 0x80;
+    if (record[0x364] && (x == 0 || x == 0x0C)) {
+        value = 0x80 + static_cast<int>(AxisOf(record, x + 4) * kAxisScale);
+        if (value < 0) value = 0;
+        if (value > 255) value = 255;
+    }
+    record[0x13] = static_cast<uint8_t>(value);
+}
+
+static void __fastcall AnalogBytes(uint8_t* record, int shared) {
+    if (shared) SharedPedals(record);
+    SteeringStickY(record);
+}
+
+static __declspec(naked) void SharedPedalsEndHook() {
     __asm {
         mov ecx, esi
-        call SeparatePedals
-        mov eax, AT_PEDALS_DONE
+        mov edx, 1
+        call AnalogBytes
+        mov eax, AT_AXES_EPILOGUE
         jmp eax
     }
+}
+
+static __declspec(naked) void SeparatePedalsEndHook() {
+    __asm {
+        mov ecx, esi
+        xor edx, edx
+        call AnalogBytes
+        mov eax, AT_AXES_EPILOGUE
+        jmp eax
+    }
+}
+
+static void InstallAnalogBytes() {
+    if (!RetargetPedalEvents()) { Log("input: pedal event records not as expected, analog bytes left to the game"); return; }
+    WriteJump(AT_SHARED_PEDALS_END, &SharedPedalsEndHook, 8);
+    WriteJump(AT_SEPARATE_PEDALS_END, &SeparatePedalsEndHook, 5);
 }

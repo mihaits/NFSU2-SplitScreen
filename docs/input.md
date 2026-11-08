@@ -170,7 +170,7 @@ false for them and `XPadIsDs4` true, so they get no player LEDs, trigger row or 
   (no import). One MTA thread owns the list and sends vibration; the game thread calls `GetCurrentReading` itself
   (`WgiReadPad`, under a lock against the list changing), so a reading adds no delay.
 - `GetPad` converts a `GamepadReading` to an XInput-shaped state: triggers round to 0..255, so a full pull is exactly 255
-  (`StateOf` needs that for full brake, "Pedals on the shared Z axis" below), sticks to -32768..32767.
+  (full brake needs it, "Analog bytes" below), sticks to -32768..32767.
 - **Focus.** Readings are live only while the game window is focused. Unfocused they read neutral (timestamp 0 until the
   first focus), where XInput kept reading, so **test real pads with the window focused**. The plugin's test pads 4..9
   don't depend on focus.
@@ -219,31 +219,42 @@ false for them and `XPadIsDs4` true, so they get no player LEDs, trigger row or 
   player whose pad is off ("player N's pad P is off: pad Q takes over"); `RacePad` reads it idle until its buttons are
   released, so that START doesn't pause.
 - A missing pad is reported idle, never as DIERR_INPUTLOST (the game would drop the slot).
-- **Pedals on the shared Z axis (`StateOf`).** 0x5C2029 turns Z into one byte (+0x13: idle 0x7F, 0..0xFE; merged at
-  0x86EAFB, port 0), with single-precision x87 (control word 0x007F), so ±10000 × 0.0127 is exactly ±127. Records at
-  0x7FE190.. (+8 event, +0xC decoder, +0x10 polarity, +0x12 bit, +0x14 mode, +0x15 curve) feed the events. The polarity is
-  1 for buttons (0x571CC0 XORs and keeps bit 0) and also for the driving axes, 0x90 steer, 0x92/0x95 pedal axes, 0x93/0x96
-  shared axis. The decoder 0x5795C0 then: XORs the whole byte with it, runs it through a curve (0x576790; pedals (0,0) (123,128) (133,128) (255,255), the flat part is the dead zone), and makes a value 0..254:
-  throttle (0x7F - x) × 2, brake (x - 0x80) × 2. Only 254 becomes 255. Brake +0x2DC = value / 255 (0x407F2A); throttle
-  takes the value × 1.07 in gear, capped at 255 (0x416E48), and goes through a curve in neutral (0x416F51). The unused
-  separate pedal channels rest at 0, which the XOR turns into 1, so idle pedals read 1/255 (+0x2D1, +0x2D9). Digital
-  keys send a fixed 255: brake 1.0, measured.
-  Because of the XOR, the top is byte 0xFE for the brake and byte 1 for the throttle; bytes 0xFF and 0 aren't. Byte 0
-  gives 252, and 0xFD gives 246 (brake 0.965). A real Xbox pad through DirectInput at this range reads Z -9961..9961, so
-  it also stops at 0xFD and 1: the original game gives such a pad at most 0.965 brake. `StateOf` scales LT to the axis end
-  to reach 1.0, as a digital brake does, and leaves RT at the real pad's scale. This model matches every measured value.
-  The XOR also swaps neighbouring steps, so the top of the pedal isn't quite monotonic (0xFC 248, 0xFD 246); harmless.
-- **Both triggers held (`SeparatePedals`).** The shared axis is LT minus RT, so held together they cancel. A joypad record also has separate pedal bytes (+0x10 throttle, +0x11 brake, events 0x92 / 0x95), which 0x5C2044 clears in shared mode. The jump there fills them from the triggers, carried in `rglSlider[0..1]` of the pad's state. The input handlers use the larger of the separate and shared channels, so one trigger alone still reads the shared channel's values above.
-- **Menus scroll with the triggers, not the left stick's Y.** The event records (0x7FDD10, 83 of 0x20 bytes: +8 event,
-  +0xC decoder, +0x10 polarity, +0x12 bit, where bits 0x40/0x48/0x50/0x58 are the analog bytes +0x10..+0x13) read the
-  menu stick from the analog bytes, as on console: FENG_PAD_UP/DOWN_ALTERNATE (0x2E/0x2F) from +0x13, LEFT/RIGHT_ALTERNATE
-  (0x30/0x31) from +0x12. On PC the decoder fills +0x12 from the steering axis (left stick X) and +0x13 from the shared
-  pedal axis (Z), and no byte from the left stick's Y. So in the list menus (race options, ...) left/right follows the
-  stick, up/down follows the triggers (LT down, RT up), and the stick's Y does nothing; the D-pad works (POV 0, the
-  binding tables' entries 16..19; entries 20..31 are POVs 1..3, which the virtual pads don't have). The hydraulics
-  up/down events (0xA8, 0xAD) also read +0x13. This is the game's own behaviour with any pad in the default
-  combined-pedal binding, checked with a virtual pad (2026-11-08). With the pedals on separate axes, 0x5C20D0 sets +0x13
-  to 0x80, so nothing scrolls those menus but the D-pad.
+- **Analog bytes.** A joypad record has four: +0x10 throttle, +0x11 brake, +0x12 the steering stick's X, +0x13 its Y.
+  The game makes them in the axis part of the decoder (0x5C1FBA, in 0x5C1840): +0x12 from the steering axis
+  (+0x344, flag +0x364; 0x80 when steering is on buttons); then, with the pedals sharing one axis (flags +0x367/+0x368,
+  axis +0x350, the default Z), +0x13 from that axis (0x5C2029) and +0x10/+0x11 cleared (0x5C2044); with the pedals on
+  separate axes, +0x10/+0x11 from their axes (+0x348/+0x34C, signs +0x358/+0x35C) and +0x13 = 0x80 (0x5C20D0). Axis
+  values are scaled by 0.0127 (0x7A3C18; the game sets the axis ranges to ±10000, so ±127) and truncated (0x75BED4).
+  On PC that left +0x13, which the console reads as the menu stick's Y, holding the shared pedal axis, so the menus
+  scrolled with the triggers. The plugin restores the console meaning:
+  - Both ends of the axis part (0x5C2044, 0x5C20D0) jump to `AnalogBytes`, which returns through the common epilogue
+    0x5C204C. It writes +0x13 from the Y of the stick steering is bound to (the X offset + 4: lX → lY, lRx → lRy),
+    0x80 + Y × 0.0127, like +0x12: up and left low, down and right high. Steering on buttons or on another axis: 0x80.
+  - Shared pedals fill +0x10/+0x11 (`SharedPedals`). Bound to Z, from the triggers, which `StateOf` carries in
+    `rglSlider[0..1]` (RT, LT) besides Z = LT − RT, so both pedals work at once. Bound to another axis, it is split at
+    its centre: each half gives the separate-channel byte that decodes to the value the game's shared decoding gives
+    for that axis (`PedalCurve` / `PedalByteFor` below).
+  - The pedal events THROTTLE/BRAKE_ANALOG_ALTERNATE (0x93/0x96), which read +0x13, are retargeted at install to
+    +0x10/+0x11 with mode 0 and the curve of THROTTLE/BRAKE_ANALOG (0x92/0x95), so nothing reads +0x13 as a pedal.
+  - Players 3..6 get the same through the decoder run in `PollExtraPort`; the keyboard (type 0x13) has no axis part.
+- **Event records** (0x7FDD10, 83 of 0x20 bytes: +8 event, +0xC decoder, +0x10 polarity, +0x12 bit, +0x14 mode, +0x15
+  curve) turn a port's state into events. Bits 0x40/0x48/0x50/0x58 are the analog bytes +0x10..+0x13 (bit 0x58 via the
+  merged port state byte 0x86EAFB). Readers: FENG_PAD_UP/DOWN_ALTERNATE (0x2E/0x2F) +0x13, LEFT/RIGHT_ALTERNATE
+  (0x30/0x31) +0x12, through 0x571D50 (mode 1 fires below 0x40, mode 2 above 0xBF); hydraulics up/down (0xA8/0xAD)
+  +0x13 and left/right (0xA9/0xAE) +0x12; steer 0x90 +0x12; throttle/brake 0x92/0x95 (and 0x93/0x96, above)
+  +0x10/+0x11. Nothing else in the game reads the analog bytes but the merge (0x5CF220: pedals by max, sticks by the
+  value furthest from 0x80), the previous-state copy (0x5CFD8E) and the record reset 0x5C1040. The D-pad scrolls menus too (POV 0, the binding tables'
+  entries 16..19; entries 20..31 are POVs 1..3, which the virtual pads don't have).
+- **Pedal decoding (0x5795C0).** The analog byte is XORed with the record's polarity (1 for the driving axes 0x90,
+  0x92/0x95, 0x93/0x96 and for buttons, where 0x571CC0 keeps bit 0), run through the curve (0x576790, piecewise
+  linear; pedals (0,0) (123,128) (133,128) (255,255)) and truncated; mode 0 keeps the value, mode 1 gives
+  (0x7F − x) × 2 and mode 2 (x − 0x80) × 2 (the game's shared-axis throttle/brake); a value of 254 becomes 255. Brake
+  +0x2DC = value / 255 (0x407F2A) in the car's input object (car +0x30; brake byte +0x2D9, throttle byte +0x2D1,
+  throttle +0x2D4); throttle takes the value × 1.07 in gear, capped at 255 (0x416E48), and goes through a curve in
+  neutral (0x416F51). Digital keys send a fixed 255 (bytes +0x2D0/+0x2D8). Because of the XOR, a separate-channel byte
+  of 0xFF decodes as 254 → 253 (brake 0.992); `SharedPedals` writes a trigger as value XOR 1, so a full pull gives 255
+  (brake 1.0) and the curve sees the trigger's own value. A released trigger writes 0, which reads 1 (idle 1/255).
+  The input handlers take the larger of 0x92 and 0x93 (0x95 and 0x96), which are now the same.
 - While the Controls screen shows the P2 page, slot 2 is fed by the last active pad (`UpdateEditingSlot2`).
 
 **Per-port merge.** Ports 0/1 are merged per device slot, which separates P1 and P2.

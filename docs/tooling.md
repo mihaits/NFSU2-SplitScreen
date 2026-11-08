@@ -48,6 +48,12 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
     shift-light rpm, gear, nitrous, grip used per wheel, wheels in the air, position, finished, pedals, ground and
     wheel speed, wheel radius, slip ratio); read-only, needs the plugin loaded. The values the DualSense lights and the
     DualSense / Xbox triggers use.
+  - Pad input checks ([input](input.md), "Analog bytes"); each prints a line per state and stops at the first failure:
+    `analog_check.py [pad n]` (menu: a joypad record's analog bytes for idle, triggers and sticks),
+    `menu_stick_check.py [pad n] [--keyboard]` (opens Quick Race options; triggers must not move the selected row,
+    stick and D-pad must), `pedal_check.py [--no-pause]` (split race: every player's car pedals for trigger pulls,
+    then each player's pause menu gets their stick Y) and `remap_check.py` (race: P1's axis setup set to pedals on the
+    right stick, steering on the right stick and separate pedal axes, then restored).
   - `steer_log.py [--players 4,5] [--speed 20] [--top 200] [--need 200] [--csv path]` compares players' steering live
     (stick, filter output, speed, pedals, velocity) and writes every sample to a csv; read-only. Compare with matched
     throttle: the output depends on it.

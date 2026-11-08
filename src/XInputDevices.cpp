@@ -207,9 +207,8 @@ public:
         js->lX = Scale(s.thumbLX, 32768, range_[0][0], range_[0][1]);
         js->lY = Scale(-s.thumbLY - 1, 32768, range_[1][0], range_[1][1]);
         // Windows' DirectInput view of an Xbox pad: both triggers share Z (LT pushes one way, RT the other)
-        // The game XORs its pedal byte with 1 (docs/input.md): full brake is the axis end, full throttle one step short of the other
-        js->lZ = Scale(s.leftTrigger * 32768 / 255 - s.rightTrigger * 128, 32768, range_[2][0], range_[2][1]);
-        js->rglSlider[0] = s.rightTrigger;      // read back as the separate pedal channels (SeparatePedals)
+        js->lZ = Scale((s.leftTrigger - s.rightTrigger) * 128, 32768, range_[2][0], range_[2][1]);
+        js->rglSlider[0] = s.rightTrigger;      // read back as the separate pedal channels (SharedPedals)
         js->rglSlider[1] = s.leftTrigger;
         js->lRx = Scale(s.thumbRX, 32768, range_[3][0], range_[3][1]);
         js->lRy = Scale(-s.thumbRY - 1, 32768, range_[4][0], range_[4][1]);

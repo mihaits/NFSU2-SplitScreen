@@ -255,7 +255,7 @@ static void Install(HMODULE self) {
     Write(AT_PLAYERS_TEARDOWN_DISP, &inOrderMinus1, 4);
     Log("local player arrays relocated: %d refs", relocated);
     InstallCatchup();
-    WriteJump(AT_SEPARATE_PEDALS, &SeparatePedalsHook, 8);
+    InstallAnalogBytes();
     InstallHurry();
     InstallTraffic();
     InstallFreeRun();
