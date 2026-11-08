@@ -44,7 +44,7 @@
   player (identical to the game's with 2 players).
 - **Post-race.** Position blocks are at streamer 0x88EB00 + 0xB0 + k × 0x5C; block +0 is the car array index it
   follows (0x5E4F20 copies the car's +0x60 position and +0x70 velocity). The post-race scene drives cars it doesn't
-  feature to the world origin, P1's among them with 3-4 players, so position 0 moved across the map and the finish
+  feature to the world origin, P1's among them with 3-6 players, so position 0 moved across the map and the finish
   area was dropped; nothing reloads on the post-race screen (black world). After the results (`g_postRace`, set in
   `RaceResults`, cleared in `CreatePlayers`), `FollowCameraForSceneCars` (in `StreamZonesHook`) points every block
   whose car is scene-driven (mover 5) at the view 1 camera. Section byte +9 is not a load state.

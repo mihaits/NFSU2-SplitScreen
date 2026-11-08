@@ -1,4 +1,4 @@
-// Part of NFSU2SplitScreen.cpp: input merge and joypad bindings of players 3/4.
+// Part of NFSU2SplitScreen.cpp: input merge and joypad bindings of players 3-6.
 // Included by NFSU2SplitScreen.cpp in a fixed order (one translation unit); not compiled on its own.
 
 // ---------------------------------------------------------------- input
@@ -19,8 +19,8 @@ static void MergeDevice(uint8_t* out, const uint8_t* dev) {
 }
 
 // The keyboard (device record 0, joystick slot 0, type 0x13) is merged by the game into port 0, i.e. player 1. In
-// split screen it goes to one port only (KeyboardPort): racing, its player's port (0..3); during a pause the menu's
-// port, and only if its player paused (player 3/4: slot port & 1, like their pads); on the car select only on its
+// split screen it goes to one port only (KeyboardPort): racing, its player's port (0..5); during a pause the menu's
+// port, and only if its player paused (players 3-6: slot port & 1, like their pads); on the car select only on its
 // player's turn; elsewhere in the split menus port 0 as before. After a change it waits until every key is up
 // (the Escape that paused would otherwise reach the menu as a new press).
 static int g_kbPort = -1;
@@ -60,21 +60,21 @@ static void MergeKeyboard(uint8_t* out, int port) {
     if (kb && !g_kbWait && g_kbPort == port) MergeDevice(out, kb);
 }
 
-// ---------------------------------------------------------------- joypad bindings of players 3/4
+// ---------------------------------------------------------------- joypad bindings of players 3-6
 // Device records (6 x 0x370 at 0x874C40; +0x230 joystick slot or -1, +0x234 type: 0x13 keyboard, 0x15 our pads) turn
 // their device's state into action bits (+8, 8 bytes, active low) and analog values (+0x10..+0x13) every frame:
 // 0x5CF220 -> 0x5C1840 (joysticks: DIJOYSTATE2 of the slot at 0x86FFC0 + slot*0x110 for the buttons and at
 // [0x870760] + slot*0x110 for axes/POV; action tables +0x18/+0x98/+0x118/+0x198, 32 inputs each; axis setup +0x344..
 // +0x368, +0x36C POV count). The profile saves table 0 and the axis setup per device GUID (0x5B9420 save at 0x52A42A,
 // 0x5B9570 load at 0x534660); the Controls screen edits the record of the page's device.
-// Players 3/4 have no joystick slot. Their bindings live in the seat store and are applied by running 0x5C1840 on a
+// Players 3-6 have no joystick slot. Their bindings live in the seat store and are applied by running 0x5C1840 on a
 // private copy of the slot-0 pad record holding their bindings, with their pad's state put into slot 0's state
 // buffers for the call (restored right after).
-// Controls screen (ctor 0x4ECD10; pages 0x835930, stride 12 {type, ?, record}, 6 max, count screen+0x158, joypad pages
-// +0x154, built by 0x4ACE00 at 0x4ECFD5; page switch 0x4ACAA0; joypad page builder 0x4DC9F0): two pages are added for
-// players 3/4, both on the slot-0 pad record. While one of them is shown, that record holds the player's bindings (the
-// game's own editing, defaults and capture work on it) and player 1's are kept aside; they go back when the page is
-// left and before the profile is saved or loaded.
+// Controls screen (ctor 0x4ECD10; pages 0x835930, stride 12 {type, ?, record}, 6 max, relocated to 8; count
+// screen+0x158, joypad pages +0x154, built by 0x4ACE00 at 0x4ECFD5; page switch 0x4ACAA0; joypad page builder
+// 0x4DC9F0): four pages are added for players 3-6 when they fit, all on the slot-0 pad record. While one of them is
+// shown, that record holds the player's bindings (the game's own editing, defaults and capture work on it) and player
+// 1's are kept aside; they go back when the page is left and before the profile is saved or loaded.
 #define FN_RECORD_CONVERT  0x5C1840      // void __thiscall (record)
 #define DI_STATE_LIVE      0x86FFC0      // DIJOYSTATE2 [2]
 #define DI_STATE_COPY_PTR  0x870760      // -> DIJOYSTATE2 [2] (+ more)
@@ -117,7 +117,7 @@ static int RelocateControlsPages() {
 #define AT_PROFILE_LOAD_BINDINGS 0x534660  // call 0x5B9570 (cdecl (in) -> end)
 #define FN_PROFILE_LOAD_BINDINGS 0x5B9570
 static int g_ctrlPageBase = -1;          // index of player 3's page on the open Controls screen (-1: none)
-static int g_bindSwap = -1;              // player 3/4 whose bindings are in the slot-0 pad record
+static int g_bindSwap = -1;              // player 3-6 whose bindings are in the slot-0 pad record
 static uint8_t g_p1Tables[REC_BIND_TABLES_SIZE], g_p1Axes[REC_BIND_AXES_SIZE];   // player 1's, kept aside meanwhile
 
 static uint8_t* PadRecord(int slot) {
@@ -136,7 +136,7 @@ static int ControlsPageSeat() {
     return 2 + page - g_ctrlPageBase;
 }
 
-// Player 1's bindings as the game has them (also while a player 3/4 page holds the record).
+// Player 1's bindings as the game has them (also while a player 3-6 page holds the record).
 static void P1Bindings(const uint8_t* rec, const uint8_t** tables, const uint8_t** axes) {
     *tables = g_bindSwap >= 0 ? g_p1Tables : rec + REC_BIND_TABLES;
     *axes = g_bindSwap >= 0 ? g_p1Axes : rec + REC_BIND_AXES;
@@ -212,7 +212,7 @@ static uint8_t* __cdecl ProfileLoadBindings(uint8_t* in) {
     return reinterpret_cast<uint8_t*(__cdecl*)(uint8_t*)>(FN_PROFILE_LOAD_BINDINGS)(in);
 }
 
-// Ports 2/3 (players 3/4) have no DirectInput slot: their state is built from their own XInput pad with their own
+// Ports 2-5 (players 3-6) have no DirectInput slot: their state is built from their own XInput pad with their own
 // bindings (see above), merged like the game merges a port's devices.
 static void* PollExtraPort(int port, int* type, void** prev) {
     static const uint8_t idle[12] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0x80, 0x7F};

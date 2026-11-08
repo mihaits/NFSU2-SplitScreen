@@ -249,7 +249,7 @@ static __declspec(naked) void RumbleHook() {
     }
 }
 
-// Collision rumble per player index (0x865370 channels, 2 entries): ignore players 3/4.
+// Collision rumble per player index (0x865370 channels, 2 entries): ignore players 3-6.
 #define FN_IMPACT_RUMBLE   0x572E50          // void __cdecl (playerIndex, vector); entry: push ebp; mov ebp,esp; and esp,-16
 #define FN_IMPACT_RUMBLE_RET 0x572E56
 static __declspec(naked) void ImpactRumbleHook() {

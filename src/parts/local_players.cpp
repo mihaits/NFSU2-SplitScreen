@@ -49,8 +49,8 @@ static int RelocateLocalPlayers() {
 
 // Car light glares (model render 0x5D6570): a car's light glare slots (0x48AB20(type, view mask 1/2)) are only made
 // when the view being rendered is view 1 or 2 (GetView(2) check at 0x5D683C), with mask (view != view 1) + 1 (GetView(1)
-// at 0x5D686F); the player view loop draws them with mask 1 (0x494270). Views 5/6 (P3/P4) got none: no nitrous
-// taillight glare for P3 (user). While view 5/6 renders, both lookups return it: its glares are made like view 1's.
+// at 0x5D686F); the player view loop draws them with mask 1 (0x494270). Views 5-8 (P3-P6) got none: no nitrous
+// taillight glare for P3 (user). While one of views 5-8 renders, both lookups return it: its glares are made like view 1's.
 #define AT_GLARE_VIEW2_CALL 0x5D683C
 #define AT_GLARE_VIEW1_CALL 0x5D686F
 // Glares are made while models render for a view (outside the player view loop): the view comes from the model
@@ -157,7 +157,7 @@ static void PatchViewUpdateLoop() {
 
 // Sound: the audio code picks, for a sound's position, the nearest local player (0x459AC0) or that player's car
 // (0x459A50) - distance attenuation, doppler, which player "hears" it. Both compared players 1 and 2 only, so sounds
-// near P3/P4 were judged from P1/P2's distance (user: P3 only heard when near P1/P2, like traffic). All local players.
+// near P3-P6 were judged from P1/P2's distance (user: P3 only heard when near P1/P2, like traffic). All local players.
 #define FN_NEAREST_PLAYER_CAR 0x459A50   // void* __cdecl (const float* pos) -> player->car (player+4)
 #define FN_NEAREST_PLAYER  0x459AC0      // void* __cdecl (const float* pos) -> player
 static uint8_t* NearestLocalPlayer(const float* pos) {

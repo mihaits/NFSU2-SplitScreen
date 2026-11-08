@@ -18,7 +18,7 @@
 - `g_screenViews` = 2 / 3 / 4.
 - `LayoutCell(n, k, w, h)` (core.cpp) is the only place that knows the layout: view k's pixel rect with n views.
   2P = top/bottom halves; 4P = quadrants; 3P = P1/P2 on top, P3 centred at the bottom (x = w/4); 5P = 3 cells
-  (w/3 x h/2) on top, 2 centred below (x + w/6); 6P = 3 x 2 grid (5P/6P not reachable yet). `LayoutFeRect` gives the
+  (w/3 x h/2) on top, 2 centred below (x + w/6); 6P = 3 x 2 grid. `LayoutFeRect` gives the
   same rect in FE units for the HUD.
 - Each player view gets a private copy of the backbuffer RT (`g_rt[k]`, the cell's size) and a region
   (`g_regionX/Y`, the cell's corner).
@@ -117,9 +117,9 @@ prints the last frame's use and the worst overflow (6P drift: 549 KB, no overflo
 
 **Car skins.** A car's paint and vinyls are composited into the texture DUMMY_SKIN<n> named by its ride info
 (+0x584, set by 0x61C280(ride; n), composited by 0x61D790). The garage entries choose n from the player index
-(0x503A80: index + 1; 0x503880: 1 or 2), so players 3/4, built with index 0/1, used P1's / P2's skin texture and
+(0x503A80: index + 1; 0x503880: 1 or 2), so players 3-6, built with index 0/1, used P1's / P2's skin texture and
 rendered with mismatched textures (e.g. a door card texture on the hood). `RacerSpecIndexShift` calls `ExtraRacerSkin` before the racer spec copies the ride info:
-DUMMY_SKIN3/4, the single-player opponents' slots (split races have no AI). Race type 9 sets skin 1 for every human
+DUMMY_SKIN<index + 1> (3-6); AI cars take the slots after the humans (`AiSetSkin`). Race type 9 sets skin 1 for every human
 (0x526007) and is left alone.
 
 **Start zoom.** After the race intro the chase camera eases out from close to the car: CubicCameraMover's offset

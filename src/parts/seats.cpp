@@ -1,9 +1,9 @@
-// Part of NFSU2SplitScreen.cpp: players 3/4 data, controller assignment, car select seats.
+// Part of NFSU2SplitScreen.cpp: players 3-6 data, controller assignment, car select seats.
 // Included by NFSU2SplitScreen.cpp in a fixed order (one translation unit); not compiled on its own.
 
-// ---------------------------------------------------------------- players 3/4: their own data
+// ---------------------------------------------------------------- players 3-6: their own data
 // The game keeps per-player data for 2 players only (profile blocks, player options, joypad records, picked car).
-// Players 3/4 get their own copy of each, kept in NFSU2SplitScreen_Players.ini next to the plugin:
+// Players 3-6 get their own copy of each, kept in NFSU2SplitScreen_Players.ini next to the plugin:
 //  - player options: an entry like the game's per-player settings (0x83AA64 + i*0x28: camera, HUD, feedback, ...);
 //  - joypad bindings: the binding part of a joypad device record (action tables +0x18 and axis setup +0x344, the
 //    data the profile saves per device, see the Controls section);
@@ -121,7 +121,7 @@ static void ResetAssignments() {
 
 // The pause screen (ctor 0x4EB410) only accepts input from the pausing player: package input mask =
 // 0x50D2D0(port of the pausing player [0x8900D8]+0x20) at 0x4EB469. Frontend input only ever comes from joystick
-// slots 0/1 (masks 1/2), so a pause by player 3/4 (port 2/3, mask 4/8) locked the menu (user report). Their pad
+// slots 0/1 (masks 1/2), so a pause by players 3-6 (ports 2-5, masks 4-32) locked the menu (user report). Their pad
 // drives slot (port & 1) while they own the pause, and the mask is that slot's.
 #define AT_PAUSE_MASK_CALL 0x4EB469
 #define FN_PORT_MASK       0x50D2D0      // int __cdecl (port) -> 1 << port
@@ -263,7 +263,7 @@ static void JoinedSeat(int seat) {
 static uint32_t __stdcall PressStartFilter(uint8_t* popup, uint32_t msg, uint32_t* port) {
     int player = at<int>(FE_PLAYER);
     if (player < 0 || player > 1) return msg;
-    int seat = (g_seat & 1) == player ? g_seat : player;      // players 3/4 join on FE players 1/2's popups
+    int seat = (g_seat & 1) == player ? g_seat : player;      // players 3-6 join on FE players 1/2's popups
     if (msg == MSG_FRAME_TICK) {
         bool keyboard = KeyboardEnterPressed() && (seat == 0 || g_keyboardSeat < 0 || g_keyboardSeat >= seat);
         bool space = KeyboardSpacePressed();
@@ -394,12 +394,12 @@ static __declspec(naked) void CarSelectHook() {
     }
 }
 
-// ---------------------------------------------------------------- 3-4 players: seats in the car select
+// ---------------------------------------------------------------- 3-6 players: seats in the car select
 // The car select serves FE players 0/1 (0x4FA2A0(player) switches: FE_PLAYER, title, car list; 0x4FC3A8/0x4FC9B6
 // switch to player 2 after player 1's pick, 0x4FC723 goes back; 0x4FC3BE/0x4FC9C2 start the race (0x53FC20) after
-// player 2's pick). With 3-4 players the picks continue: seat 2 (player 3) on FE player 0, seat 3 (player 4) on FE
-// player 1, picking from player 1's / player 2's garage. Each pick (car id 0x83AAB8[fe], port 0x83A9D8[fe]) is saved
-// per seat and player 1's / player 2's own restored; players 3/4's racers get theirs (CreateHumanRacers).
+// player 2's pick). With 3-6 players the picks continue: seats 2 / 4 (players 3 / 5) on FE player 0, seats 3 / 5
+// (players 4 / 6) on FE player 1, picking from the shared garage. Each pick (car id 0x83AAB8[fe], port 0x83A9D8[fe]) is
+// saved per seat and player 1's / player 2's own restored; players 3-6's racers get theirs (CreateHumanRacers).
 #define FN_FE_PRINTF       0x537BE0      // void __cdecl (obj, fmt, ...): sets the object's text
 #define FN_CARSEL_SWITCH   0x4FA2A0      // void __thiscall (carsel; fePlayer)
 #define FN_START_RACE      0x53FC20      // void __cdecl ()
@@ -416,7 +416,7 @@ static int g_seatCar[MAX_LOCAL_PLAYERS], g_seatPort[MAX_LOCAL_PLAYERS];
 #define FN_CARSEL_GEARBOX_DIALOG 0x497D50 // __thiscall (carsel): opens the gearbox dialog
 static int g_seatGearbox[MAX_LOCAL_PLAYERS];   // + 1 (0: no pick yet)
 
-// Players 1/2's last cars are kept by the game (CAR_IDS in their profile blocks); players 3/4's in their seat store.
+// Players 1/2's last cars are kept by the game (CAR_IDS in their profile blocks); players 3-6's in their seat store.
 // A car id is only used while it is still in the (shared) garage: P1's quick race garage car list, entries with the
 // id at +8 (the lookup of 0x525FBB).
 #define GARAGE_CARS        0x844968      // P1's block 0x83A9E0 + garage 0x3B0 + car list 0x9BD8: entry* [0x5B]
@@ -763,7 +763,7 @@ static bool __stdcall CarselFilter(uint8_t* carsel, uint32_t msg) {
 }
 
 // Leaving the car select (Back on player 1 or 3, Customize, ...) ends the round: players 1/2 keep their own cars.
-// The Press START popup's text (object 0x2EBB974D) names the FE player; players 3/4 get their own.
+// The Press START popup's text (object 0x2EBB974D) names the FE player; players 3-6 get their own.
 // Help bar (bottom buttons, [0x8384D8], visible +0x6C; show 0x54E6A0; set buttons 0x54E6E0 does nothing while hidden):
 // leaving a split race rebuilds it hidden (ctor 0x551F80) and returns to the split mode select, whose screens then set
 // their buttons on a hidden bar (ignored) -> no buttons until Customize. In the split menus (no race loaded) a hidden

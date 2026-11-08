@@ -26,15 +26,15 @@ static void UpdateEditingSlot2() {
     g_editingSlot2 = editing;
 }
 
-// Quadrant HUDs (3-4 players): every object of a player's HUD package is mapped to that player; while it renders
-// (0x537262 wrapper) its top-level transform is moved into the player's quadrant: the 2P layouts (top/bottom half,
-// full width) are compressed horizontally into the quadrant and scaled uniformly by the same factor.
+// Quadrant HUDs (3-6 players): every object of a player's HUD package is mapped to that player; while it renders
+// (0x537262 wrapper) its top-level transform is moved into the player's cell: the 2P layouts (top/bottom half,
+// full width) are compressed horizontally into the cell and scaled uniformly by the same factor.
 static std::unordered_map<const void*, int> g_hudObjSlot;
 static const void* g_hudPackages[MAX_LOCAL_PLAYERS];
 static int g_renderSlot = -1;
 static bool g_quadHud = false;           // per frame: 4 views and HUD packages mapped
 
-// Per-player minimaps (3-4 players). The minimap belongs to P1's HUD (2PHudTop: map, mask, north arrow, target
+// Per-player minimaps (3-6 players). The minimap belongs to P1's HUD (2PHudTop: map, mask, north arrow, target
 // ring, car indicators, all around (-230, 5)) and is driven by one manager (0x8364D4): its update 0x4CA840 centres
 // the map on car entity (type 4, id 0) and places every entity's marker; a type-4 entity's id indexes the local
 // players (0x4AC374). Each frame the update runs once per player centred on that player's car (the id pushed at
@@ -363,7 +363,7 @@ static void UpdateQuadHud() {
     UpdateMinimapOwner();                // after the mapping: the minimap objects of the current HUD (restart: the
 }                                        // old HUD's objects were freed)
 
-static int g_pauseOwner = -1;            // player 3/4 who opened the pause menu (-1: none / player 1-2)
+static int g_pauseOwner = -1;            // player 3-6 who opened the pause menu (-1: none / player 1-2)
 static int g_pausePort = -1;             // any player who opened the pause menu (-1: none)
 static bool g_pauseSeen = false;         // the pause menus were seen open since g_pauseOwner was set
 

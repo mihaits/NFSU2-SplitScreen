@@ -125,7 +125,7 @@ static int g_screenViews = 2;            // player views drawn this frame (2, or
 // The split layout: player view k's screen rect in pixels with n views on a w x h screen. The only place that knows the
 // layout (viewports, HUD, minimaps, gauges and the bars around a short bottom row all read it).
 //   2: top / bottom halves (VerticalSplit: left / right)   3: quadrants, P3 centred in the bottom half   4: quadrants
-//   5: 3 on top, 2 centred below   6: 3 x 2 grid (5/6 not reachable yet)
+//   5: 3 on top, 2 centred below   6: 3 x 2 grid
 struct Cell { int x, y, w, h; };
 static bool g_verticalSplit = false;     // ini: 2 players left / right
 static Cell LayoutCell(int n, int k, int w, int h) {

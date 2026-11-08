@@ -1,10 +1,10 @@
-// NFSU2SplitScreen.asi - native 2-4 player split screen for Need for Speed Underground 2 (PC, speed2.exe v1.2).
+// NFSU2SplitScreen.asi - native 2-6 player split screen for Need for Speed Underground 2 (PC, speed2.exe v1.2).
 //
 // The PC build still contains the console's two-player split-screen code (game mode 4, the 2P HUDs, two-player race
 // setup, a two-position streamer) but the frontend entry, the renderer's split path and the input separation were
-// cut or never finished. This plugin restores them and extends the game from 2 to 4 local players: player arrays,
-// input port tables, sound listeners and per-view render state are relocated or generalized, players 3/4 get their
-// own views (5/6), HUD package copies, minimaps, cameras, streaming, reflections, weather and effects, and every
+// cut or never finished. This plugin restores them and extends the game from 2 to 6 local players: player arrays,
+// input port tables, sound listeners and per-view render state are relocated or generalized, players 3-6 get their
+// own views (5-8), HUD package copies, minimaps, cameras, streaming, reflections, weather and effects, and every
 // player gets their car's single-player gauges.
 //
 // Everything is patched at load time (WriteCall / WriteJump / trampolines on fixed addresses). Each subsystem in parts/
@@ -406,7 +406,7 @@ static void Install(HMODULE self) {
     WriteJump(AT_DRIFT_GAP, &DriftGapHook, 5);
     WriteJump(AT_RACE_GAP, &RaceGapHook, 6);
     {   // in-race name labels (0x4C7006 / 0x4C93CF): human names from the per-player block by index -> the player's own
-        // name buffer (+0x30; same text for players 1/2, "Player 3/4" for the extra players)
+        // name buffer (+0x30; same text for players 1/2, "Player 3".."Player 6" for the extra players)
         static const uint8_t leaEdx[15] = {0x8D, 0x4A, 0x30, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90};
         static const uint8_t leaEcx[15] = {0x8D, 0x49, 0x30, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90};
         if (*reinterpret_cast<const uint32_t*>(0x4C7006) == 0x69104A8B) Write(0x4C7006, leaEdx, 15);
@@ -436,7 +436,7 @@ static void Install(HMODULE self) {
     }
     WriteJump(AT_VIEWLOOP_TOP, &ViewLoopTopHook, 5);
     WriteJump(AT_VIEWLOOP_EXIT, &ViewLoopExitHook, 6);
-    const uint8_t lastView = MAX_LOCAL_PLAYERS;  // loop counter 1..4 -> views 1, 2, 5, 6 (inactive ones are skipped)
+    const uint8_t lastView = MAX_LOCAL_PLAYERS;  // loop counter 1..6 -> views 1, 2, 5, 6, 7, 8 (inactive ones are skipped)
     Write(AT_VIEWLOOP_MAX, &lastView, 1);
 
     WriteJump(AT_PROJECTION, &ProjectionHook, 10);

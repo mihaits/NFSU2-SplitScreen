@@ -13,11 +13,11 @@ to the part of its subsystem (or a new part, included where its dependencies are
 | log, debug_tools | debug log; hardware write watch and command mailbox |
 | crash | crash report: `scripts\NFSU2SplitScreen_crash.txt` (+ log) and a minidump per crash, always on |
 | seats, next_race, standings | players 3..6 data, controller assignment, car select seats, Cars row, rematch; Next Race and Random; session points |
-| input, input_ports | input merge, P3/P4 joypad bindings; 4 input port tables |
+| input, input_ports | input merge, P3-P6 joypad bindings; 6 input port tables |
 | render_core, render_passes, render_weather, render_envmap | layout and device hooks; streaks, blur, headlights; rain, weather, road reflections, overbright; car reflections, projectors, projection |
 | local_players, racers | 6-player arrays; extra local players, standings, results, post-race scene, names, skins, AI cars |
-| hud_split, hud_players, gauges, minimap_players, hud_gap, player_settings | HUD widening, quad HUD, minimaps; P3/P4 HUD packages; single-player gauges; minimap markers; HUD gap; per-player settings and HUD state |
-| sound, threads_memory, streaming | listeners; audio fs and pool locks, streaming pools; streaming for P3/P4 |
+| hud_split, hud_players, gauges, minimap_players, hud_gap, player_settings | HUD widening, quad HUD, minimaps; P3-P6 HUD packages; single-player gauges; minimap markers; HUD gap; per-player settings and HUD state |
+| sound, threads_memory, streaming | listeners; audio fs and pool locks, streaming pools; streaming for P3-P6 |
 | intro, free_run, race_rules, camera | intro scenes and grid; Free Run; Hurry timer and catch-up; start zoom, free camera |
 
 ## Plugin architecture
@@ -34,8 +34,8 @@ to the part of its subsystem (or a new part, included where its dependencies are
 - **Mode predicates**:
   - `SplitMode()`: game mode 0x850078 == 4. That is the console split-screen mode, which also covers its menus.
   - `SplitRacing()`: SplitMode, NUM_PLAYERS 0x89E7C0 == 2 and LAYOUT 0x8707E0 == 3 (two player cameras).
-- **Players 3/4 are "extra players"**: the game itself stays in 2-player mode (NUM_PLAYERS = 2), so all of its
-  `== 2` logic keeps working. Players 3/4 (`g_extraPlayers` = players - 2) are added on top. Arrays that were sized
+- **Players 3-6 are "extra players"**: the game itself stays in 2-player mode (NUM_PLAYERS = 2), so all of its
+  `== 2` logic keeps working. Players 3-6 (`g_extraPlayers` = players - 2) are added on top. Arrays that were sized
   for 2 are relocated, and loops/branches that only handled 2 players are hooked.
 - `XInputDevices.cpp` provides virtual DirectInput gamepads backed by XInput ([input](input.md)).
 

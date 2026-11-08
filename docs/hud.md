@@ -54,7 +54,7 @@ UI_PauseOptions, UI_PauseOptionsMain or UI_PC_Customize_Options is active (`g_hu
 - `SendFeMessage` (trampoline on 0x55DDA0) forwards messages sent to a source package to its copies.
 - Package lookup is by name with 0x51BB70 (cache; name) → entry, active package at +0x18.
 
-**Quad HUD (3-4 players, and 2P when `QuadHud2P`).** A half of a screen narrower than 4:3 can't hold the 640-wide 2P
+**Quad HUD (3-6 players, and 2P when `QuadHud2P`).** A half of a screen narrower than 4:3 can't hold the 640-wide 2P
 layout, and left / right views (`VerticalSplit`) aren't halves of it, so 2P there uses this HUD too (P2 gets a copy of
 the Top variant). In a left / right view the layout goes to the top of the view instead of its centre. `UpdateQuadHud` maps every object (and its data pointer) of each player's package to that
 player, rebuilt every 30 frames. `QuadTransform` scales the top-half 2P layout uniformly about its centre (0,-120) into the
@@ -84,7 +84,7 @@ parked off-screen) are moved 2000 further out. Pivots are scaled too.
   car entity before it existed (crash 0x4AC2B3). Then `MinimapUpdate` runs per player, the render
   hook picks the minimap objects out without a render slot, and `HudObjectFilter` sends only them through
   `QuadTransform` → `MinimapPlace` (bottom-left of each half). The game's own map in the middle of the left edge isn't shown.
-- `DestroyMinimapManager` (call 0x4FBFF2) unlinks P3/P4's entities first. They belong to P3's package, which is freed
+- `DestroyMinimapManager` (call 0x4FBFF2) unlinks P3-P6's entities first. They belong to P3's / P5's package copies, which are freed
   earlier, and without this quitting crashes. The pause menu's choice 4 with race state 0x89E7B0 != 0 (0x606B32 ->
   0x5EA980 -> 0x4F92A0, e.g. in Free Run) rebuilds the manager; its destroy call 0x4F92B1 goes through
   `DestroyMinimapManager` too, so `g_mmExtendedMgr` is reset and the new manager is extended even at the freed

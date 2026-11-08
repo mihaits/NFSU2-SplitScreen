@@ -15,7 +15,7 @@ static void __fastcall OutrunElementUpdate(uint8_t* element, void*, int arg) {
     reinterpret_cast<void(__thiscall*)(void*, int)>(FN_OUTRUN_ELEMENT_UPDATE)(element, arg);
 }
 // When driving starts, Free Run switches the race to its free state (0x89E7B0 = 7, 0x607190) and sets the local player
-// count from the human cars ([[0x890080]+0x14], 0x6071D5): 3-4 with players 3/4, and the game's 2-player paths (split
+// count from the human cars ([[0x890080]+0x14], 0x6071D5): 3-6 with the extra players, and the game's 2-player paths (split
 // views) stopped -> dark screen (user). Split screen keeps 2.
 #define AT_FREE_STATE_PLAYERS 0x6071D2   // mov ecx, [eax+0x14]; mov [0x89E7C0], ecx (9 bytes)
 #define FREE_STATE_PLAYERS_RET 0x6071DB

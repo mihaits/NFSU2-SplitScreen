@@ -1,7 +1,7 @@
-// Part of NFSU2SplitScreen.cpp: input port tables (4 ports).
+// Part of NFSU2SplitScreen.cpp: input port tables (6 ports).
 // Included by NFSU2SplitScreen.cpp in a fixed order (one translation unit); not compiled on its own.
 
-// ---------------------------------------------------------------- input port tables (4 ports)
+// ---------------------------------------------------------------- input port tables (6 ports)
 // 0x8655A0: 2 x 0x1C8 port tables (binding nodes, port id +0x1B4, device type +0x1B8, ...), built by a static
 // vector ctor. 32 code refs (all inside .text); 0x865930 is both "end of tables" (two loop bounds) and the next
 // global (mov ecx, 0x865930) -> only the two cmp operands move. Done before the game's static constructors run.
@@ -62,8 +62,8 @@ static int RelocatePortTables() {
 // Both actuators get sub-channel 0's value v (large motor = v, small motor on when v > 128); restored here with that
 // conversion on the player's own XInput pad (large -> left motor, small -> right motor at full speed). Collisions (0x572E50 -> 0x865360) only drive the wheels' constant force, as on PS2.
 // The channel state exists for 2 ports (channels 0x8653B0 [0xC0], effect strengths 0x864728 [0x60, indexed type * 2 +
-// port]); players 3/4 (ports 2/3) get a shadow copy that is swapped in for their events and for a second run of the
-// per-frame update.
+// port]); each further pair of ports (2/3, 4/5: players 3/4, 5/6) gets a shadow copy that is swapped in for its events
+// and for one more run of the per-frame update.
 #define FN_RUMBLE          0x5727B0          // void __cdecl (type, port, amount); entry 5 bytes: mov eax,[esp+4]; push esi
 #define FN_RUMBLE_RET      0x5727B5
 #define AT_FF_UPDATE_CALL  0x5814AD          // `call 0x572610` (per frame)

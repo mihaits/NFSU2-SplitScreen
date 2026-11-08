@@ -19,12 +19,12 @@ static int g_rainSlot = -1;              // player slot whose drops are being dr
 
 // Weather region caches ("Wind" 0x8A3180, "Normal Fog" 0x8A1E90, "Night Normal" 0x8A31F0, 0x8A3250) are 2-entry
 // static arrays indexed by view id - 1. Each entry is a query cache (region the given position was last found in),
-// recomputed from the position passed in, so views 5/6 (players 3/4) share players 1/2's entries instead of reading
-// past the arrays (0x6136B0: falling rain update; 0x614300: per-view splashes, already run for views 5/6).
+// recomputed from the position passed in, so views 5-8 (players 3-6) share players 1/2's entries instead of reading
+// past the arrays (0x6136B0: falling rain update; 0x614300: per-view splashes, already run for views 5-8).
 #define AT_RAIN_REGION_SLOT   0x6136C3   // mov eax, [ecx+4]; dec eax; push edi        (ecx = view)
 #define AT_SPLASH_REGION_SLOT 0x61437E   // mov ebp, [eax+4]; dec ebp; mov [esp+0x38], ebp   (eax = view)
 // The falling rain is emitted around the view's car (0x61E700: frame +0x5010 from the car's matrix): view id 1 ->
-// human slot 0, anything else -> slot 1, so P3/P4's rain fell around P2's car (not in their view).
+// human slot 0, anything else -> slot 1, so P3-P6's rain fell around P2's car (not in their view).
 #define AT_RAIN_CAR        0x61E724      // cmp [eax+4], 1 ... push 0/1; call 0x5ED980  (eax = view)
 #define AT_RAIN_CAR_DONE   0x61E73A      // eax = racer id
 static int RacerIdOfPlayer(int k);

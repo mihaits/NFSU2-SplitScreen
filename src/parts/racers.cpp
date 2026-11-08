@@ -4,7 +4,7 @@
 // ---------------------------------------------------------------- particles near any player
 // The particle emitter update 0x491E50 only spawns when the emitter (+0x70 pos) is within its range (effect +0x80)
 // of one of the 3 camera positions the particle system snapshots each frame (0x48BD90: views 1, 2, 0 at system
-// +0x10/+0x20/+0x30). P3/P4's cameras (views 5/6) were missing -> their tyre smoke and nitrous flames stopped
+// +0x10/+0x20/+0x30). P3-P6's cameras (views 5-8) were missing -> their tyre smoke and nitrous flames stopped
 // when far from P1/P2. The range test now also checks the extra players' cameras.
 #define AT_EMITTER_RANGE      0x491E8F   // mov eax,[esi+0x80] (6 bytes); the 3-camera loop follows
 #define AT_EMITTER_RANGE_DONE 0x491EE4   // edi = in range
@@ -26,7 +26,7 @@ static int __cdecl EmitterNearCamera(const uint8_t* system, const float* pos, fl
 // "Distance to the nearest racer" 0x5F1160 (race manager [0x890080], racer positions at +0x80 + i*0x10, count +0x14)
 // measures racers 0/1 only unless some mode flags (0x89CF69, 0x8669F4, 0x866A14) are set. Callers use it for
 // "is this near a player": car effects (0x60A1AB: no tyre smoke / nitrous flames beyond 150 m), the per-car
-// update 0x60A0EB, sound 0x46A262, ... -> P3/P4 counted as far from everyone. With extra players: all racers.
+// update 0x60A0EB, sound 0x46A262, ... -> P3-P6 counted as far from everyone. With extra players: all racers.
 #define FN_NEAREST_RACER_DIST 0x5F1160   // float __thiscall (manager; const float* pos)
 typedef float(__thiscall* NearestRacerDistFn)(void*, const float*);
 static NearestRacerDistFn g_origNearestRacerDist;
@@ -61,9 +61,9 @@ static __declspec(naked) void EmitterRangeHook() {
     }
 }
 
-// ---------------------------------------------------------------- extra local players (3, 4)
-// The race runs as a 2-player race (all the game's "== 2 players" logic stays on its 2P paths); players 3 and 4 are
-// added next to it: human racers in race setup, player objects at race start, views 5/6 with their own cameras.
+// ---------------------------------------------------------------- extra local players (3-6)
+// The race runs as a 2-player race (all the game's "== 2 players" logic stays on its 2P paths); players 3-6 are
+// added next to it: human racers in race setup, player objects at race start, views 5-8 with their own cameras.
 #define FN_CREATE_HUMAN_RACERS 0x525ED0  // void __cdecl (count, p2, p3): human racer specs for players 0..count-1
 #define FN_RACER_SPEC_CTOR 0x6373E0      // __thiscall (spec; playerIndex, human, carRecord, profile, -2, 0)
 #define AT_RACER_SPEC_CALL 0x52602A      // the ctor call inside the per-player loop
@@ -88,7 +88,7 @@ static void PrepareExtraNames();
 static void __cdecl CreateHumanRacers(int count, int p2, int p3) {
     using Fn = void(__cdecl*)(int, int, int);
     // Free Run's starter (0x53F580) sets 1 local player and creates 1 human: a split-screen Free Run gets 2, like the
-    // other starters, and players 3/4 below
+    // other starters, and players 3-6 below
     if (count == 1 && SplitMode() && at<int>(0x83AAB4) == 9) {
         at<int>(NUM_PLAYERS) = 2;
         count = 2;
@@ -144,7 +144,7 @@ static void __cdecl BuildStandings(int arg) {
 
 // Race results (0x54CCA0 at 0x551447, thiscall (results; race)): one entry per racer, but the pointer list the results
 // screens read (results +0xCD8, 6 slots; e.g. 0x430960 loops the racer count) is filled for [0x89E7C0..CC] racers
-// only -> P3/P4's slots stayed null and the results screen crashed (0x430987). Extra racers counted in for the call.
+// only -> P3-P6's slots stayed null and the results screen crashed (0x430987). Extra racers counted in for the call.
 #define AT_RACE_RESULTS_CALL 0x551447
 #define FN_RACE_RESULTS      0x54CCA0
 // The post-race screens (results rows 0x4BF0A0 and others, stats, back to results) size their lists with the same sum
@@ -192,7 +192,7 @@ static void __fastcall RaceResults(void* results, void*, void* race) {
     if (SplitMode()) CapAiCountToCars();
     int counted = at<int>(0x89E7C0) + at<int>(0x89E7C4) + at<int>(0x89E7C8) + at<int>(0x89E7CC);
     int missing = at<int>(RACE_PARAMS + 0x74) - counted;
-    if (missing < 0 || !SplitMode() || g_extraPlayers <= 0) missing = 0;    // only P3/P4 are missing from the counts
+    if (missing < 0 || !SplitMode() || g_extraPlayers <= 0) missing = 0;    // only P3-P6 are missing from the counts
     if (missing > g_extraPlayers) missing = g_extraPlayers;                 // (touge drift: non-human racers too)
     Log("results: racers %d, counted %d (%d %d %d %d), adding %d", at<int>(RACE_PARAMS + 0x74), counted,
         at<int>(0x89E7C0), at<int>(0x89E7C4), at<int>(0x89E7C8), at<int>(0x89E7CC), missing);
@@ -233,7 +233,7 @@ static void EndResultsCount() {
 
 // Post-race scene (NIS): its car tracks are bound to the race cars by car array index (table 0x827B9C, 0x14 a track,
 // +0xC car index; 0x4309D0 sets mover mode 5 = NISMvr) and the cars it doesn't feature are held at the world origin.
-// With 3-4 players + AI, array entries 2/3 (P3, the first AI) are such cars: harmless for AI, but a human car gets
+// With 3 players + AI, array entries 2/3 (P3, the first AI) are such cars: harmless for AI, but a human car gets
 // the fall-through check (0x5ECBA0: below the ground -> +0x96C) and is reset onto the road every ~0.5 s (0x6009A0 via
 // 0x601324), each reset switching its mover 5 -> 0 -> 5 = a screen flash and an audio duck (user: rhythmic sound gate
 // with flashing on the post-race menu). A car driven by the NIS is not reset.
@@ -253,7 +253,7 @@ static const uintptr_t kRaceSetupCalls[][2] = {{0x5324F2, 0x5260B0}, {0x530A91, 
 static int __cdecl RaceSetup5260B0(int a) { UncountResultsRacers(); return reinterpret_cast<int(__cdecl*)(int)>(0x5260B0)(a); }
 static int __cdecl RaceSetup526970(int a) { UncountResultsRacers(); return reinterpret_cast<int(__cdecl*)(int)>(0x526970)(a); }
 
-// Racer names come from the per-player block (0x83A9E0 + index*0xAB4C, name at +0): players 3/4 reused P1's / P2's
+// Racer names come from the per-player block (0x83A9E0 + index*0xAB4C, name at +0): players 3-6 reused P1's / P2's
 // (the same name twice on the results). They get P2's name with its digit swapped ("Player 2" -> "Player 3").
 #define PLAYER_BLOCKS      0x83A9E0
 #define PLAYER_BLOCK_SIZE  0xAB4C
@@ -269,9 +269,9 @@ static void PrepareExtraNames() {
 }
 // Car skins: a car's paint and vinyls are composited into the texture DUMMY_SKIN<n> named by its ride info (+0x584,
 // set by 0x61C280(ride; n)); the garage entries pick n from the player index (0x503A80: index + 1, 0x503880: 1 or 2),
-// so players 3/4 got P1's / P2's skin texture and rendered with mismatched skin textures (user: P3's
-// stock 3000GT dark with stray textures, e.g. a door card texture on the hood). Their ride infos get DUMMY_SKIN3/4 (the single-player opponents' slots; split races have no
-// AI) before the racer spec copies them. Free Run (race type 9) sets skin 1 for every human (0x526007; a single player)
+// so players 3-6 got P1's / P2's skin texture and rendered with mismatched skin textures (user: P3's
+// stock 3000GT dark with stray textures, e.g. a door card texture on the hood). Their ride infos get DUMMY_SKIN<index + 1>
+// (3-6; AI cars take the slots after the humans, AiSetSkin) before the racer spec copies them. Free Run (race type 9) sets skin 1 for every human (0x526007; a single player)
 // - skipped in split screen (FreeRunSkinHook), every player keeps their own (user: P3's paint broken in Free Run).
 #define FN_RIDE_SET_SKIN   0x61C280      // void __thiscall (RideInfo*; int n)
 static void __cdecl ExtraRacerSkin(void* ride, int playerIndex) {

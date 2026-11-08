@@ -2,9 +2,9 @@
 // Included by NFSU2SplitScreen.cpp in a fixed order (one translation unit); not compiled on its own.
 
 // Per-player settings (camera, HUD options, feedback...: 0x83AA64 + index*0x28, 2 entries; the race data follows at
-// 0x83AAB4) -> players 3/4 read race data as settings (e.g. camera 0 instead of P1's drift camera). The in-race readers
-// use a 4-entry mirror instead: entries 0/1 synced both ways with the game's table every frame (options/pause menus
-// write the table, the in-race camera change 0x5F2FA0 writes the mirror), entries 2/3 are players 3/4's own (seat
+// 0x83AAB4) -> players 3-6 read race data as settings (e.g. camera 0 instead of P1's drift camera). The in-race readers
+// use a 6-entry mirror instead: entries 0/1 synced both ways with the game's table every frame (options/pause menus
+// write the table, the in-race camera change 0x5F2FA0 writes the mirror), entries 2-5 are players 3-6's own (seat
 // store; the first race without any copies P1's / P2's).
 // The pause menu's player options edit the pausing player's entry. Most of them (0x4C31D0..0x4C4700) pick it by
 // comparing the pausing port [0x8900D8]+0x20 with players 1/2's ports, so any other port gets entry 0; the camera
@@ -79,7 +79,7 @@ static bool __cdecl FfCapable() {
 
 // HUD state of a player (which HUD parts show): 0x600090 reads the player's HUD options (settings +0, +3, +0x10;
 // readers redirected to the mirror) and has 2-player rules on the index (e.g. index != 0 with 2 players hides a part).
-// Players 3/4 run it as player 1 / player 2 for those rules, with their own options in that mirror entry for the call.
+// Players 3-6 run it as player 1 / player 2 (by index parity) for those rules, with their own options in that mirror entry for the call.
 #define AT_HUD_STATE_CALL  0x600595      // `call 0x600090` (uint64 __fastcall (player))
 #define FN_HUD_STATE       0x600090
 static uint64_t __fastcall HudStateOf(uint8_t* player) {

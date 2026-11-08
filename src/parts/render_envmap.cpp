@@ -197,7 +197,7 @@ static void __cdecl RefreshViewTarget(int viewId) {
 
 static __declspec(naked) void ViewLoopTopHook() {
     __asm {
-        mov edx, dword ptr [esp + 0x10]  // loop counter 1..4 -> player view id (stolen: mov edx,[esp+10]; push edx)
+        mov edx, dword ptr [esp + 0x10]  // loop counter 1..6 -> player view id (stolen: mov edx,[esp+10]; push edx)
         mov edx, dword ptr [kPlayerViewId + edx * 4 - 4]
         mov g_currentView, edx
         pushad

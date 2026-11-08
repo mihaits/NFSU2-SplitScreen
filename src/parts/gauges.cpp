@@ -432,7 +432,7 @@ static bool IsMarkerName(const uint8_t* obj) {
 
 static void __stdcall RenderFeObjectWith(void* obj, int arg, void* ctx) {
     if (g_debug) { static int s_d = -1; int d = X87Depth(); if (d != s_d) { Log("x87 depth %d entering FE object render", d); s_d = d; } }
-    // P3/P4's car markers (recoloured and unhidden for the per-player minimaps) are only drawn by the quad HUD; after the
+    // Players 3-6's car markers (recoloured and unhidden for the per-player minimaps) are only drawn by the quad HUD; after the
     // race (Street X results switch to layout 1) they showed up at their raw positions (user: blue marker on results)
     if (!g_quadHud && obj && IsExtraMarker(obj)) return;
     if ((!g_gaugeShow.empty() || !g_gaugeHide.empty()) && obj) {

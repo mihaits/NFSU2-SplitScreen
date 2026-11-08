@@ -258,7 +258,7 @@ mouse free camera follows the keyboard player (with no keyboard player, the mous
   Player k has port k.
 - 0x50D2A0 maps FE masks 1/2/4/8 to ports 0..3; the frontend only uses masks 1/2 (see the pause below).
 
-**Pause by P3/P4.** The pause ctor 0x4EB410 sets the package input mask to 1 << the pausing port (at 0x4EB469), but
+**Pause by P3-P6.** The pause ctor 0x4EB410 sets the package input mask to 1 << the pausing port (at 0x4EB469), but
 frontend input only has masks 1/2. `PauseInputMask` maps it to slot (port & 1), and `PadForDevice` feeds that slot from
 the owner's pad until the pause menus close. That pad stays idle until all its buttons are released; otherwise the
 still-held Start closed the menu at once.

@@ -65,7 +65,7 @@ static __declspec(naked) void SplitMenuReact() {
 
 static void* g_splitOptionVtbl[2] = {reinterpret_cast<void*>(FN_MENU_OPTION_DTOR), &SplitMenuReact};
 
-// The option's text is the console's "2 Player Split-Screen" (MMSPLIT_TEXT); with 2-4 players it becomes
+// The option's text is the console's "2 Player Split-Screen" (MMSPLIT_TEXT); it becomes
 // "Split-Screen". The loaded language table (entries {hash, text*} sorted by hash at [0x8383D8], count [0x8383D0];
 // lookup 0x4FF9D0) gets its entry pointed at a shortened text when it holds a known original; other languages keep
 // theirs.
@@ -126,7 +126,7 @@ static __declspec(naked) void MainMenuHook() {
 }
 
 // Controls: both joypad pages are titled "Joypad Configuration"; append the player the page belongs to (page N
-// edits joystick slot N = the pad player N joins with; the extra pages of players 3/4, see ControlsPageSeat).
+// edits joystick slot N = the pad player N joins with; the extra pages of players 3-6, see ControlsPageSeat).
 static int ControlsPageSeat();
 static void UpdateBindSwap();
 static void __cdecl SetJoypadPageTitle(void* title, uint32_t hash) {

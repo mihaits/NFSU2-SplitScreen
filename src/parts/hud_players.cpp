@@ -1,7 +1,7 @@
-// Part of NFSU2SplitScreen.cpp: HUD packages for players 3/4, racer of a player.
+// Part of NFSU2SplitScreen.cpp: HUD packages for players 3-6, racer of a player.
 // Included by NFSU2SplitScreen.cpp in a fixed order (one translation unit); not compiled on its own.
 
-// ---- HUD packages for players 3/4
+// ---- HUD packages for players 3-6
 // HUD elements bind to objects of a loaded FE package by package name (0x537A60(name, hash)); the game has one
 // package per 2P HUD (2PHudTop/Bot[_DRAG/_DRIFT/_OUTRUN]), all kept in the package cache (0x8637B0, entries:
 // +4/+8 list node, +0xC FNG data, +0x10 resource header (+8 = name hash), +0x18 active package).
@@ -18,7 +18,7 @@
 static int g_hudCloneFor = -1;           // player index whose HUD is being built (CreatePlayers)
 static char g_hudCloneName[MAX_LOCAL_PLAYERS][64];
 
-// Players 3/4 get a private copy of P1's / P2's HUD package (and every player one of the 1P HUD, CreateGauges),
+// Players 3-6 get a private copy of P1's or P2's HUD package (and every player one of the 1P HUD, CreateGauges),
 // registered in the cache under a name of the same length ("2PHudTop.fng" -> "2PHudTo3.fng"): the package is
 // decompressed (JDLZ) into a stored chunk, its own name (FNG +0x28, then its path; lookups find the package by it)
 // gets the new last character, and the chunk gets an entry from the game's own constructor.

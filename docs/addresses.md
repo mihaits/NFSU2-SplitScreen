@@ -8,7 +8,7 @@ find an address, grep `docs/` (and the source's comment blocks) for it.
 | address | meaning |
 |---|---|
 | 0x850078 | game mode: 1 career, 2 quick race, **4 split screen** |
-| 0x89E7C0 | NUM_PLAYERS: local players of the active race (stays 2 with 3-4 players) |
+| 0x89E7C0 | NUM_PLAYERS: local players of the active race (stays 2 with 3-6 players) |
 | 0x89E7A0 | race params object (+0x20 = NUM_PLAYERS, +0x68 int[3] human racer slots (0x89E808), +0x74 racer count) |
 | 0x89E7E8 | race ports per player [2] (copied from 0x83A9D8, the ports chosen at the joins) |
 | 0x8707E0 | applied view layout (1 single, 2 + mirror, 3 = two player cameras) |

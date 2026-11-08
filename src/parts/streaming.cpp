@@ -39,7 +39,7 @@ static void UpdateExtraStreamZones() {
 
 // Post-race (single view): the streamer's position 0 follows a race car (block +0 = car array index; 0x5E4F20 copies
 // its +0x60 position and +0x70 velocity). The post-race scene drives the cars it doesn't feature to the world origin
-// (mover 5, NISMvr, in a few frames: thousands of m/s): with 3-4 players P1 can be one (a 2-car scene with P3 and P2
+// (mover 5, NISMvr, in a few frames: thousands of m/s): with 3-6 players P1 can be one (a 2-car scene with P3 and P2
 // on top) and the streamer, following it across the map, dropped the finish area; nothing is loaded again on the
 // post-race screen -> black world, the shown cars falling through (user). While a followed car is driven by the scene,
 // the position follows the view 1 camera (still), from the scene's first frame.

@@ -1,4 +1,4 @@
-# Players 3/4 and AI opponents
+# Players 3-6 and AI opponents
 
 **Local player arrays.** These are 0x8900AC byIndex[2], 0x8900B4 inOrder[2] and 0x8900BC count, with about 300 code
 references. Many of them are address-bounded loops (`p < 0x8900B4`). They are relocated as one block,
@@ -27,16 +27,16 @@ DUMMY_SKIN<index + 1>). The human component manager capacity (type 1) imm at 0x4
 
 **Per-player settings.** Table 0x83AA64 + i*0x28 has 2 entries (camera +0x10, Feedback +4, HUD options, ...), so P3
 would read race data as its settings (e.g. camera 0 instead of P1's drift camera). The 27 in-race readers (kSettingsReaders)
-use a 4-entry mirror `g_settings`. P1/P2 are synced both ways each frame: menus write the game's table, while the
-in-race camera change 0x5F2FA0 → 0x502540 writes the mirror. P3/P4's entries are their own (seat store; the first race
-without one copies P1's / P2's). HUD state 0x600090 (call 0x600595, `HudStateOf`) has 2-player rules on the index, so P3/P4 run it as P1/P2 with
+use a 6-entry mirror `g_settings`. P1/P2 are synced both ways each frame: menus write the game's table, while the
+in-race camera change 0x5F2FA0 → 0x502540 writes the mirror. P3-P6's entries are their own (seat store; the first race
+without one copies P1's / P2's). HUD state 0x600090 (call 0x600595, `HudStateOf`) has 2-player rules on the index, so P3-P6 run it as P1/P2 (by index parity) with
 their own options put into that mirror entry for the call.
 
 **Gearbox.** The car select's gearbox dialog writes the FE player's entry +0x15 (0x4FC267 on 0x1A2826E1 → 0,
-0x4FC5B3 on 0x5F5E3886 → 1). P3/P4 pick on FE player 0/1, so their choice overwrote P1's / P2's. `SaveSeat` keeps
+0x4FC5B3 on 0x5F5E3886 → 1). P3-P6 pick on FE player 0/1, so their choice overwrote P1's / P2's. `SaveSeat` keeps
 each seat's choice and `RestoreSeat` puts P1/P2's back. The player ctor copies entry +0x15 / +0x16 (0x5F17E9 /
 0x5F17F2) to player +0x20 / +0x21, which the attach 0x5F3E10 applies to the car (+0x20 through the car's vtable +0x34,
-forced to 1 in drag; +0x21 to car +0x464). P3/P4 were built as P1/P2, so `CreatePlayers` writes their own
+forced to 1 in drag; +0x21 to car +0x464). P3-P6 were built as P1/P2, so `CreatePlayers` writes their own
 (`g_settings[idx]`, which takes the seat's pick) before the attach.
 
 **Pause menu settings.** Most pause player options (handler pairs 0x4C31D0..0x4C4700: HUD options +0..+5, +0x10,
@@ -50,16 +50,16 @@ Transmission and Stability Control also apply the change to the car at once (mes
 so `PauseGearboxMsgHook` / `PauseStabilityMsgHook` (0x4C3D53 / 0x4C32B3) put the pausing P3..P6's own index there.
 The frontend Options screen's copies (0x4B75E0..) always edit entry 0 (0x836364, only ever set to 0).
 
-**Seat store (players 3..6's own data).** The game keeps per-player data for 2 players only. P3/P4's settings entry,
+**Seat store (players 3..6's own data).** The game keeps per-player data for 2 players only. P3-P6's settings entry,
 joypad bindings (record tables + axis setup, [input](input.md)) and last car are kept in `g_seatStore` and saved to
 `NFSU2SplitScreen_Players.ini` ([Player3] .. [Player6], hex) whenever they change.
-- Last car: `SwitchSeat` opens a P3/P4 pick on the stored car if it is still in the garage (`GarageHasCar`: P1's
+- Last car: `SwitchSeat` opens a P3-P6 pick on the stored car if it is still in the garage (`GarageHasCar`: P1's
   quick race car list 0x844968, 0x5B entry pointers, car id at +8, as the lookup at 0x525FBB). Each pick is stored
   (`SaveSeat`). P1/P2's last cars are the game's (0x83AAB8 in their profile blocks).
 
-**Names.** Racer names come from the per-player block, so P3/P4 would get P1/P2's. They get P2's name with its digit
-swapped ("Player 3/4", `g_extraNames`, spec +0x90C). Results and labels read the player object's name +0x30 (copied in
-the player ctor at 0x5F17B3), which is set for P3/P4 in CreatePlayers. The in-race labels at 0x4C7006 / 0x4C93CF are
+**Names.** Racer names come from the per-player block, so P3-P6 would get P1/P2's. They get P2's name with its digit
+swapped ("Player 3".."Player 6", `g_extraNames`, spec +0x90C). Results and labels read the player object's name +0x30 (copied in
+the player ctor at 0x5F17B3), which is set for P3-P6 in CreatePlayers. The in-race labels at 0x4C7006 / 0x4C93CF are
 patched to read player+0x30.
 
 **Catch-up.** The Quick Race option (0x5028F0, copied to race params 0x89E7F8) drives 0x5F6740, run per human driver
@@ -90,7 +90,7 @@ value first (split options, `AddOpponentsRow`), followed by the game's own Diffi
   0x4FEBA2 / 0x4FEBA9) and, with no file check, appends 7, 6 and adds 2. So the option off gives 26 entries, on without
   the files 28, on with the files 30 with both cars listed twice. Difficulty picks each AI driver's skill tier (0x4FED00:
   weighted random over a 10-entry table per difficulty) and the rubber-band strength.
-- AI racers are spec index 100 + i (no clash with players 3/4). Their cars (0x4FEAF0(out, 100 + i, 2 + i, ...)) got
+- AI racers are spec index 100 + i (no clash with players 3-6). Their cars (0x4FEAF0(out, 100 + i, 2 + i, ...)) got
   DUMMY_SKIN<2 + i> (call 0x61C280 at 0x4FEB51), player 2's slot in split: `AiSetSkin` starts them after the humans.
 - Rubber-banding 0x4173ED.. picks the human each AI measures against (AI +0x748): 1 player that one, 2 the leader or
   the trailer (threshold AI count / 2, +1 per human within it; racer +0xA = position). With 3-4 it stayed 0 and was

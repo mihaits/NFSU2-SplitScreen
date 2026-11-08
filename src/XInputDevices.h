@@ -49,7 +49,7 @@ bool XPadHasSpeaker(int pad);              // a DualSense or DS4 (XPadSpeakerRea
 bool XPadSpeakerReady(int pad);
 
 // A pad's state as virtual device 0 reports it to the game (DIJOYSTATE2, with the axis ranges the game set on that
-// device); for pads that have no joystick slot (players 3/4). False if the pad isn't connected or no device exists.
+// device); for pads that have no joystick slot (players 3-6). False if the pad isn't connected or no device exists.
 bool XPadDiState(int pad, void* out, unsigned size);
 
 // Right stick of a pad (XInput values); false if not connected.

@@ -1,9 +1,9 @@
 // Part of NFSU2SplitScreen.cpp: "Hurry!" timer, catch-up.
 // Included by NFSU2SplitScreen.cpp in a fixed order (one translation unit); not compiled on its own.
 
-// ---------------------------------------------------------------- "Hurry!" timer with 3-4 players
+// ---------------------------------------------------------------- "Hurry!" timer with 3-6 players
 // When the first racer finishes (0x606FD1, place 1), the race end countdown starts if the finisher is an AI (type 2) or
-// a human with exactly 2 local players ([0x8900BC], the relocated player count) -> never with 3-4 humans (user: no
+// a human with exactly 2 local players ([0x8900BC], the relocated player count) -> never with 3 or more humans (user: no
 // "Hurry!" and no race end 30 s after the first finish). Now 2 or more.
 #define AT_HURRY_PLAYER_COUNT 0x606FE8   // jne (count != 2) -> jl
 static void InstallHurry() {
@@ -11,11 +11,11 @@ static void InstallHurry() {
     Write(AT_HURRY_PLAYER_COUNT, &jl, 1);
 }
 
-// ---------------------------------------------------------------- catch-up with 3-4 players
+// ---------------------------------------------------------------- catch-up with 3-6 players
 // Catch-up (Quick Race option, 0x5028F0 -> race params 0x89E7F8) between the human players: 0x5F6740 (per human driver:
 // +0x18 player, +0x1C racer, factor at +0x468) makes the factor a curve (0x81CB60 + 0xA6C) of (own progress - the
 // other human's progress) * 0x88F2B0, progress = racer +0x14 (other: player +4 -> car +0x1C). It only ran with exactly 2
-// local players (0x5F676A) -> no catch-up at all with 3-4. Now it runs with 2 or more, and each human measures against
+// local players (0x5F676A) -> no catch-up at all with 3 or more. Now it runs with 2 or more, and each human measures against
 // the furthest ahead other human (with 2 players: the other one, as before).
 #define AT_HUMAN_CATCHUP_COUNT 0x5F6771  // jne (count != 2) -> jl
 #define AT_HUMAN_CATCHUP_OTHER 0x5F6773  // other human -> edx, ecx = [esi+0x1C]                      (25 bytes)
