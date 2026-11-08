@@ -234,6 +234,16 @@ false for them and `XPadIsDs4` true, so they get no player LEDs, trigger row or 
   to reach 1.0, as a digital brake does, and leaves RT at the real pad's scale. This model matches every measured value.
   The XOR also swaps neighbouring steps, so the top of the pedal isn't quite monotonic (0xFC 248, 0xFD 246); harmless.
 - **Both triggers held (`SeparatePedals`).** The shared axis is LT minus RT, so held together they cancel. A joypad record also has separate pedal bytes (+0x10 throttle, +0x11 brake, events 0x92 / 0x95), which 0x5C2044 clears in shared mode. The jump there fills them from the triggers, carried in `rglSlider[0..1]` of the pad's state. The input handlers use the larger of the separate and shared channels, so one trigger alone still reads the shared channel's values above.
+- **Menus scroll with the triggers, not the left stick's Y.** The event records (0x7FDD10, 83 of 0x20 bytes: +8 event,
+  +0xC decoder, +0x10 polarity, +0x12 bit, where bits 0x40/0x48/0x50/0x58 are the analog bytes +0x10..+0x13) read the
+  menu stick from the analog bytes, as on console: FENG_PAD_UP/DOWN_ALTERNATE (0x2E/0x2F) from +0x13, LEFT/RIGHT_ALTERNATE
+  (0x30/0x31) from +0x12. On PC the decoder fills +0x12 from the steering axis (left stick X) and +0x13 from the shared
+  pedal axis (Z), and no byte from the left stick's Y. So in the list menus (race options, ...) left/right follows the
+  stick, up/down follows the triggers (LT down, RT up), and the stick's Y does nothing; the D-pad works (POV 0, the
+  binding tables' entries 16..19; entries 20..31 are POVs 1..3, which the virtual pads don't have). The hydraulics
+  up/down events (0xA8, 0xAD) also read +0x13. This is the game's own behaviour with any pad in the default
+  combined-pedal binding, checked with a virtual pad (2026-11-08). With the pedals on separate axes, 0x5C20D0 sets +0x13
+  to 0x80, so nothing scrolls those menus but the D-pad.
 - While the Controls screen shows the P2 page, slot 2 is fed by the last active pad (`UpdateEditingSlot2`).
 
 **Per-port merge.** Ports 0/1 are merged per device slot, which separates P1 and P2.

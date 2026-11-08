@@ -19,6 +19,10 @@ Tested with real controllers, 4 native DualSense pads over Bluetooth at once plu
 
 ## Known bugs and limitations
 - **5-8 Xbox pads** were only checked with virtual 360 pads. See [input](input.md).
+- **Menu lists scroll with the triggers, not the left stick** ([GitHub #4](https://github.com/mihaits/NFSU2-SplitScreen/issues/4);
+  the fix commit closes it with `Fixes #4`): the game reads menu up/down from the analog
+  byte that holds the shared trigger axis on PC ([input](input.md)). Fix idea: feed the left stick's Y into that byte
+  while a menu reads it, without moving the pedals off it in races (events 0x93/0x96 read the same byte).
 - **Two Xbox pads of one model can swap players on reconnect under Linux**: Wine gives no pad id, so the key is VID:PID
   ([input](input.md)). Follows from the code, not seen in a test.
 - A **stray white line** across P3's minimap was seen once in a 5-view debug layout (`CloneViews`); not seen in real
