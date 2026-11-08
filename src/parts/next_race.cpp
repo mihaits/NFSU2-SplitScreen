@@ -201,7 +201,6 @@ static void StartModeRoll() {
     Log("random mode: entry %d (type %d) from %d", target, kRollModeTypes[target - 1], current);
 }
 static void StartTrackRoll();
-static void ResetSession(const char* why);
 static void RandomTick() {
     using ActiveFn = bool(__cdecl*)(const char*);
     using SendFn = void(__cdecl*)(uint32_t, const char*);
@@ -221,10 +220,7 @@ static void RandomTick() {
         Log("random: series ended");
     }
     wasOnModes = onModes;
-    if (!SplitMode() || active("UI_Main.fng")) {
-        g_randomSeries = g_randomTrackPending = false;
-        ResetSession("left split screen");     // standings.cpp
-    }
+    if (!SplitMode() || active("UI_Main.fng")) g_randomSeries = g_randomTrackPending = false;
     if (g_roll.fng && !active(g_roll.fng)) g_roll = {};
     if (g_roll.fng) {                          // one step per frame, like a player pressing left / right
         if (g_roll.steps) {

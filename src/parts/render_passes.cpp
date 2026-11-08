@@ -219,6 +219,7 @@ static void UpdateStartZoom();
 static void UpdateIntroHiding();
 static void UpdatePadLights();
 static void UpdateVenueBarriers();
+static void SessionTick();
 static void DrawVenueWalls(View* v, const float* carPos);
 
 static void __cdecl LayoutApplyHook() {
@@ -242,6 +243,7 @@ static void __cdecl LayoutApplyHook() {
     UpdateSeats();
     NextRaceTick();
     RandomTick();
+    SessionTick();
     LogCarselInput();
     UpdatePadLights();
     RunMailbox();

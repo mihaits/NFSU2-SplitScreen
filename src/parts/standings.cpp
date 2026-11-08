@@ -37,6 +37,11 @@ static void ResetSession(const char* why) {
     if (g_session.races) Log("session: ended after %d races (%s)", g_session.races, why);
     g_session = {};
 }
+// Per frame: the session ends at the main menu and outside split screen.
+static void SessionTick() {
+    if (!SplitMode() || reinterpret_cast<bool(__cdecl*)(const char*)>(FN_FE_PACKAGE_ACTIVE)("UI_Main.fng"))
+        ResetSession("left split screen");
+}
 static bool SessionRace() {
     int type = at<int>(QR_RACE_TYPE);
     return SplitMode() && type != RACE_TYPE_FREE_RUN;
