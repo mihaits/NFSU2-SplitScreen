@@ -43,7 +43,8 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
     totals at the end. Read-only.
   - `teleport_watch.py [seconds] [--min m] [--grid] [--csv path]` samples every race car about 500 times a second and
     prints each move its velocity can't explain, with the car's state on both sides; every sample goes to the csv.
-    Read-only. A jump found this way can then be traced to its writer with `hwwatch.py` on the body position.
+    Traffic cars that jump are the game recycling them and print as `RECYCLED` (counted apart), so `JUMP` lines are
+    racers only; a car freed while it is read (traffic in circuit races) is skipped. Read-only. A jump found this way can then be traced to its writer with `hwwatch.py` on the body position.
   - `telemetry.py [interval] [seconds]` streams every local player's car values live (race stage, engine and
     shift-light rpm, gear, nitrous, grip used per wheel, wheels in the air, position, finished, pedals, ground and
     wheel speed, wheel radius, slip ratio); read-only, needs the plugin loaded. The values the DualSense lights and the
