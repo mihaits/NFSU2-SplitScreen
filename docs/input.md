@@ -293,7 +293,8 @@ profile saves table 0 and the axis setup per device GUID (0x5B9420 called at 0x5
 - The Controls screen (ctor 0x4ECD10) builds its pages with 0x4ACE00 (call at 0x4ECFD5 → `BuildControlsPages`): table
   0x835930, stride 12 {type, ?, record}, 6 max, count at screen+0x158, joypad pages at +0x154. The table is relocated
   to `g_controlsPages[8]` (`RelocateControlsPages`: 77 refs, 0x4ACE69 `mov ebp, 0x835930` and 76 `[reg*4 + 0x835938]`;
-  the next object starts at 0x835978). Four pages are appended for P3..P6, all on the slot-0 pad record.
+  the next object starts at 0x835978). Four pages are appended for P3..P6 when they fit in the table (the game's
+  own count + 4 <= 8, see [open issues](open-issues.md)), all on the slot-0 pad record.
 - While one of them is shown (`ControlsPageSeat`: page index and UI_Options_PC_Controller.fng active), that record
   holds the player's bindings and P1's are kept aside (`SetBindSwap`). The game's editing, capture and "Reset Keys To
   Default" then work unchanged. The swap is applied when the joypad page is built (`SetJoypadPageTitle`, called at

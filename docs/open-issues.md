@@ -38,6 +38,12 @@ Tested with real controllers, 4 native DualSense pads over Bluetooth at once plu
   if it happens again.
 - **A DualSense can drop with error 1167,** seen several times on one pad, also mid-race: likely its Bluetooth link (range,
   battery).
+- **Controls pages of P3-P6 need room in the page table** (code review, 2026-11-08; never seen). `BuildControlsPages`
+  appends the four only when the game's own page count + 4 fits the relocated table of 8; otherwise none, with no
+  message. Static read: the game makes one page per device record with a joystick slot (0x4ACE00), and the only
+  records with one are the keyboard's (0x5C10A3) and the two that 0x5CA690 gives slots 0 and 1, so at most 3 pages and
+  the four always fit. To settle: open Controls with the keyboard, two pads and a wheel connected and read the log line
+  "controls: pages 3..6" (the first number is the game's count). If it can't go above 3, the guard and this entry go.
 
 ## Missing car files hang the race load (2026-11-02)
 A 2P + 4 AI race stayed on the loading screen at full frame rate, game state 5, race load step 4: the car loader
