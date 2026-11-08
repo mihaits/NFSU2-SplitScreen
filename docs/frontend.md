@@ -95,8 +95,8 @@ names (stored at 0x8384C8): the quick race mode select in split (garage scene be
 of that mode; the accept's menu sound (id 4) is dropped (`g_feSoundMuted`), since Next Race's own accept already played it. While `g_nextRace` is set, the track select's next screen (0x498240, `QrTrackNextHook`) is the car
 select instead of the options, and player 1's Press START popup takes the last round by itself, as Rematch does
 (Random deals new cars first); if `LastRoundReady` fails, the round is joined as usual. Back from the track select
-reaches the mode select, and another mode also starts without its options screen. Another mode takes the last race's options it also has (`CarryRaceOptions`, run when
-the popup takes the last round), since its options screen is skipped. Quick race settings per type at 0x83AAC4 + type ×
+reaches the mode select, and another mode also starts without its options screen. Another mode takes the last race's options it also has (`CarryRaceOptions`, run on
+player 1's popup also when the round is joined as usual), since its options screen is skipped. Quick race settings per type at 0x83AAC4 + type ×
 0x14: +0 local players, +1 opponents, +2 AI difficulty, +4 traffic, +5 catch-up, +8 track (word), +0xA laps (word),
 +0xC direction (dword); the split options rows offer (measured by changing each row): direction in circuit, sprint,
 drag, Street X (type 10), URL (4) and Lap KO (7; from its row builder 0x4CDB40), laps in circuit, drift, Street X and

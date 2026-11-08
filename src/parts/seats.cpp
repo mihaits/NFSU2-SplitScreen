@@ -273,9 +273,12 @@ static uint32_t __stdcall PressStartFilter(uint8_t* popup, uint32_t msg, uint32_
             Log("player %d rejoined after customize", seat + 1);
             return MSG_START;
         }
-        if (seat == 0 && g_nextRace && !LastRoundReady()) {
-            g_nextRace = false;
-            Log("next race: the last round can't start again (players, pads or cars changed): joins as usual");
+        if (seat == 0 && g_nextRace) {            // the options screen was skipped: a new mode takes the last race's
+            CarryRaceOptions(g_lastRaceType, at<int>(QR_RACE_TYPE));   // options, whoever joins
+            if (!LastRoundReady()) {
+                g_nextRace = false;
+                Log("next race: the last round can't start again (players, pads or cars changed): joins as usual");
+            }
         }
         if (seat == 0 && LastRoundReady()) {
             bool again = g_nextRace || (space && g_lastKeyboardSeat >= 0);
@@ -288,7 +291,6 @@ static uint32_t __stdcall PressStartFilter(uint8_t* popup, uint32_t msg, uint32_
                     for (int k = 0; k < g_lastPlayers; ++k) if (g_randomCar[k]) g_lastCar[k] = g_randomCar[k];
                 }
                 Log("next race: %s", g_carsMode == CARS_RANDOM ? "new random cars" : "same cars");
-                CarryRaceOptions(g_lastRaceType, at<int>(QR_RACE_TYPE));
             }
             if (again) {                              // player 1 joins; the race starts on the next car select tick
                 for (int k = 0; k < MAX_LOCAL_PLAYERS; ++k) g_assignedPad[k] = k < g_lastPlayers ? g_lastPad[k] : PAD_NONE;
