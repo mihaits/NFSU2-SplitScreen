@@ -1,8 +1,8 @@
 #!/bin/sh
 # restart and start a split race: mode $1 (right presses in the mode list), then $2 right presses in the track list
 cd "$(dirname "$0")"
-sh restart.sh --noskip
-python -I boot.py 60 || exit 1
+sh restart.sh --noskip || exit 1
+python -I boot.py 20 || exit 1
 python -I rec.py play start_to_split2p --from 3 --to 5 >/dev/null || exit 1
 python -I - "${1:-0}" "${2:-0}" <<'PY'
 import sys, time, subprocess

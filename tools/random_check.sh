@@ -6,15 +6,16 @@
 # Screenshots: build/nr/rnd_*.png. Stops at the first failure. The game window must stay focused.
 # sh random_check.sh [rounds=2]
 cd "$(dirname "$0")"
+set -o pipefail   # a stage piped through tail still fails the run
 LOG=../../../scripts/NFSU2SplitScreen.log
 ts() { date +%H:%M:%S; }
 mkdir -p ../build/nr
 # 1 lap: circuit, drift, URL, Street X (quick race settings +0xA)
 export POKES="83AACE=1 83AB0A=1 83AB1E=1 83AB96=1"
 echo "$(ts) boot"
-sh restart.sh --noskip >/dev/null 2>&1
+sh restart.sh --noskip >/dev/null 2>&1 || { echo "$(ts) FAIL: restart"; exit 1; }
 python -I boot.py 20 || exit 1
-python -I -c "import sys;sys.path.insert(0,'.');import trainer as t;g=t.Game();[g.w32(int(a,16),int(v)) for a,v in (x.split('=') for x in sys.argv[1:])]" $POKES
+python -I -c "import sys;sys.path.insert(0,'.');import trainer as t;g=t.Game();[g.w32(int(a,16),int(v)) for a,v in (x.split('=') for x in sys.argv[1:])]" $POKES || exit 1
 python -I rec.py play start_to_split2p --from 3 --to 4 >/dev/null || exit 1
 race() {   # drive the running race to the results
     if [ "$(python -I -c "import sys;sys.path.insert(0,'.');import trainer as t;print(t.Game().u32(0x83AAB4))")" = 2 ]; then
@@ -61,7 +62,7 @@ say('first race loading')
 PY
 for r in $(seq 1 "${1:-2}"); do
     echo "$(ts) == round $r: racing"
-    race
+    race || exit 1
     python -I -u - "$r" "$LOG" <<'PY' || exit 1
 import sys, time
 sys.path.insert(0, '.')

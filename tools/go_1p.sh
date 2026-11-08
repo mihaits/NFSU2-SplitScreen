@@ -1,8 +1,8 @@
 #!/bin/sh
 # restart the game and start a single-player quick race in mode $1 (right presses in the mode list), no intro
 cd "$(dirname "$0")"
-sh restart.sh --noskip
-python -I boot.py 60 || exit 1
+sh restart.sh --noskip || exit 1
+python -I boot.py 20 || exit 1
 python -I -c "import sys;sys.path.insert(0,'.');import trainer as t;g=t.Game();g.write(0x42FDA0,bytes([0x32,0xC0,0xC2,0x04,0x00]),code=True)"
 python -I rec.py play start_to_split2p --from 3 --to 3 >/dev/null || exit 1
 python -I - "${1:-0}" <<'PY'

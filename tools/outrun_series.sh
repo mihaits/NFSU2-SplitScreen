@@ -14,8 +14,8 @@ sed -i "s/^RollMode = .*/RollMode = 7/" "$INI"
 sed -i "s/^ExtraPlayers = .*/ExtraPlayers = 0/" "$INI"
 say() { echo "$(date +%T) $*"; }
 say "boot"
-sh restart.sh --noskip
-python -I boot.py 60 || exit 1
+sh restart.sh --noskip || { say "FAIL: restart"; exit 1; }
+python -I boot.py 20 || exit 1
 python -I -c "import sys;sys.path.insert(0,'.');import trainer as t;g=t.Game();g.write(0x42FDA0,bytes([0x32,0xC0,0xC2,0x04,0x00]),code=True)"
 python -I rec.py play start_to_split2p --from 3 --to 5 >/dev/null || { say "FAIL: no split mode select"; exit 1; }
 python -I -u - "$TEMP/nfsu2_outrun" "$LOG" <<'PY' || exit 1

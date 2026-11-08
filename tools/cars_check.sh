@@ -6,6 +6,7 @@
 # sh cars_check.sh [config ...]   config = humans:cars[:mode], cars 0 each / 1 same / 2 random, mode as in
 #                                 go_race_nointro.sh (default 2 = drag). Default: 2:1 4:1 2:2 4:2 6:2 3:0
 cd "$(dirname "$0")"
+set -o pipefail   # a stage piped through tail still fails the run
 INI=../../../scripts/NFSU2SplitScreen.ini
 LOG=../../../scripts/NFSU2SplitScreen.log
 OLD_EXTRA=$(sed -n 's/^ExtraPlayers = //p' "$INI" | tr -d '\r')
@@ -21,7 +22,7 @@ $cfg
 EOT
     sed -i "s/^ExtraPlayers = .*/ExtraPlayers = $((humans - 2))/; s/^CarsMode = .*/CarsMode = $cars/" "$INI"
     echo "$(ts) == $cfg: boot and join"
-    sh go_race_nointro.sh "${mode:-2}" 2>&1 | tail -1
+    sh go_race_nointro.sh "${mode:-2}" 2>&1 | tail -1 || exit 1
     echo "$(ts) == $cfg: waiting for the countdown"
     python -I -u - "$humans" "$cars" "$LOG" <<'PY' || exit 1
 import sys, time, re

@@ -5,14 +5,15 @@
 # Screenshots of Post Race and the track select go to build/nr/. Stops at the first failure. Keep the window focused.
 # sh next_race_check.sh [rounds=2]
 cd "$(dirname "$0")"
+set -o pipefail   # a stage piped through tail still fails the run
 LOG=../../../scripts/NFSU2SplitScreen.log
 ts() { date +%H:%M:%S; }
 mkdir -p ../build/nr
 echo "$(ts) boot and join"
-sh go_race_nointro.sh 2 2>&1 | tail -1
+sh go_race_nointro.sh 2 2>&1 | tail -1 || exit 1
 for r in $(seq 1 "${1:-2}"); do
     echo "$(ts) == round $r: racing"
-    python -I -u drag_blow.py ../build/nr 45 2>&1 | tail -1
+    python -I -u drag_blow.py ../build/nr 45 2>&1 | tail -1 || exit 1
     python -I -u - "$r" "$LOG" <<'PY' || exit 1
 import sys, time
 sys.path.insert(0, '.')

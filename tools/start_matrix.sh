@@ -5,6 +5,7 @@
 # sh start_matrix.sh [config ...]      default: all. config = humans:ai:mode[:track], e.g. 3:0:4 or 2:4:3:4311
 # modes as in go_race_nointro.sh: 0 circuit, 3 drift, 4 Street X. The ini's player and opponent counts are restored.
 cd "$(dirname "$0")"
+set -o pipefail   # a stage piped through tail still fails the run
 INI=../../../scripts/NFSU2SplitScreen.ini
 OLD_EXTRA=$(sed -n 's/^ExtraPlayers = //p' "$INI" | tr -d '\r')
 OLD_AI=$(sed -n 's/^Opponents = //p' "$INI" | tr -d '\r')
@@ -20,7 +21,7 @@ EOT
     sed -i "s/^ExtraPlayers = .*/ExtraPlayers = $((humans - 2))/; s/^Opponents = .*/Opponents = $ai/" "$INI"
     case $mode in 0) lap=83AACE=1 ;; 3) lap=83AB0A=1 ;; 4) lap=83AB96=2 ;; *) lap= ;; esac
     echo "== $cfg: start"
-    INTRO=1 TRACK=$track POKES=$lap sh go_race_nointro.sh "$mode" 2>&1 | tail -1
+    INTRO=1 TRACK=$track POKES=$lap sh go_race_nointro.sh "$mode" 2>&1 | tail -1 || exit 1
     watch 22 &
     python -I -u grid_check.py 20 || exit 1
     python -I -u autorace.py --timeout 7 --stall 15 2>&1 | grep -E --line-buffered 'autopilot on|Traceback'

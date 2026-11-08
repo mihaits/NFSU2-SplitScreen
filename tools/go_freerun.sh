@@ -13,7 +13,7 @@ old=$(sed -n '/^\[FREERUN\]/,/^\[/s/^Start *= *//p' "$INI" | head -1)
 if [ -n "$old" ]; then sed -i "/^\[FREERUN\]/,/^\[/s/^Start *= *.*/Start = ${1:-0}/" "$INI"
 else printf '\n[FREERUN]\nStart = %s\n' "${1:-0}" >> "$INI"; fi
 stamp "start ${1:-0}: restart"
-sh restart.sh --noskip < /dev/null > /dev/null 2>&1
+sh restart.sh --noskip < /dev/null > /dev/null 2>&1 || { stamp "FAIL: restart (build not installed)"; exit 1; }
 boot=$(python -I boot.py 20 < /dev/null 2>&1 | tail -1)
 [ -n "$old" ] && sed -i "/^\[FREERUN\]/,/^\[/s/^Start *= *.*/Start = $old/" "$INI"
 stamp "$boot"

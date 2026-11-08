@@ -112,9 +112,11 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
   ("scene pick: kind K, N candidates -> i"); `[DEBUG] ForceIntro` / `ForceOutro` = list index (-1 = random) force it.
 - **Automation**:
   - `restart.sh` kills the game (waits until it is gone), installs build/NFSU2SplitScreen.asi and launches the game.
+    The scripts stop at the first failed stage: a failed restart (the build not installed) ends them, and a stage piped
+    through `tail -1` to keep the output short keeps its exit code (`set -o pipefail`).
   - `boot.py` gets to the main menu (re-focusing the game and retrying while it loads).
     `PROFILE=n` picks the profile n rows down the list (also through `go_race_nointro.sh`).
-    `restart.sh` gives it 20 s (a boot takes about 8 s). A boot that hangs on the startup loading screen (main thread
+    `restart.sh` and the `go_*.sh` scripts give it 20 s (a boot takes about 8 s). A boot that hangs on the startup loading screen (main thread
     waiting in d3d9) is WidescreenFix in exclusive fullscreen, also without this plugin: use its `WindowedMode = 4`.
   - `go_freerun.sh [start]` restarts the game and starts a split-screen Free Run from the Start row's entry `start`
     (`[FREERUN] Start`, set in the installed ini for that launch and restored), joining every player on virtual pads

@@ -7,8 +7,8 @@
 # TRACK=id presses right in the track list until that track is selected.
 # POKES="addr=value ..." (hex address, decimal value) are written right after boot, e.g. POKES="870CFC=1" (overbright).
 cd "$(dirname "$0")"
-sh restart.sh --noskip
-python -I boot.py 60 || exit 1
+sh restart.sh --noskip || exit 1
+python -I boot.py 20 || exit 1
 [ "$INTRO" = 1 ] || python -I -c "import sys;sys.path.insert(0,'.');import trainer as t;g=t.Game();g.write(0x42FDA0,bytes([0x32,0xC0,0xC2,0x04,0x00]),code=True)"
 python -I -c "import sys;sys.path.insert(0,'.');import trainer as t;g=t.Game();[g.w32(int(a,16),int(v)) for a,v in (x.split('=') for x in sys.argv[1:])]" $POKES
 python -I rec.py play start_to_split2p --from 3 --to 5 >/dev/null || exit 1
