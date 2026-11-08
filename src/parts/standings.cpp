@@ -146,7 +146,8 @@ static void __cdecl OutrunGrid(int arg) {
     int slots[MAX_LOCAL_PLAYERS];
     for (int i = 0; specs && i < count && n < MAX_LOCAL_PLAYERS; ++i) {
         uint8_t* spec = specs + i * RACER_SPEC_SIZE;
-        if (*reinterpret_cast<int*>(spec + 4) != 1) continue;
+        int player = static_cast<int8_t>(spec[1]);
+        if (*reinterpret_cast<int*>(spec + 4) != 1 || player < 0 || player >= MAX_LOCAL_PLAYERS) continue;
         human[n] = spec;
         slots[n++] = spec[3];
     }
@@ -167,7 +168,7 @@ static void __cdecl OutrunGrid(int arg) {
     for (int i = 0; i < n; ++i) {
         int player = static_cast<int8_t>(human[i][1]);
         human[i][3] = static_cast<uint8_t>(slots[i]);
-        if (player >= 0 && player < MAX_LOCAL_PLAYERS) at<uint8_t>(HUMAN_GRID_SLOTS + player) = static_cast<uint8_t>(slots[i]);
+        at<uint8_t>(HUMAN_GRID_SLOTS + player) = static_cast<uint8_t>(slots[i]);
         sprintf_s(order + strlen(order), sizeof(order) - strlen(order), " P%d", player + 1);
     }
     Log("outrun: grid front to back%s (%s)", order, seeded ? "last race reversed" : "random");
