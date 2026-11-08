@@ -279,6 +279,29 @@ static void __cdecl OutrunTimeLimitFrame() {
     *reinterpret_cast<float*>(least + 0x24) = OUTRUN_DROP_GAP;
 }
 
+// The lap time element's update (0x4AA1B0, called per HUD from 0x4EC618) puts Timer_Group_01 of the HUD of player
+// index 1 at (-163, 235) every frame in the outrun state (0x4AA6FA..0x4AA729: ebx = 1 at 0x4AA3AA, the HUD's
+// index +0x10, then 0x542630(package, "Timer_Group_01", pos)): the bottom 2P package's spot. In split screen the
+// plugin places that group itself (the bottom package's in HudUpdateHook, gauges.cpp; players 3-6's and, with 3-6
+// players, P2's top copies keep the top package's), so `OutrunTimerP2Hook` skips the move there. With 3-6 players
+// P2's top copy took the bottom spot, 400 below its own, which the quadrant layout parks off-screen: no timer.
+#define AT_OUTRUN_TIMER_P2   0x4AA6FE      // cmp [eax+0x10], ebx; jne 0x4AA731 (5 bytes)
+#define OUTRUN_TIMER_P2_MOVE 0x4AA703
+#define OUTRUN_TIMER_P2_SKIP 0x4AA731
+static __declspec(naked) void OutrunTimerP2Hook() {
+    __asm {
+        cmp dword ptr ds:[GAME_MODE], 4
+        je skip
+        cmp dword ptr [eax + 0x10], ebx
+        jne skip
+        push OUTRUN_TIMER_P2_MOVE
+        ret
+    skip:
+        push OUTRUN_TIMER_P2_SKIP
+        ret
+    }
+}
+
 static void InstallOutrun() {
     auto* events = reinterpret_cast<uint8_t*>(AT_EVENT_RESULTS_MODE4);
     auto* tourn = reinterpret_cast<uint8_t*>(AT_TOURN_RESULTS_MODE4);
@@ -287,6 +310,7 @@ static void InstallOutrun() {
     if (events[0] != 0x75 || events[1] != 0x09 || tourn[0] != 0x75 || tourn[1] != 0x08 || grid[0] != 0xE9 ||
         AT_OUTRUN_GRID_JUMP + 5 + *reinterpret_cast<int32_t*>(grid + 1) != FN_OUTRUN_GRID ||
         memcmp(reinterpret_cast<void*>(AT_POST_RACE_MODE4), "\x74\x23", 2) != 0 ||
+        memcmp(reinterpret_cast<void*>(AT_OUTRUN_TIMER_P2), "\x39\x58\x10\x75\x2E", 5) != 0 ||
         memcmp(reinterpret_cast<void*>(AT_OUTRUN_POINTS_ROW), "\x57\x6A\x54\xE8", 4) != 0 ||
         memcmp(reinterpret_cast<void*>(FN_OUTRUN_OVER), overStart, sizeof(overStart)) != 0 ||
         *reinterpret_cast<uint8_t*>(AT_TIME_LIMIT_OPTION) != 0xE8 ||
@@ -301,6 +325,7 @@ static void InstallOutrun() {
     const uint8_t nops[2] = {0x90, 0x90};
     Write(AT_POST_RACE_MODE4, nops, 2);
     WriteJump(AT_OUTRUN_POINTS_ROW, &OutrunPointsRowHook, 8);
+    WriteJump(AT_OUTRUN_TIMER_P2, &OutrunTimerP2Hook, 5);
     WriteCall(AT_TIME_LIMIT_OPTION, &TimeLimitOption);
     g_origOutrunOver = MakeTrampoline(FN_OUTRUN_OVER, sizeof(overStart));
     WriteJump(FN_OUTRUN_OVER, &OutrunOver, sizeof(overStart));
