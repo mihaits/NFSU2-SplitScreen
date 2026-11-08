@@ -71,7 +71,8 @@
     sponsor screens, Post Race unless Outrun) only adds it for career tournaments and split Outrun; its call to
     0x4C00C0 (0x4F3F9A) goes through `ShowStandings`.
   - The screen's setup 0x4EA570 (its call 0x4F4657, `StandingsSetup`) normally builds rows from those records
-    (0x4C07A0, 0x4D77A0). The plugin writes the row texts itself: `RANKING_DATA_n`, `PLAYER_DATA_n`, `PLAYER_POINT_DATA_n`
+    (0x4C07A0, 0x4D77A0). The plugin writes the texts itself: the title `HEADER_TEXT` ("Split Screen Standings"; the
+    package's own is "Tournament Standings"), `RANKING_DATA_n`, `PLAYER_DATA_n`, `PLAYER_POINT_DATA_n`
     through 0x537B80(package, 0x50B990(name), fmt, ...), and `CAR_DATA_n` from the car's language hash
     (0x50C900(0x537A10(package, hash), 0x50B990("CAR_NAME_%s", car +0xC))); then [0x8363DC] + 0x1C = package and
     0x4A4770(screen; 6, rows). Names as the game's row setter 0x4C03A0 picks them: the profile name (0x5F41B0, thiscall

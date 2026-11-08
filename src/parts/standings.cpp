@@ -9,7 +9,8 @@
 // - The post-race screen list (0x4F3EA0) adds that screen when 0x4C00C0 says so (career tournaments, split Outrun);
 //   its one call (0x4F3F9A) goes through `ShowStandings`.
 // - The screen's setup 0x4EA570 (fastcall screen; its one call 0x4F4657) builds the rows from tournament records and
-//   points (0x4C07A0, 0x4D77A0); `StandingsSetup` fills them from the session instead. Row text objects: RANKING_DATA_n,
+//   points (0x4C07A0, 0x4D77A0); `StandingsSetup` fills them from the session instead and titles the screen "Split
+//   Screen Standings" (HEADER_TEXT; the package's own text is "Tournament Standings"). Row text objects: RANKING_DATA_n,
 //   PLAYER_DATA_n (name), CAR_DATA_n (car name, by language hash CAR_NAME_<car key>), PLAYER_POINT_DATA_n; then
 //   0x4A4770(screen; 6, rows) sizes the table (the list's package goes to [0x8363DC] + 0x1C first).
 // - Names as the game's row setter 0x4C03A0 picks them: a car whose spec (car +0x14) is the local human's (+4 == 1,
@@ -92,6 +93,7 @@ static void __fastcall StandingsSetup(uint8_t* screen) {
     auto hash = reinterpret_cast<HashFn>(FN_FE_HASHF);
     auto text = reinterpret_cast<TextFn>(FN_FE_TEXTF);
     void* package = *reinterpret_cast<void**>(screen + 4);
+    text(package, hash("HEADER_TEXT"), "%s", "Split Screen Standings");
     int n = g_session.players;
     int order[MAX_LOCAL_PLAYERS];
     for (int k = 0; k < n; ++k) order[k] = k;
