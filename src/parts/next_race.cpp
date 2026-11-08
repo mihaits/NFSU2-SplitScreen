@@ -164,10 +164,8 @@ static __declspec(naked) void ModeListFreeRunHook() {
 #define QR_TRACKSEL_VTBL      0x7974F0
 #define FE_ENTRY_TABLE        0x7F7DC8
 #define FE_ENTRY_TABLE_END    0x7F9178
-#define MSG_HELP_CUSTOMIZE    0xC519BFC0  // the help bar's Customize button clicked (sent to the active screen)
 static const int kRollModeTypes[7] = {0, 1, 2, 3, 10, 4, 8};   // mode select entries 1-7
 static int g_debugRollMode = 0;           // [DEBUG] RollMode = 1..7: mode rolls pick that entry (tests)
-#define OUTRUN_TYPE           8
 static bool g_randomClicked = false;      // that button, labelled Random on the mode / track select (SendFeMessage)
 static bool g_randomTrackPending = false; // a mode roll was accepted: its track select rolls by itself
 // The mode select's entries set the race type in their react (0x4B2C00(type): type 0x83AAB4 and its quick race
@@ -245,7 +243,7 @@ static void RandomTick() {
         }
         return;
     }
-    bool onOutrunOptions = SplitMode() && at<int>(QR_RACE_TYPE) == OUTRUN_TYPE && active(at<const char*>(QR_OPTIONS_NAME));
+    bool onOutrunOptions = SplitMode() && at<int>(QR_RACE_TYPE) == RACE_TYPE_OUTRUN && active(at<const char*>(QR_OPTIONS_NAME));
     if (onOutrunOptions && (g_nextRace || g_randomTrackPending)) {   // no track to pick or roll
         if (++trackWait < 3) return;           // let the screen take input first
         trackWait = 0;

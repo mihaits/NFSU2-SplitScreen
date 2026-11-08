@@ -252,7 +252,7 @@ static void __fastcall HudUpdateHook(void* hud, void*, void* player, void* arg) 
     // Free Run has no race position or race time: the position element (HUD +0x20, ctor 0x4F4AC0) shows "1st /3" in
     // split screen (user) - its RacePositionNumber +0x28, RacePositionNth +0x2C, NumberRacers +0x30, PositionBacking
     // +0x3C hidden - and so are the timer and its backings (by name in the HUD's package)
-    if (SplitMode() && at<int>(QR_RACE_TYPE) == 9) {
+    if (SplitMode() && at<int>(QR_RACE_TYPE) == RACE_TYPE_FREE_RUN) {
         if (auto* pos = *reinterpret_cast<uint8_t**>(h + 0x20))
             for (int off : {0x28, 0x2C, 0x30, 0x3C})
                 if (auto* obj = *reinterpret_cast<uint8_t**>(pos + off)) *reinterpret_cast<uint32_t*>(obj + 0x1C) |= 1;

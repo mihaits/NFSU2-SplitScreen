@@ -110,7 +110,6 @@ static int g_autoBackSeat = -1;          // Back returned to a seat that has no 
 static int g_firstCar = 0;               // player 1's pick of this round (CARS_SAME)
 static int g_randomCar[MAX_LOCAL_PLAYERS];
 static const char* const kCarsModeText[CARS_MODES] = {"Pick Each", "Pick One", "Random"};
-#define QR_RACE_TYPE       0x83AAB4      // quick race type (8 = outrun)
 #define MAX_RACERS 6                     // the race start placement reads 6 start spots (0x5EB5D0(6, out))
 static int SplitPlayers() { return g_splitPlayers; }
 
@@ -772,7 +771,7 @@ static bool __stdcall CarselFilter(uint8_t* carsel, uint32_t msg) {
 #define FN_HELP_BAR_SET    0x54E6E0      // void __thiscall (bar; flags, arg) - 5 bytes stolen
 #define FN_FE_SET_STRING   0x535FE0      // void __thiscall (FEString*, const char*): sets its text, grows the buffer
 #define HELP_RANDOM_TRACK  0x1000        // the help bar's Customize button: Random on the split track select (a click
-                                         // sends the screen MSG_HELP_CUSTOMIZE, see RandomTick)
+                                         // sends the screen MSG_CUSTOMIZE, see RandomTick)
 typedef void(__thiscall* HelpBarSetFn)(void*, uint32_t, uint32_t);
 // The Random button's text. The released WidescreenFix ([MISC] ImproveGamepadSupport 1-3) gives the help bar's buttons
 // "(A)"-style prefixes by swapping known English labels, so with it the button gets the same style here: "(Y) Random",

@@ -39,7 +39,7 @@ static void ResetSession(const char* why) {
 }
 static bool SessionRace() {
     int type = at<int>(QR_RACE_TYPE);
-    return SplitMode() && type != 9;
+    return SplitMode() && type != RACE_TYPE_FREE_RUN;
 }
 static bool SessionShown() { return SessionRace() && g_session.races > 0 && g_session.players == SplitPlayers(); }
 
@@ -139,7 +139,7 @@ static void __fastcall StandingsSetup(uint8_t* screen) {
 
 static void __cdecl OutrunGrid(int arg) {
     reinterpret_cast<void(__cdecl*)(int)>(FN_OUTRUN_GRID)(arg);
-    if (!SplitMode() || at<int>(QR_RACE_TYPE) != 8) return;
+    if (!SplitMode() || at<int>(QR_RACE_TYPE) != RACE_TYPE_OUTRUN) return;
     auto* specs = at<uint8_t*>(RACER_SPECS);
     int count = at<int>(RACER_SPECS + 4), n = 0;
     uint8_t* human[MAX_LOCAL_PLAYERS];
@@ -187,7 +187,7 @@ static void __cdecl OutrunGrid(int arg) {
 static void* g_origOutrunOver = nullptr;
 
 static bool __fastcall OutrunOver(uint8_t* settings, void*) {
-    if (!SplitMode() || at<int>(QR_RACE_TYPE) != 8)
+    if (!SplitMode() || at<int>(QR_RACE_TYPE) != RACE_TYPE_OUTRUN)
         return reinterpret_cast<bool(__fastcall*)(void*, void*)>(g_origOutrunOver)(settings, nullptr);
     return true;
 }
@@ -228,7 +228,7 @@ static bool g_timeLimitLogged = false;
 
 static bool SplitOutrunRacing(uint8_t** mgr) {
     *mgr = at<uint8_t*>(RACE_MANAGER);
-    return SplitMode() && at<int>(QR_RACE_TYPE) == 8 && at<int>(0x89E7B0) == 7 && *mgr;
+    return SplitMode() && at<int>(QR_RACE_TYPE) == RACE_TYPE_OUTRUN && at<int>(0x89E7B0) == 7 && *mgr;
 }
 static int __fastcall TimeLimitOption(uint8_t* settings, void*) {
     uint8_t* mgr;

@@ -6,6 +6,9 @@
 #define GAME_MODE          0x850078    // 2 quick race, 4 split screen
 #define QR_SETTINGS        0x83AAC4    // per race type, stride 0x14, byte 0 = local player count
 #define QR_RACE_TYPES      13
+#define QR_RACE_TYPE       0x83AAB4    // quick race type (types: seats.cpp, Opponents row)
+#define RACE_TYPE_OUTRUN   8
+#define RACE_TYPE_FREE_RUN 9
 #define FE_PLAYER          0x85AD28    // player the frontend currently serves
 #define FE_PORTS           0x7F4454    // [2] controller bitmask bound to each FE player
 #define GARAGE             0x83A9D0    // profile/garage object (player car list at +0x3C0, car id at +0xE8)

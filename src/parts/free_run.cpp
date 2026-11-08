@@ -73,7 +73,7 @@ using NextScreenFn = uint32_t(__cdecl*)();
 static NextScreenFn g_origNextScreen;
 static void SetFreeRunTrack();
 static uint32_t __cdecl NextScreenAfterMode() {
-    if (SplitMode() && at<int>(QR_RACE_TYPE) == 9) {
+    if (SplitMode() && at<int>(QR_RACE_TYPE) == RACE_TYPE_FREE_RUN) {
         SetFreeRunTrack();   // 4000, or the chosen venue's track ("Start" row below)
         return at<uint32_t>(SCREEN_RACE_OPTIONS);
     }
@@ -85,7 +85,7 @@ static uint32_t __cdecl NextScreenAfterMode() {
 #define SCREEN_MODE_SELECT 0x7F445C
 static NextScreenFn g_origPrevScreen;
 static uint32_t __cdecl PrevScreenRaceOptions() {
-    if (SplitMode() && at<int>(QR_RACE_TYPE) == 9) return at<uint32_t>(SCREEN_MODE_SELECT);
+    if (SplitMode() && at<int>(QR_RACE_TYPE) == RACE_TYPE_FREE_RUN) return at<uint32_t>(SCREEN_MODE_SELECT);
     return g_origPrevScreen();
 }
 // Free Run's option rows (0x4B4A10): the Track Direction row (vtable 0x791608, settings +4) when the track can be
@@ -124,7 +124,7 @@ static __declspec(naked) void FreeStateRaceHook() {
     __asm {
         cmp dword ptr ds:[GAME_MODE], 4
         jne run
-        cmp dword ptr ds:[QR_RACE_TYPE], 9
+        cmp dword ptr ds:[QR_RACE_TYPE], RACE_TYPE_FREE_RUN
         je skip
     run:
         cmp dword ptr ds:[0x89E7B0], 7
@@ -145,7 +145,7 @@ static __declspec(naked) void DirectionArrowHook() {
     __asm {
         cmp dword ptr ds:[GAME_MODE], 4
         jne run
-        cmp dword ptr ds:[QR_RACE_TYPE], 9
+        cmp dword ptr ds:[QR_RACE_TYPE], RACE_TYPE_FREE_RUN
         je skip
     run:
         jmp dword ptr [g_origDirectionArrow]
@@ -196,7 +196,7 @@ static void __cdecl StartSpots(int n, uint8_t* out) {
     if (g_debugStartSet)
         to.x = g_debugStart[0], to.y = g_debugStart[1], to.z = g_debugStart[2],
         to.heading = static_cast<uint16_t>(g_debugStart[3]);
-    bool move = SplitMode() && at<int>(QR_RACE_TYPE) == 9 && at<int>(CURRENT_TRACK) == to.track &&
+    bool move = SplitMode() && at<int>(QR_RACE_TYPE) == RACE_TYPE_FREE_RUN && at<int>(CURRENT_TRACK) == to.track &&
                 (to.x != 0 || to.y != 0);
     if (!move) reinterpret_cast<void(__cdecl*)(int, uint8_t*)>(FN_START_SPOTS)(n, out);
     float a = to.heading * 6.2831853f / 65536.0f, fx = cosf(a), fy = sinf(a);   // forward; side = (-fy, fx)
@@ -489,7 +489,7 @@ static int g_venueTimer;
 static bool VenueFreeRun() {
     int track = at<int>(CURRENT_TRACK);
     int state = at<int>(RACE_STATE);   // 0 from the load and through the countdown, 7 once driving
-    return SplitRacing() && at<int>(QR_RACE_TYPE) == 9 && (state == 0 || state == 7) && (track == 4700 || track == 4300);
+    return SplitRacing() && at<int>(QR_RACE_TYPE) == RACE_TYPE_FREE_RUN && (state == 0 || state == 7) && (track == 4700 || track == 4300);
 }
 static void UpdateVenueBarriers() {
     if (!VenueFreeRun()) {

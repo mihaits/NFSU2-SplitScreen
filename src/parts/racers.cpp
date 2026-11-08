@@ -89,7 +89,7 @@ static void __cdecl CreateHumanRacers(int count, int p2, int p3) {
     using Fn = void(__cdecl*)(int, int, int);
     // Free Run's starter (0x53F580) sets 1 local player and creates 1 human: a split-screen Free Run gets 2, like the
     // other starters, and players 3-6 below
-    if (count == 1 && SplitMode() && at<int>(0x83AAB4) == 9) {
+    if (count == 1 && SplitMode() && at<int>(QR_RACE_TYPE) == RACE_TYPE_FREE_RUN) {
         at<int>(NUM_PLAYERS) = 2;
         count = 2;
         Log("free run: %d players", 2 + g_extraPlayers);
@@ -284,7 +284,7 @@ static __declspec(naked) void FreeRunSkinHook() {
     __asm {
         cmp dword ptr ds:[GAME_MODE], 4
         je skip
-        cmp dword ptr ds:[0x83AAB4], 9
+        cmp dword ptr ds:[QR_RACE_TYPE], RACE_TYPE_FREE_RUN
         jne skip
         push FREE_RUN_SKIN_SET
         ret
