@@ -214,8 +214,10 @@ static void RandomTick() {
     const char* tracks = at<const char*>(QR_TRACKSEL_NAME);
     const char* modes = at<const char*>(QR_MODESEL_NAME);
     bool onTracks = SplitMode() && active(tracks), onModes = SplitMode() && active(modes);
-    if (onModes && !wasOnModes && !g_nextRace && (g_randomSeries || g_randomTrackPending)) {
-        g_randomSeries = g_randomTrackPending = false;   // the mode select came up by Quit or Back
+    // Next Race brings the mode select up with g_nextRaceToTrack set (NextRaceTick goes on from it); any other way
+    // there (Quit, Back, also Back from a track select that Next Race opened) ends the series
+    if (onModes && !wasOnModes && !g_nextRaceToTrack && (g_randomSeries || g_randomTrackPending)) {
+        g_randomSeries = g_randomTrackPending = false;
         Log("random: series ended");
     }
     wasOnModes = onModes;

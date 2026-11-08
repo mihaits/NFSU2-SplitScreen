@@ -165,6 +165,11 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
     and races (drag_blow.py for drag, autorace.py otherwise, 1 lap); per round Post Race -> Next Race must roll a new
     mode and track and load the race with no input. Stopping it mid-run can leave its Python children pressing virtual
     pads: end them by process id.
+  - `next_race_options_check.sh` runs a split circuit race, then Next Race → Back → Sprint with P2's virtual pad off:
+    the round is joined as usual and Sprint must have the circuit's options (set apart before, then compared).
+  - `random_back_check.sh` starts a random series of drag races (`[DEBUG] RollMode = 3`, restored), then Next Race with
+    the track roll held off (`g_randomTrackPending` kept clear through the link map) and Back on the track select: the
+    series must end (log "random: series ended", `g_randomSeries` 0).
   - `standings_check.sh [races]` runs split circuit races (4013, 1 lap, every car on autopilot released 1 s apart) joined
     by Next Race and checks that the standings screen with the session totals comes between Event Results and Post
     Race (log "session: race", screenshots build/nr/standings_<n>.png).

@@ -134,7 +134,8 @@ at that speed; the track select plays none); the accept sounds.
   skips the react (it went on with the previous type), so the roll calls 0x4B2C00 before accepting.
 - A mode roll starts a random series (`g_randomSeries`): Next Race rolls mode (not the one just raced) and track
   again with no input (`NextRaceTick` starts the mode roll in place of its accept). The series ends when the mode
-  select comes up any other way (Quit, Back) and at the main menu.
+  select comes up any other way (Quit, Back, also Back from a track select that Next Race opened: only Next Race's
+  own arrival, `g_nextRaceToTrack`, keeps it) and at the main menu.
 - Help bar: `HelpBarSet` adds the Customize button (flag 0x1000; label from 0x52D330) on the split track and mode
   selects and
   sets its text (`RandomButtonText`). The bar's buttons are a list at bar +0x4C (button = node - 4: +0x10 text
