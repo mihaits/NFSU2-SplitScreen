@@ -7,7 +7,7 @@ rumble, triggers, lightbars and pad speakers.
 
 ![6-player split screen](docs/split-screen-6p.gif)
 
-This is beta 0.14.0, so expect the odd bug; see [Bugs and crashes](#bugs-and-crashes).
+This is beta 0.14.1, so expect the odd bug; see [Bugs and crashes](#bugs-and-crashes).
 
 ## Install
 1. You need `speed2.exe` **v1.2** and [WidescreenFix](https://github.com/ThirteenAG/WidescreenFixesPack/releases/tag/nfsu2)
