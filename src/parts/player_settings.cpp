@@ -86,13 +86,13 @@ static uint64_t __fastcall HudStateOf(uint8_t* player) {
     int& idx = *reinterpret_cast<int*>(player + 0x10);
     int saved = idx;
     if (saved < 2 || saved >= MAX_LOCAL_PLAYERS)
-        return reinterpret_cast<uint64_t(__fastcall*)(uint8_t*)>(FN_HUD_STATE)(player);
+        return reinterpret_cast<uint64_t(__fastcall*)(uint8_t*)>(CallPrev(AT_HUD_STATE_CALL, FN_HUD_STATE))(player);
     uint8_t own[PLAYER_SETTING_SIZE];
     int as = saved & 1;
     memcpy(own, g_settings[as], PLAYER_SETTING_SIZE);
     memcpy(g_settings[as], g_settings[saved], PLAYER_SETTING_SIZE);
     idx = as;
-    uint64_t state = reinterpret_cast<uint64_t(__fastcall*)(uint8_t*)>(FN_HUD_STATE)(player);
+    uint64_t state = reinterpret_cast<uint64_t(__fastcall*)(uint8_t*)>(CallPrev(AT_HUD_STATE_CALL, FN_HUD_STATE))(player);
     idx = saved;
     memcpy(g_settings[as], own, PLAYER_SETTING_SIZE);
     return state;

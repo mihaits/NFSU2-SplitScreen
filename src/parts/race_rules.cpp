@@ -119,7 +119,7 @@ static void __cdecl CreatePlayers() {
     // restarted race counted one racer too many (drift: a racer message without a name, crash 0x43E99A)
     UncountResultsRacers();
     SyncPlayerSettings(true);
-    reinterpret_cast<void(__cdecl*)()>(FN_CREATE_PLAYERS)();
+    reinterpret_cast<void(__cdecl*)()>(CallPrev(AT_CREATE_PLAYERS_CALL, FN_CREATE_PLAYERS))();
     if (g_debug && GetPrivateProfileIntA("DEBUG", "WatchHud", 0, g_iniPath) && g_localPlayers.byIndex[0]) {
         auto* hud = *reinterpret_cast<uint8_t**>(static_cast<uint8_t*>(g_localPlayers.byIndex[0]) + 0x9A4);
         if (hud && *reinterpret_cast<uint8_t**>(hud + 0x18))

@@ -72,21 +72,19 @@
 
 // ---------------------------------------------------------------- setup
 static bool IsSupportedExe() {
-    // original bytes at a few patch sites (v1.2, unpatched)
+    // original bytes at a few patch sites (v1.2, unpatched); a call another plugin redirected passes (IsCallTo)
     const uint8_t loopMax[] = {0x83, 0xF8, 0x01};
     const uint8_t remapJnz[] = {0x75, 0x24};
     const uint8_t qrMode[] = {0xC7, 0x05, 0x78, 0x00, 0x85, 0x00, 0x02, 0x00, 0x00, 0x00};
     const uint8_t pressStart[] = {0x8B, 0x44, 0x24, 0x04, 0x3D, 0x64, 0xB3, 0x1A, 0x91};
     const uint8_t carSelect[] = {0x55, 0x8B, 0x6C, 0x24, 0x10};
-    const uint8_t mainMenu[] = {0xE8, 0x83, 0x1B, 0x0C, 0x00};
-    const uint8_t joypadTitle[] = {0xE8, 0xE3, 0xFE, 0x02, 0x00};
+    auto call = [](uintptr_t at, int32_t rel) { return IsCallTo(at, at + 5 + rel); };
     return memcmp(reinterpret_cast<void*>(AT_VIEWLOOP_MAX - 2), loopMax, sizeof(loopMax)) == 0 &&
            memcmp(reinterpret_cast<void*>(AT_SECTION_REMAP), remapJnz, sizeof(remapJnz)) == 0 &&
            memcmp(reinterpret_cast<void*>(AT_QR_SET_MODE), qrMode, sizeof(qrMode)) == 0 &&
            memcmp(reinterpret_cast<void*>(AT_PRESSSTART), pressStart, sizeof(pressStart)) == 0 &&
            memcmp(reinterpret_cast<void*>(AT_CARSELECT), carSelect, sizeof(carSelect)) == 0 &&
-           memcmp(reinterpret_cast<void*>(AT_MAINMENU_QR), mainMenu, sizeof(mainMenu)) == 0 &&
-           memcmp(reinterpret_cast<void*>(AT_JOYPAD_TITLE), joypadTitle, sizeof(joypadTitle)) == 0;
+           call(AT_MAINMENU_QR, 0x0C1B83) && call(AT_JOYPAD_TITLE, 0x02FEE3);
 }
 
 static void LoadConfig(HMODULE self) {
@@ -347,6 +345,7 @@ static void Install(HMODULE self) {
     const uint8_t humanCap = MAX_LOCAL_PLAYERS;
     Write(AT_HUMAN_MANAGER_CAP, &humanCap, 1);
     WriteCall(AT_RACER_SPEC_CALL, &RacerSpecIndexShift);
+    g_racerSpecCtor = CallPrev(AT_RACER_SPEC_CALL, FN_RACER_SPEC_CTOR);
     WriteCall(AT_AI_SET_SKIN, &AiSetSkin);
     WriteCall(AT_AI_REFERENCE_CALL, &AiReferenceRacer);
     WriteCall(AT_PLAYER_HUD_CALL, &PlayerHudCtor);
@@ -356,12 +355,14 @@ static void Install(HMODULE self) {
     WriteCall(AT_HUD_TEX_UNLOAD_CALL, &HudTexUnloadHook);
     WriteJump(FN_RACER_OF_PLAYER, &RacerOfPlayer, 5);
     WriteCall(AT_FE_RENDER_OBJ_CALL, &RenderFeObject);
+    g_feRenderObj = CallPrev(AT_FE_RENDER_OBJ_CALL, FN_FE_RENDER_OBJ);
     WriteCall(AT_MINIMAP_UPDATE_CALL, &MinimapUpdate);
     WriteCall(AT_MINIMAP_DESTROY_CALL, &DestroyMinimapManager);
     WriteCall(AT_MINIMAP_REBUILD_DESTROY_CALL, &DestroyMinimapManager);
     for (uintptr_t at : kBuildStandingsCalls) WriteCall(at, &BuildStandings);
     WriteCall(AT_RACE_RESULTS_CALL, &RaceResults);
     WriteCall(AT_FALL_RESET_CALL, &FallResetHook);
+    g_fallReset = CallPrev(AT_FALL_RESET_CALL, FN_FALL_RESET);
     g_origCarNotVisible = reinterpret_cast<CarNotVisibleFn>(MakeTrampoline(FN_CAR_NOT_VISIBLE, 5));
     WriteJump(FN_CAR_NOT_VISIBLE, &CarNotVisible, 5);
     g_origAssignGrid = reinterpret_cast<AssignGridFn>(MakeTrampoline(FN_ASSIGN_GRID, 6));
@@ -424,6 +425,7 @@ static void Install(HMODULE self) {
     WriteCall(AT_STREAK_VIEW_CALL, &StreakView);
     WriteCall(AT_STREAK_COMPOSITE_CALL, &StreakComposite);
     WriteCall(AT_BLIT_QUAD_READY, &BlitQuadReadyHook);
+    g_blitQuadReady = CallPrev(AT_BLIT_QUAD_READY, FN_BLIT_QUAD_READY);
     WriteCall(AT_STREAK_AA_COPY, &StreakAACopy);
     WriteCall(AT_BLUR_CALL, &MotionBlurForView);
     WriteCall(AT_BLUR_VIEW_CALL1, &BlurView);
@@ -443,6 +445,7 @@ static void Install(HMODULE self) {
 
     const uint8_t jmp = 0xEB;                    // never remap to the reduced 2P sections
     Write(AT_SECTION_REMAP, &jmp, 1);
+    LogCallSites();
 }
 
 BOOL WINAPI DllMain(HMODULE module, DWORD reason, LPVOID) {

@@ -99,7 +99,7 @@ static void RenderEnvCube(int k) {
 }
 
 static void __cdecl EnvMapsForPlayers() {
-    reinterpret_cast<void(__cdecl*)()>(FN_FLUSH_DRAWS)();   // replaced call
+    reinterpret_cast<void(__cdecl*)()>(CallPrev(AT_ENV_DONE, FN_FLUSH_DRAWS))();   // replaced call
     if (!SplitRacing() || !at<int>(OPT_CAR_ENV_MAP) || at<int>(GAME_STATE) != 6 || !g_worldViews ||
         !at<void*>(ENV_CUBE_FACES) || g_screenViews < 2)
         return;

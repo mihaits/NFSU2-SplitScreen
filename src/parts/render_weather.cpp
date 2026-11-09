@@ -78,7 +78,7 @@ static __declspec(naked) void SplashRegionSlot() {
 }
 
 static void __fastcall RainForViews(void* rain1, void*) {
-    if (!SplitRacing()) { reinterpret_cast<void(__thiscall*)(void*)>(FN_RAIN_UPDATE)(rain1); return; }
+    if (!SplitRacing()) { reinterpret_cast<void(__thiscall*)(void*)>(CallPrev(AT_RAIN_CALL, FN_RAIN_UPDATE))(rain1); return; }
     void* dev = at<void*>(D3D_DEVICE);
     float accum = at<float>(RAIN_TIME_ACCUM);
     int saved = g_currentView;
@@ -94,7 +94,7 @@ static void __fastcall RainForViews(void* rain1, void*) {
         Viewport9 vp = {static_cast<DWORD>(g_regionX[k]), static_cast<DWORD>(g_regionY[k]),
                         static_cast<DWORD>(g_rt[k].width), static_cast<DWORD>(g_rt[k].height), 0.0f, 1.0f};
         if (dev && g_origSetViewport) reinterpret_cast<HRESULT(__stdcall*)(void*, Viewport9*)>(g_origSetViewport)(dev, &vp);
-        reinterpret_cast<void(__thiscall*)(void*)>(FN_RAIN_UPDATE)(rain);
+        reinterpret_cast<void(__thiscall*)(void*)>(CallPrev(AT_RAIN_CALL, FN_RAIN_UPDATE))(rain);
     }
     g_currentView = saved;
     if (haveBefore && g_origSetViewport) reinterpret_cast<HRESULT(__stdcall*)(void*, Viewport9*)>(g_origSetViewport)(dev, &before);
@@ -105,7 +105,7 @@ static void* __cdecl RainDropsView(int id) {
 }
 
 static void __fastcall RainDropGet(void* rain, void*, int i, float* x, float* y, float* alpha, float* size) {
-    reinterpret_cast<void(__thiscall*)(void*, int, float*, float*, float*, float*)>(FN_RAIN_DROP_GET)(rain, i, x, y,
+    reinterpret_cast<void(__thiscall*)(void*, int, float*, float*, float*, float*)>(CallPrev(AT_RAIN_DROP_GET, FN_RAIN_DROP_GET))(rain, i, x, y,
                                                                                                     alpha, size);
     if (g_rainSlot < 0) return;
     float w = static_cast<float>(at<int>(SCREEN_W)), h = static_cast<float>(at<int>(SCREEN_H));
@@ -118,11 +118,11 @@ static void __fastcall RainDropGet(void* rain, void*, int i, float* x, float* y,
 }
 
 static void __cdecl RainDropsForViews(int arg) {
-    if (!SplitRacing()) { reinterpret_cast<void(__cdecl*)(int)>(FN_RAIN_DROPS)(arg); return; }
+    if (!SplitRacing()) { reinterpret_cast<void(__cdecl*)(int)>(CallPrev(AT_RAIN_DROPS_CALL, FN_RAIN_DROPS))(arg); return; }
     for (int k = 0; k < g_screenViews; ++k) {
         if (!GetView(kPlayerViewId[k]).active) continue;
         g_rainSlot = k;
-        reinterpret_cast<void(__cdecl*)(int)>(FN_RAIN_DROPS)(arg);
+        reinterpret_cast<void(__cdecl*)(int)>(CallPrev(AT_RAIN_DROPS_CALL, FN_RAIN_DROPS))(arg);
     }
     g_rainSlot = -1;
 }
@@ -344,7 +344,7 @@ static int g_obThreshold[MAX_LOCAL_PLAYERS];   // bright-pass threshold 0x7FF10C
 int g_obScissorSlotExt = -1;
 #define g_obScissorSlot g_obScissorSlotExt
 static void __cdecl OverbrightAmounts() {
-    reinterpret_cast<void(__cdecl*)()>(FN_OVERBRIGHT_AMOUNT)();
+    reinterpret_cast<void(__cdecl*)()>(CallPrev(AT_OVERBRIGHT_AMOUNT_CALL, FN_OVERBRIGHT_AMOUNT))();
     g_obAmount[0] = at<int>(0x7FF114);
     g_obThreshold[0] = at<int>(0x7FF10C);
     g_obSmoothed[0] = at<float>(0x876848);
@@ -381,7 +381,7 @@ void ReapplyOverbrightScissor(void* dev) {
 #define AT_BRIGHT_PASS_CALL2 0x5CCA61
 #define AT_BRIGHT_PASS_CALL0 0x5CCA25    // the downsample before it (last argument 0), same treatment in case it is the one
 static void __cdecl BrightPassPerView(void* dst, void* src, int mode, void* params, int flag) {
-    auto blit = reinterpret_cast<void(__cdecl*)(void*, void*, int, void*, int)>(0x5C5F70);
+    auto blit = reinterpret_cast<void(__cdecl*)(void*, void*, int, void*, int)>(CallPrev(_ReturnAddress(), 0x5C5F70));
     void* dev = at<void*>(D3D_DEVICE);
     if (!SplitRacing() || g_screenViews < 2 || !dev || !dst || at<int>(GAME_STATE) != 6) { blit(dst, src, mode, params, flag); return; }
     struct { DWORD Format, Type, Usage, Pool, MultiSampleType, MultiSampleQuality; UINT Width, Height; } desc = {};
@@ -400,7 +400,7 @@ static void __cdecl BrightPassPerView(void* dst, void* src, int mode, void* para
     at<int>(0x7FF10C) = saved;
 }
 static void __cdecl OverbrightAccumulate(void* a1, int a2, void* a3, void* a4, int a5, int a6, int a7, int a8) {
-    auto blit = reinterpret_cast<void(__cdecl*)(void*, int, void*, void*, int, int, int, int)>(0x5C6BE0);
+    auto blit = reinterpret_cast<void(__cdecl*)(void*, int, void*, void*, int, int, int, int)>(CallPrev(AT_OVERBRIGHT_ACCUM_CALL, 0x5C6BE0));
     void* dev = at<void*>(D3D_DEVICE);
     if (!SplitRacing() || g_screenViews < 2 || !dev || at<int>(GAME_STATE) != 6) { blit(a1, a2, a3, a4, a5, a6, a7, a8); return; }
     SetRenderState(174, 1);                                         // D3DRS_SCISSORTESTENABLE

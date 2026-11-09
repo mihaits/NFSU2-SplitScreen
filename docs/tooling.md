@@ -12,9 +12,11 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
     `gh`, in memory): byte overlaps, near misses, patches on addresses we read or call, and with `--names` that mod's
     function names for our addresses. It sees literal patches only, so a clean result is no substitute for a test.
   - `chain_test.sh` (live, `RACE=1` also starts a 2P split race) builds `chain_test/ChainTest.cpp` as
-    `scripts/AAChainTest.asi`, a plugin that loads before ours and hooks every `MakeTrampoline` site the way other
-    mods do (5-byte `jmp`, NOPs, a stub that counts calls). It passes when the game runs with no crash and the sites
-    log `chained`. It lists the sites that skip their hook on a byte check, and then removes the test plugin.
+    `scripts/AAChainTest.asi`, a plugin that loads before ours and hooks the way other mods do: a 5-byte `jmp` on
+    every `MakeTrampoline` site and a redirect on every `WriteCall` site, each through a stub that counts calls. A
+    first boot without it reads the call sites from the log. It passes when the game runs with no crash and every
+    site logs `chained`, lists the sites left alone, and then removes the test plugin. Other mods in `scripts/` stay
+    installed and show up as chained in the first boot (WidescreenFix's camera).
   - `trackmarkers.py [--track id] [--type text] [--json out] [--tracks] [--verify]` reads every track's position
     markers from the game files: start grids (`Forward/BackwardStartingPosition`, the ones 0x5EB5D0 returns),
     start and finish lines, and track 4000's shop and crib spots (x y z heading). Also the track table with each

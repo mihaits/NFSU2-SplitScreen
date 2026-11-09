@@ -136,7 +136,7 @@ static int __cdecl PauseInputMask(int port) {
     g_pauseSeen = false;
     SyncPlayerSettings(false);           // the pause menus show the pausing player's own settings
     if (g_pauseOwner >= 0) Log("pause: player %d's pad drives the menu as slot %d", port + 1, port & 1);
-    return reinterpret_cast<int(__cdecl*)(int)>(FN_PORT_MASK)(g_pauseOwner >= 0 ? port & 1 : port);
+    return reinterpret_cast<int(__cdecl*)(int)>(CallPrev(AT_PAUSE_MASK_CALL, FN_PORT_MASK))(g_pauseOwner >= 0 ? port & 1 : port);
 }
 
 // Car select: the seat whose pad / keyboard drives the frontend. On a later seat's Press START popup that is the
@@ -1084,5 +1084,5 @@ static void __fastcall QrFinishRows(uint8_t* screen, void*, int arg) {
     if (SplitMode()) AddPlayersRow(screen);
     if (SplitMode()) AddCarsRow(screen);
     if (SplitMode() && AiRaceType()) AddOpponentsRow(screen), AddDifficultyRow(screen);
-    reinterpret_cast<void(__thiscall*)(void*, int)>(FN_QR_FINISH_ROWS)(screen, arg);
+    reinterpret_cast<void(__thiscall*)(void*, int)>(CallPrev(_ReturnAddress(), FN_QR_FINISH_ROWS))(screen, arg);
 }

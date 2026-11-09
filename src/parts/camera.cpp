@@ -209,11 +209,11 @@ static void UpdateFreeCamHook() {
 
 void* GetLocalPlayer(int k);
 static void __cdecl FfUpdate() {
-    reinterpret_cast<void(__cdecl*)()>(FN_FF_UPDATE)();
+    reinterpret_cast<void(__cdecl*)()>(CallPrev(AT_FF_UPDATE_CALL, FN_FF_UPDATE))();
     for (int pair = 1; SplitMode() && 2 * pair < 2 + g_extraPlayers && pair < MAX_LOCAL_PLAYERS / 2; ++pair) {
         SwapFfShadow(pair);
         g_ffPortBase = 2 * pair;
-        reinterpret_cast<void(__cdecl*)()>(FN_FF_UPDATE)();
+        reinterpret_cast<void(__cdecl*)()>(CallPrev(AT_FF_UPDATE_CALL, FN_FF_UPDATE))();
         g_ffPortBase = 0;
         SwapFfShadow(pair);
     }
@@ -310,7 +310,7 @@ static __declspec(naked) void JoySlotWheel() {
 // 21 rows of 4 port columns + 3 other dwords. Ports 4/5 with action 1 zeroed those other dwords: no pad worked in the
 // menus any more. Ports 4/5 get their id only; their state comes from PollExtraPort like ports 2/3.
 static void __cdecl InputInit() {
-    reinterpret_cast<void(__cdecl*)()>(FN_INPUT_INIT)();
+    reinterpret_cast<void(__cdecl*)()>(CallPrev(AT_INPUT_INIT_CALL, FN_INPUT_INIT))();
     for (int port = 2; port < INPUT_PORTS; ++port) {
         *reinterpret_cast<int*>(g_portTables + port * PORT_TABLE_SIZE + 0x1B4) = port;
         if (port < 4) reinterpret_cast<void(__cdecl*)(int, int, uint32_t, int)>(FN_ADD_BINDING)(port, 1, 0x571A20, 0);

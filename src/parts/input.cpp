@@ -184,7 +184,7 @@ static void UpdateBindSwap() { SetBindSwap(ControlsPageSeat()); }
 
 static void __fastcall BuildControlsPages(uint8_t* screen) {
     g_ctrlPageBase = -1;
-    reinterpret_cast<void(__thiscall*)(void*)>(FN_CONTROLS_PAGES)(screen);
+    reinterpret_cast<void(__thiscall*)(void*)>(CallPrev(AT_CONTROLS_PAGES_CALL, FN_CONTROLS_PAGES))(screen);
     int& count = *reinterpret_cast<int*>(screen + 0x158);
     int record = -1;
     for (int d = 0; d < INPUT_DEVICE_MAX; ++d)
@@ -204,12 +204,12 @@ static void __fastcall BuildControlsPages(uint8_t* screen) {
 
 static uint8_t* __cdecl ProfileSaveBindings(uint8_t* out) {
     SetBindSwap(-1);                     // player 1's bindings into the profile (the page puts them back next frame)
-    return reinterpret_cast<uint8_t*(__cdecl*)(uint8_t*)>(FN_PROFILE_SAVE_BINDINGS)(out);
+    return reinterpret_cast<uint8_t*(__cdecl*)(uint8_t*)>(CallPrev(AT_PROFILE_SAVE_BINDINGS, FN_PROFILE_SAVE_BINDINGS))(out);
 }
 
 static uint8_t* __cdecl ProfileLoadBindings(uint8_t* in) {
     SetBindSwap(-1);
-    return reinterpret_cast<uint8_t*(__cdecl*)(uint8_t*)>(FN_PROFILE_LOAD_BINDINGS)(in);
+    return reinterpret_cast<uint8_t*(__cdecl*)(uint8_t*)>(CallPrev(AT_PROFILE_LOAD_BINDINGS, FN_PROFILE_LOAD_BINDINGS))(in);
 }
 
 // Ports 2-5 (players 3-6) have no DirectInput slot: their state is built from their own XInput pad with their own

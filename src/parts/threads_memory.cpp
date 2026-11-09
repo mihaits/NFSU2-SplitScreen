@@ -10,7 +10,7 @@
 #define FN_SOUND_FS_CREATE 0x6F6750      // void* __cdecl (bigFiles, handles, mem); free handle list at +0x3C (count +8)
 static uint8_t* g_soundFs;
 static void* __cdecl CreateSoundFs(int bigFiles, int handles, void* mem) {
-    g_soundFs = reinterpret_cast<uint8_t*(__cdecl*)(int, int, void*)>(FN_SOUND_FS_CREATE)(bigFiles, handles, mem);
+    g_soundFs = reinterpret_cast<uint8_t*(__cdecl*)(int, int, void*)>(CallPrev(AT_SOUND_FS_CREATE_CALL, FN_SOUND_FS_CREATE))(bigFiles, handles, mem);
     return g_soundFs;
 }
 static int SoundFsFreeHandles() { return g_soundFs ? *reinterpret_cast<int*>(g_soundFs + 0x3C + 8) : -1; }
@@ -147,7 +147,7 @@ static void __cdecl CreateAudioPool() {
     const uint32_t size = 0x600000 - 0x4000;
     if (at<uint32_t>(AT_AUDIO_POOL_SIZE) < size) Write(AT_AUDIO_POOL_SIZE, &size, 4);
     Log("audio pool: %u KB", (at<uint32_t>(AT_AUDIO_POOL_SIZE) + 0x4000) / 1024);
-    reinterpret_cast<void(__cdecl*)()>(FN_AUDIO_POOL_CREATE)();
+    reinterpret_cast<void(__cdecl*)()>(CallPrev(AT_AUDIO_POOL_CALL, FN_AUDIO_POOL_CREATE))();
 }
 
 // Track streaming memory: race load (0x57A5E3) sizes the "Track Streaming" pool from a table by race kind
@@ -193,7 +193,7 @@ static void __fastcall CreateTrackStreamingPool(void* streamer, void*, int bytes
         if (split > bytes) bytes = split;
     }
     Log("track streaming pool: %d KB", bytes / 1024);
-    reinterpret_cast<void(__thiscall*)(void*, int)>(FN_TRACK_POOL_CREATE)(streamer, bytes);
+    reinterpret_cast<void(__thiscall*)(void*, int)>(CallPrev(AT_TRACK_POOL_CALL, FN_TRACK_POOL_CREATE))(streamer, bytes);
     if (SplitPools()) AddPoolRecords(static_cast<uint8_t*>(streamer));
 }
 // The second pool is the car loader's (0x8A3288): car models and textures. When it runs short, the loader evicts the
@@ -208,7 +208,7 @@ static void __fastcall CreateSecondStreamingPool(void* pool, void*, int bytes) {
         if (split > bytes) bytes = split;
     }
     Log("second streaming pool: %d KB", bytes / 1024);
-    reinterpret_cast<void(__thiscall*)(void*, int)>(FN_SECOND_POOL_CREATE)(pool, bytes);
+    reinterpret_cast<void(__thiscall*)(void*, int)>(CallPrev(AT_SECOND_POOL_CALL, FN_SECOND_POOL_CREATE))(pool, bytes);
 }
 
 // 0x639F20 gives back a texture set's references and unloads the textures that reach 0, then empties the set. If none
@@ -220,7 +220,7 @@ static void __fastcall CreateSecondStreamingPool(void* pool, void*, int bytes) {
 #define TEXSET_NAMES       0x31C
 #define TEXSET_MAX         0x45
 static int __fastcall PurgeReleaseTextures(void* loader, void*, uint8_t* set) {
-    int released = reinterpret_cast<int(__thiscall*)(void*, void*)>(FN_TEXSET_RELEASE)(loader, set);
+    int released = reinterpret_cast<int(__thiscall*)(void*, void*)>(CallPrev(AT_PURGE_RELEASE, FN_TEXSET_RELEASE))(loader, set);
     int n = *reinterpret_cast<int*>(set + TEXSET_COUNT);
     if (released || n <= 0 || n > TEXSET_MAX) { Log("car purge: texture set %p unloaded", set); return released; }
     uint8_t** names = reinterpret_cast<uint8_t**>(set + TEXSET_NAMES);
@@ -242,5 +242,5 @@ static void __cdecl RemoveCarBlock(int pool, uint8_t* block, int size) {
     for (uint8_t* n = *reinterpret_cast<uint8_t**>(head); n != head; n = *reinterpret_cast<uint8_t**>(n))
         if (n == block) whole = *reinterpret_cast<int*>(n + 8) == size;
     Log("car pool block %p, %d KB at the track's unload: %s", block, size / 1024, whole ? "free" : "STILL IN USE");
-    reinterpret_cast<void(__cdecl*)(int, void*, int)>(FN_POOL_REMOVE)(pool, block, size);
+    reinterpret_cast<void(__cdecl*)(int, void*, int)>(CallPrev(AT_CAR_BLOCK_REMOVE, FN_POOL_REMOVE))(pool, block, size);
 }

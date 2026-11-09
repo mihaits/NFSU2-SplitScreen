@@ -61,11 +61,11 @@ static void __fastcall DestroyMinimapManager(uint8_t* mgr) {
         e = next;
     }
     g_mmExtendedMgr = nullptr;
-    reinterpret_cast<void(__fastcall*)(void*)>(FN_MINIMAP_DESTROY)(mgr);
+    reinterpret_cast<void(__fastcall*)(void*)>(CallPrev(_ReturnAddress(), FN_MINIMAP_DESTROY))(mgr);
 }
 
 static void __fastcall MinimapUpdate(uint8_t* mgr, void*) {
-    auto update = reinterpret_cast<void(__fastcall*)(void*, void*)>(FN_MINIMAP_UPDATE);
+    auto update = reinterpret_cast<void(__fastcall*)(void*, void*)>(CallPrev(AT_MINIMAP_UPDATE_CALL, FN_MINIMAP_UPDATE));
     int n = (g_quadHud || g_mm2p) && g_mmObjCount > 0 ? (g_screenViews < 2 + g_extraPlayers ? g_screenViews : 2 + g_extraPlayers) : 0;
     g_mmPlayers = 0;
     if (!n) { update(mgr, nullptr); return; }

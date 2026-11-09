@@ -80,7 +80,7 @@ static int ActiveListeners() {
     return n < 2 ? 2 : n > MAX_LOCAL_PLAYERS ? MAX_LOCAL_PLAYERS : n;
 }
 static void __fastcall ListenerUpdate(void* ecx, void*) {
-    auto update = [ecx]() { reinterpret_cast<void(__fastcall*)(void*)>(FN_LISTENER_UPDATE)(ecx); };
+    auto update = [ecx]() { reinterpret_cast<void(__fastcall*)(void*)>(CallPrev(AT_LISTENER_UPDATE_CALL, FN_LISTENER_UPDATE))(ecx); };
     update();
     int n = ActiveListeners();
     for (int pair = 2; pair < n; pair += 2) {
@@ -379,7 +379,7 @@ static void __cdecl EaApplyGainsHook(int channel) {
 }
 static void InstallEaVoiceLog() {
     static const uint8_t prologue[5] = {0x55, 0x8B, 0xEC, 0x53, 0x56};
-    if (memcmp(reinterpret_cast<void*>(FN_EA_APPLY_GAINS), prologue, 5) != 0) return;
+    if (!IsCodeAt(FN_EA_APPLY_GAINS, prologue, 5)) return;
     g_origEaApplyGains = reinterpret_cast<EaApplyGainsFn>(MakeTrampoline(FN_EA_APPLY_GAINS, 5));
     WriteJump(FN_EA_APPLY_GAINS, &EaApplyGainsHook, 5);
 }
@@ -666,7 +666,7 @@ static void __cdecl MixChannel(const uint8_t* voice, const uint8_t* gainPtr, int
 typedef void(__cdecl* EaMixRampFn)(float, float, const float*, float*);
 static void __cdecl RampChannel(const uint8_t* voice, const uint8_t* gainPtr, float from, float to,
                                 const float* src, float* dst) {
-    auto ramp = reinterpret_cast<EaMixRampFn>(FN_EA_MIX_RAMP);
+    auto ramp = reinterpret_cast<EaMixRampFn>(CallPrev(AT_RAMP_CHANNEL_CALL, FN_EA_MIX_RAMP));
     int k = SpeakerPlayerOfVoice(voice);
     int ch = static_cast<int>(gainPtr - voice - 0x1C) / 4;
     if (k < 0 || ch < 0 || ch > 1) { ramp(from, to, src, dst); return; }
@@ -674,7 +674,7 @@ static void __cdecl RampChannel(const uint8_t* voice, const uint8_t* gainPtr, fl
     if (off >= 0 && off + 16 <= 256) ramp(from, to, src, g_speakerMix[k][ch] + off);
 }
 static void __cdecl RampAux(const uint8_t* voice, float from, float to, const float* src, float* dst) {
-    if (SpeakerPlayerOfVoice(voice) < 0) reinterpret_cast<EaMixRampFn>(FN_EA_MIX_RAMP)(from, to, src, dst);
+    if (SpeakerPlayerOfVoice(voice) < 0) reinterpret_cast<EaMixRampFn>(CallPrev(AT_RAMP_AUX_CALL, FN_EA_MIX_RAMP))(from, to, src, dst);
 }
 static __declspec(naked) void RampChannelHook() {
     __asm {
@@ -768,7 +768,7 @@ static void __cdecl RenderChunk(void* channels, int frames) {
         on[k] = g_speakerPad[k] >= 0 && !g_speakerFailed[k] && now - g_speakerSeen[k] < 500 && frames <= 256;
         if (on[k]) memset(g_speakerMix[k], 0, sizeof(g_speakerMix[k]));
     }
-    reinterpret_cast<void(__cdecl*)(void*, int)>(FN_RENDER)(channels, frames);
+    reinterpret_cast<void(__cdecl*)(void*, int)>(CallPrev(AT_RENDER_CALL, FN_RENDER))(channels, frames);
     if (g_speakerDumpSeconds > 0 && on[0]) {   // debug: float32 frames {PC left, PC right, player 1's pad (16-bit scale)}
         static FILE* dump;
         static int left = -1;
@@ -845,7 +845,7 @@ static void InstallPadSpeakers() {
 #define SOUND_ENABLED          0x7FAAA8
 static void __fastcall RemoveSoundSource(uint8_t* sounds, void*, void* source) {
     uint8_t* list = *reinterpret_cast<uint8_t**>(sounds + 0x3C);
-    reinterpret_cast<void(__thiscall*)(void*, void*)>(FN_SOUND_SOURCE_REMOVE)(sounds, source);
+    reinterpret_cast<void(__thiscall*)(void*, void*)>(CallPrev(AT_SOUND_SOURCE_REMOVE, FN_SOUND_SOURCE_REMOVE))(sounds, source);
     if (!at<int>(SOUND_ENABLED) || !list) return;
     uint8_t* head = list + 4;
     int count = 0;

@@ -124,7 +124,7 @@ static void* __fastcall PlayerHudCtor(void* hud, void* edx, const char* fng, int
         }
         if (who >= 2) index = who;       // elements read the player's own data (p[index]); no 2nd minimap
     }
-    void* made = reinterpret_cast<CtorFn>(FN_HUD_CTOR)(hud, edx, fng, index);
+    void* made = reinterpret_cast<CtorFn>(CallPrev(AT_PLAYER_HUD_CALL, FN_HUD_CTOR))(hud, edx, fng, index);
     CreateGauges(who >= 2 ? who : index, made);
     return made;
 }

@@ -24,7 +24,7 @@ static bool IsStreakSurface(void* surf) {
 #define AT_STREAK_AA_COPY  0x5CBBB0
 static void __cdecl StreakAACopy(void* surf, void* tex) {
     g_streakFullCopy = true;
-    reinterpret_cast<void(__cdecl*)(void*, void*)>(0x5C7120)(surf, tex);
+    reinterpret_cast<void(__cdecl*)(void*, void*)>(CallPrev(AT_STREAK_AA_COPY, 0x5C7120))(surf, tex);
     g_streakFullCopy = false;
 }
 static void StreakRegionViewport(int k, Viewport9* vp) {    // streak buffer = screen size (0x86FF70)
@@ -268,7 +268,7 @@ static int EnlargeFrameScratch() {
 static void __cdecl DrawSky(View* v) {
     int id = v->id;
     if (id >= 5 && id <= 8) v->id = 1;
-    reinterpret_cast<void(__cdecl*)(View*)>(FN_DRAW_SKY)(v);
+    reinterpret_cast<void(__cdecl*)(View*)>(CallPrev(AT_SKY_CALL, FN_DRAW_SKY))(v);
     v->id = id;
 }
 

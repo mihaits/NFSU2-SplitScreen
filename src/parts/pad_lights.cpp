@@ -192,7 +192,7 @@ static void __fastcall TriggersRowAct(uint8_t* row, void*, const char* fng, uint
     reinterpret_cast<void(__thiscall*)(void*)>(vt[3])(row);
 }
 static int __fastcall PauseFeedbackAdd(uint8_t* screen, void*, void* row, int flag) {
-    int r = reinterpret_cast<int(__thiscall*)(void*, void*, int)>(FN_SCREEN_ADD_ROW)(screen, row, flag);
+    int r = reinterpret_cast<int(__thiscall*)(void*, void*, int)>(CallPrev(AT_PAUSE_FEEDBACK_ADD, FN_SCREEN_ADD_ROW))(screen, row, flag);
     int pad = PadOfPlayer(PausingLocalPlayer());
     if (pad != PAD_NONE && (XPadIsDualSense(pad) || XPadHasImpulseTriggers(pad))) {
         if (!g_triggersRowVt[0]) {

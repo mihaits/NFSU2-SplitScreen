@@ -12,7 +12,7 @@
 #define FN_OUTRUN_ELEMENT_UPDATE 0x4DABD0
 static void __fastcall OutrunElementUpdate(uint8_t* element, void*, int arg) {
     if (!*reinterpret_cast<void**>(element + 0x28) || !*reinterpret_cast<void**>(element + 0x2C)) return;
-    reinterpret_cast<void(__thiscall*)(void*, int)>(FN_OUTRUN_ELEMENT_UPDATE)(element, arg);
+    reinterpret_cast<void(__thiscall*)(void*, int)>(CallPrev(AT_OUTRUN_ELEMENT_UPDATE, FN_OUTRUN_ELEMENT_UPDATE))(element, arg);
 }
 // When driving starts, Free Run switches the race to its free state (0x89E7B0 = 7, 0x607190) and sets the local player
 // count from the human cars ([[0x890080]+0x14], 0x6071D5): 3-6 with the extra players, and the game's 2-player paths (split
@@ -198,7 +198,7 @@ static void __cdecl StartSpots(int n, uint8_t* out) {
         to.heading = static_cast<uint16_t>(g_debugStart[3]);
     bool move = SplitMode() && at<int>(QR_RACE_TYPE) == RACE_TYPE_FREE_RUN && at<int>(CURRENT_TRACK) == to.track &&
                 (to.x != 0 || to.y != 0);
-    if (!move) reinterpret_cast<void(__cdecl*)(int, uint8_t*)>(FN_START_SPOTS)(n, out);
+    if (!move) reinterpret_cast<void(__cdecl*)(int, uint8_t*)>(CallPrev(AT_START_SPOTS, FN_START_SPOTS))(n, out);
     float a = to.heading * 6.2831853f / 65536.0f, fx = cosf(a), fy = sinf(a);   // forward; side = (-fy, fx)
     for (int i = 0; i < n; ++i) {
         auto* p = reinterpret_cast<float*>(out + i * 0x20);

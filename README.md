@@ -100,6 +100,7 @@ and attach `scripts\NFSU2SplitScreen.log` (set `Debug = 1` in the ini to write i
 | [NFSU2 Unlimiter](https://github.com/nlgxzef/NFSU2Unlimiter) | works |
 | [NFSU2 Upscaled HUD](https://nfsmods.xyz/mod/4319) | works; the Split-Screen menu icon switches to a matching HD one |
 | [NFSU2 Detailed Map](https://nfsmods.xyz/mod/4485) | works |
+| [Crashing Foreign Cars](https://streetsmodz.com.br/mods/underground-2/crashing-foreign-cars) | works: damage on every player's car, garage repairs; its health bar is single-player only |
 | [XtendedInput](https://github.com/xan1242/NFSU-XtendedInput) | not needed, and can't run together: this mod already reads XInput pads and has per-player remapping in Options → Controls |
 
 ## Linux compatibility

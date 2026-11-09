@@ -216,6 +216,13 @@ static void WriteJump(uintptr_t where, const void* to, size_t len) {
 //   original bytes after it in place.
 // - `call rel32`: copied with its displacement re-aimed.
 static void Log(const char* fmt, ...);
+static bool InGameImage(uintptr_t a);
+// a function start MakeTrampoline can hook: the expected original bytes, or another plugin's jmp rel32 in front of them
+static bool IsCodeAt(uintptr_t at, const uint8_t* bytes, size_t n) {
+    const auto* b = reinterpret_cast<const uint8_t*>(at);
+    if (memcmp(b, bytes, n) == 0) return true;
+    return b[0] == 0xE9 && !InGameImage(at + 5 + *reinterpret_cast<const int32_t*>(b + 1));
+}
 static void* MakeTrampoline(uintptr_t where, size_t len) {
     auto* tramp = static_cast<uint8_t*>(VirtualAlloc(nullptr, 32, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE));
     const auto* src = reinterpret_cast<const uint8_t*>(where);
@@ -241,4 +248,68 @@ static void* MakeTrampoline(uintptr_t where, size_t len) {
     int32_t rel = static_cast<int32_t>((where + len) - (reinterpret_cast<uintptr_t>(tramp) + len + 5));
     memcpy(tramp + len + 1, &rel, 4);
     return tramp;
+}
+
+// Call sites. WriteCall(at, fn) points the `call rel32` at `at` to fn and records the target the call had: the game's
+// function, or another plugin's that a plugin loaded before this one put there (its function then calls the game's).
+// A hook that runs the original calls CallPrev(at, FN_...) instead of the game function, so the other plugin's stays
+// in the chain; a hook shared by several sites passes _ReturnAddress(). A hook that replaces the call drops it.
+static bool InGameImage(uintptr_t a) {
+    static uintptr_t end;
+    if (!end) {
+        auto* dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(0x400000);
+        end = 0x400000 + reinterpret_cast<const IMAGE_NT_HEADERS*>(0x400000 + dos->e_lfanew)->OptionalHeader.SizeOfImage;
+    }
+    return a >= 0x400000 && a < end;
+}
+static uintptr_t CallTarget(uintptr_t at) {
+    const auto* b = reinterpret_cast<const uint8_t*>(at);
+    return b[0] == 0xE8 ? at + 5 + *reinterpret_cast<const int32_t*>(b + 1) : 0;
+}
+// the call at `at` goes to the game function `fn`, or to another plugin's function in front of it
+static bool IsCallTo(uintptr_t at, uintptr_t fn) {
+    uintptr_t t = CallTarget(at);
+    return t && (t == fn || !InGameImage(t));
+}
+struct CallSite { uintptr_t at, prev; };
+static CallSite g_callSites[160];
+static int g_callSiteCount;
+static void WriteCall(uintptr_t where, const void* to) {
+    bool known = false;
+    for (int i = 0; i < g_callSiteCount; ++i) known |= g_callSites[i].at == where;
+    if (!known && g_callSiteCount < static_cast<int>(_countof(g_callSites))) {
+        uintptr_t prev = CallTarget(where);
+        HMODULE self = nullptr;
+        GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                           reinterpret_cast<LPCSTR>(&WriteCall), &self);
+        HMODULE owner = nullptr;
+        if (prev && !InGameImage(prev))
+            GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                               reinterpret_cast<LPCSTR>(prev), &owner);
+        if (owner && owner == self) prev = 0;   // our own call: the hook's game function is the original
+        g_callSites[g_callSiteCount++] = {where, prev};
+        if (prev && !InGameImage(prev))
+            Log("call at %08X: chained to another plugin's function %08X", static_cast<unsigned>(where),
+                static_cast<unsigned>(prev));
+    }
+    uint8_t buf[5] = {0xE8};
+    int32_t rel = static_cast<int32_t>(reinterpret_cast<uintptr_t>(to) - (where + 5));
+    memcpy(buf + 1, &rel, 4);
+    Write(where, buf, 5);
+}
+static uintptr_t CallPrev(uintptr_t at, uintptr_t fn) {
+    for (int i = 0; i < g_callSiteCount; ++i)
+        if (g_callSites[i].at == at) return g_callSites[i].prev && !InGameImage(g_callSites[i].prev) ? g_callSites[i].prev : fn;
+    return fn;
+}
+static uintptr_t CallPrev(void* ret, uintptr_t fn) { return CallPrev(reinterpret_cast<uintptr_t>(ret) - 5, fn); }
+// debug log: every call site, 20 per line (tools/chain_test.sh reads them)
+static void LogCallSites() {
+    for (int i = 0; i < g_callSiteCount; i += 20) {
+        char line[200];
+        int n = 0;
+        for (int j = i; j < g_callSiteCount && j < i + 20; ++j)
+            n += sprintf_s(line + n, sizeof(line) - n, " %06X", static_cast<unsigned>(g_callSites[j].at));
+        Log("call sites:%s", line);
+    }
 }

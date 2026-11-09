@@ -12,6 +12,18 @@ static LocalPlayers g_localPlayers;
 void* GetLocalPlayer(int k) { return k >= 0 && k < g_localPlayers.count && k < MAX_LOCAL_PLAYERS ? g_localPlayers.byIndex[k] : nullptr; }
 void* LocalPlayerInOrder(int k) { return k >= 0 && k < MAX_LOCAL_PLAYERS ? g_localPlayers.inOrder[k] : nullptr; }
 
+// The game's own block is no longer read or written by the game. Other mods read it (CrashingForeignCars draws its
+// health bar for [0x8900B4] when [0x8900BC] == 1), so it holds a copy of players 1-2 and the count, at most 2 (a
+// reader of the old layout has 2 slots), refreshed every frame (LayoutApplyHook).
+static void MirrorLocalPlayers() {
+    auto* old = reinterpret_cast<void**>(OLD_PLAYERS_P);
+    for (int k = 0; k < 2; ++k) {
+        old[k] = g_localPlayers.byIndex[k];
+        old[2 + k] = g_localPlayers.inOrder[k];
+    }
+    *reinterpret_cast<int*>(OLD_PLAYERS_P + 16) = g_localPlayers.count < 2 ? g_localPlayers.count : 2;
+}
+
 static uintptr_t RelocatePlayerAddr(uint32_t a) {
     uint32_t k = a - OLD_PLAYERS_P;
     auto base = reinterpret_cast<uintptr_t>(&g_localPlayers);

@@ -253,7 +253,7 @@ static void __fastcall HudUpdateHook(void* hud, void*, void* player, void* arg) 
     auto* h = static_cast<uint8_t*>(hud);
     if (mine)
         for (int i = 0; i < kGaugeCount; ++i) std::swap(saved[i], *reinterpret_cast<void**>(h + kGauges[i].hudOffset));
-    reinterpret_cast<void(__thiscall*)(void*, void*, void*)>(FN_HUD_UPDATE)(hud, player, arg);
+    reinterpret_cast<void(__thiscall*)(void*, void*, void*)>(CallPrev(AT_HUD_UPDATE_CALL, FN_HUD_UPDATE))(hud, player, arg);
     if (mine)
         for (int i = 0; i < kGaugeCount; ++i) std::swap(saved[i], *reinterpret_cast<void**>(h + kGauges[i].hudOffset));
     // Free Run has no race position or race time: the position element (HUD +0x20, ctor 0x4F4AC0) shows "1st /3" in
@@ -317,7 +317,7 @@ static void __fastcall HudUpdateHook(void* hud, void*, void* player, void* arg) 
 static void __fastcall HudDtorHook(void* hud) {
     for (int k = 0; k < MAX_LOCAL_PLAYERS; ++k)
         if (g_gauges[k].hud == hud) DestroyGauges(k);
-    reinterpret_cast<void(__thiscall*)(void*)>(FN_HUD_DTOR_BODY)(hud);
+    reinterpret_cast<void(__thiscall*)(void*)>(CallPrev(AT_HUD_DTOR_CALL, FN_HUD_DTOR_BODY))(hud);
 }
 
 // Custom gauge textures: the race load (0x577F60) loads GLOBAL\HUD_CustomTextures_<HUDINDEX>.bin for P1's car only
@@ -353,7 +353,7 @@ static void __fastcall HudTexLoadHook(void* self, void*, void* cb, void* ctx) {
     bool asOne = g_spGauges && SplitMode() && at<int>(NUM_PLAYERS) == 2 && IsDragRace();
     int savedPlayers = at<int>(NUM_PLAYERS);
     if (asOne) at<int>(NUM_PLAYERS) = 1;
-    reinterpret_cast<void(__thiscall*)(void*, void*, void*)>(FN_HUD_TEX_LOAD)(self, cb, ctx);   // P1's pack first
+    reinterpret_cast<void(__thiscall*)(void*, void*, void*)>(CallPrev(AT_HUD_TEX_LOAD_CALL, FN_HUD_TEX_LOAD))(self, cb, ctx);   // P1's pack first
     if (g_spGauges && SplitMode() && savedPlayers == 2) {
         int loaded[MAX_LOCAL_PLAYERS];
         int n = 0;
@@ -393,7 +393,7 @@ static void __fastcall HudTexUnloadHook(void* self) {
         reinterpret_cast<void(__cdecl*)(uint32_t*, int)>(0x490150)(g_hudTexList[k], 8);
         memset(g_hudTexList[k], 0, sizeof(g_hudTexList[k]));
     }
-    reinterpret_cast<void(__thiscall*)(void*)>(FN_HUD_TEX_UNLOAD)(self);
+    reinterpret_cast<void(__thiscall*)(void*)>(CallPrev(AT_HUD_TEX_UNLOAD_CALL, FN_HUD_TEX_UNLOAD))(self);
     for (int k = 0; k < MAX_LOCAL_PLAYERS; ++k) {
         if (g_hudTexIndex[k] < 0) continue;
         if (g_hudTexFile[k]) {
@@ -421,12 +421,13 @@ static void __cdecl SetRenderSlot(void* obj) {
 // Never inlined: the compiler can't see that this asm calls a function, and inlined it kept SSE values (the minimap
 // centre and radius constants) in registers across the game's render call, which clobbers them -> after the first
 // marker every NearMinimap check compared garbage (own car markers missing / markers flickering, user reports).
+static uintptr_t g_feRenderObj = FN_FE_RENDER_OBJ;   // CallPrev of AT_FE_RENDER_OBJ_CALL (set at install)
 static __declspec(noinline) void __stdcall CallFeRender(void* obj, int arg, void* ctx) {
     __asm {
         mov ecx, ctx
         push arg
         push obj
-        mov eax, FN_FE_RENDER_OBJ
+        mov eax, g_feRenderObj
         call eax
     }
 }

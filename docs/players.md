@@ -5,7 +5,8 @@ references. Many of them are address-bounded loops (`p < 0x8900B4`). They are re
 `g_localPlayers {byIndex[4], inOrder[4], count}`, so that "end of byIndex == inOrder" and "end of inOrder == count" stay
 true (`RelocateLocalPlayers` rewrites every disp32). One indexed reference is "inOrder - 4": the race teardown loop at
 0x60AA76 (`while (count) delete inOrder[count-1]`). It is patched to &inOrder[0]-4; otherwise quitting with 3 players
-hung.
+hung. The game no longer touches its own block; every frame `MirrorLocalPlayers` copies players 1-2 and the count
+(at most 2) into it, for other mods that read it (CrashingForeignCars's health bar).
 
 **Human racers.** 0x525ED0(numPlayers) creates human racers (racer spec ctor 0x6373E0(spec; playerIndex, human, car,
 profile, ...), AddRacer 0x601600; AddRacer stops at 2 humans). Its 8 call sites → `CreateHumanRacers`: the original,

@@ -134,7 +134,7 @@ static void __cdecl SetJoypadPageTitle(void* title, uint32_t hash) {
     using SetFmtFn = int(__cdecl*)(void*, const char*, ...);
     using LocalizeFn = const char*(__cdecl*)(uint32_t);
     UpdateBindSwap();                    // the page is being built: its record must hold its player's bindings now
-    reinterpret_cast<SetHashFn>(FN_SET_TEXT_HASH)(title, hash);
+    reinterpret_cast<SetHashFn>(CallPrev(AT_JOYPAD_TITLE, FN_SET_TEXT_HASH))(title, hash);
     int device = at<int>(CONTROLS_PAGE_DEV + at<int>(CONTROLS_PAGE) * 12);
     if (!title || device < 0 || device >= INPUT_DEVICE_MAX) return;
     int seat = ControlsPageSeat();
@@ -142,13 +142,6 @@ static void __cdecl SetJoypadPageTitle(void* title, uint32_t hash) {
     const char* text = reinterpret_cast<LocalizeFn>(FN_LOCALIZE)(hash);
     if (seat >= 0 && text)
         reinterpret_cast<SetFmtFn>(FN_SET_TEXT_FMT)(title, "%s - P%d", text, seat + 1);
-}
-
-static void WriteCall(uintptr_t where, const void* to) {
-    uint8_t buf[5] = {0xE8};
-    int32_t rel = static_cast<int32_t>(reinterpret_cast<uintptr_t>(to) - (where + 5));
-    memcpy(buf + 1, &rel, 4);
-    Write(where, buf, 5);
 }
 
 // Once per frame. Leaving split screen must reset the 2P frontend state, otherwise the next single-player car

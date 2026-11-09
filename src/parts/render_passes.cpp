@@ -36,8 +36,7 @@ static void __cdecl StreakComposite(uint32_t a, uint32_t b, uint32_t c, uint32_t
                                     uint32_t h) {
     for (int k = 0; k < g_screenViews; ++k)
         if (SplitRacing() && g_currentView == kPlayerViewId[k]) g_streakCompositeView = k;
-    reinterpret_cast<void(__cdecl*)(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(
-        FN_SCREEN_BLIT)(a, b, c, d, e, f, g, h);
+    reinterpret_cast<void(__cdecl*)(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(CallPrev(AT_STREAK_COMPOSITE_CALL, FN_SCREEN_BLIT))(a, b, c, d, e, f, g, h);
     g_streakCompositeView = -1;
 }
 static void __cdecl RemapStreakQuad(float* vertices) {
@@ -52,6 +51,7 @@ static void __cdecl RemapStreakQuad(float* vertices) {
             uv[1] = y0 + uv[1] * sy;
         }
 }
+static uintptr_t g_blitQuadReady = FN_BLIT_QUAD_READY;   // CallPrev of the site (set at install)
 static __declspec(naked) void BlitQuadReadyHook() {
     __asm {
         cmp g_streakCompositeView, 0
@@ -63,7 +63,7 @@ static __declspec(naked) void BlitQuadReadyHook() {
         add esp, 4
         popad
     done:
-        push FN_BLIT_QUAD_READY
+        push g_blitQuadReady
         ret
     }
 }
@@ -168,11 +168,11 @@ static void __cdecl MotionBlurForView() {
     int k = CurrentPlayerSlot();
     float& strength = *reinterpret_cast<float*>(BLUR_STRENGTH);
     if (g_debug) CheckX87("motion blur in");
-    if (k < 0) { reinterpret_cast<void(__cdecl*)()>(FN_MOTION_BLUR)(); return; }
+    if (k < 0) { reinterpret_cast<void(__cdecl*)()>(CallPrev(AT_BLUR_CALL, FN_MOTION_BLUR))(); return; }
     float shared = strength;
     strength = g_blurStrength[k];
     g_blurCopy = {};
-    reinterpret_cast<void(__cdecl*)()>(FN_MOTION_BLUR)();
+    reinterpret_cast<void(__cdecl*)()>(CallPrev(AT_BLUR_CALL, FN_MOTION_BLUR))();
     g_blurStrength[k] = strength;
     strength = shared;
     if (g_debug) {                       // per view: camera speed and how often the blur actually drew
@@ -222,9 +222,11 @@ static void UpdateVenueBarriers();
 static void SessionTick();
 static void DrawVenueWalls(View* v, const float* carPos);
 
+static void MirrorLocalPlayers();
 static void __cdecl LayoutApplyHook() {
     if (g_debug) CheckX87("frame start");
     g_origLayoutApply();
+    MirrorLocalPlayers();
     if (g_debug) CheckX87("after layout apply");
     HookDeviceDebug();
     XPadUpdate();
@@ -315,6 +317,7 @@ static void RecullWorldEntry(View& v9) {
 #define AT_SPLIT_PASS_CALL   0x5CB2E3
 #define FN_SPLIT_PASS        0x566400    // void __cdecl (View*)
 #define FN_HEADLIGHT_POOLS   0x615490    // void __cdecl (View*)
+#define AT_1P_POOLS_CALL     0x5CAC07    // the 1-player path's pools call: it draws the full-screen race intro
 // As in single player, the view's own car gets no pool (its projector lights the road; the pool is a flat quad that
 // tilts with the car and clipped into the road under braking): its lights flag (+0x550) is off during the call.
 // Every player's car has a projector (WorldDrawWithLights, also in the full screen race intro), so no player car gets
@@ -330,18 +333,18 @@ static uint8_t* PlayerCar(int k) {
 }
 static void __cdecl PoolsForTraffic(View* v) {
     if (!SplitMode() || at<int>(NUM_PLAYERS) != 2) {
-        reinterpret_cast<void(__cdecl*)(View*)>(FN_HEADLIGHT_POOLS)(v);
+        reinterpret_cast<void(__cdecl*)(View*)>(CallPrev(AT_1P_POOLS_CALL, FN_HEADLIGHT_POOLS))(v);
         return;
     }
     uint8_t* car[MAX_LOCAL_PLAYERS] = {};
     uint8_t lights[MAX_LOCAL_PLAYERS] = {};
     for (int k = 0; k < 2 + (g_extraPlayers > 0 ? g_extraPlayers : 0) && k < MAX_LOCAL_PLAYERS; ++k)
         if ((car[k] = PlayerCar(k)) != nullptr) { lights[k] = car[k][0x550]; car[k][0x550] = 0; }
-    reinterpret_cast<void(__cdecl*)(View*)>(FN_HEADLIGHT_POOLS)(v);
+    reinterpret_cast<void(__cdecl*)(View*)>(CallPrev(AT_1P_POOLS_CALL, FN_HEADLIGHT_POOLS))(v);
     for (int k = 0; k < MAX_LOCAL_PLAYERS; ++k) if (car[k]) car[k][0x550] = lights[k];
 }
 static void __cdecl SplitPassWithHeadlightPools(View* v) {
-    reinterpret_cast<void(__cdecl*)(View*)>(FN_SPLIT_PASS)(v);
+    reinterpret_cast<void(__cdecl*)(View*)>(CallPrev(AT_SPLIT_PASS_CALL, FN_SPLIT_PASS))(v);
     if (SplitRacing() && at<int>(OPT_CAR_HEADLIGHTS)) PoolsForTraffic(v);
     for (int k = 0; k < g_screenViews; ++k)
         if (v == &GetView(kPlayerViewId[k])) {
@@ -349,5 +352,3 @@ static void __cdecl SplitPassWithHeadlightPools(View* v) {
             DrawVenueWalls(v, car ? reinterpret_cast<float*>(car + 0x60) : nullptr);
         }
 }
-// The race intro is drawn full screen by the 1-player path, which draws the pools itself (0x5CAC07).
-#define AT_1P_POOLS_CALL     0x5CAC07

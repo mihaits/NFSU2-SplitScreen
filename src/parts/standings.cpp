@@ -85,12 +85,12 @@ static void AwardSessionPoints() {
 
 static bool __cdecl ShowStandings() {
     if (SessionShown()) return true;
-    return reinterpret_cast<bool(__cdecl*)()>(FN_SHOW_STANDINGS)();
+    return reinterpret_cast<bool(__cdecl*)()>(CallPrev(AT_SHOW_STANDINGS_CALL, FN_SHOW_STANDINGS))();
 }
 
 static void __fastcall StandingsSetup(uint8_t* screen) {
     if (!SessionShown()) {
-        reinterpret_cast<void(__fastcall*)(void*)>(FN_STANDINGS_SETUP)(screen);
+        reinterpret_cast<void(__fastcall*)(void*)>(CallPrev(AT_STANDINGS_SETUP_CALL, FN_STANDINGS_SETUP))(screen);
         return;
     }
     using HashFn = uint32_t(__cdecl*)(const char*, ...);
@@ -320,9 +320,8 @@ static void InstallOutrun() {
         memcmp(reinterpret_cast<void*>(AT_POST_RACE_MODE4), "\x74\x23", 2) != 0 ||
         memcmp(reinterpret_cast<void*>(AT_OUTRUN_TIMER_P2), "\x39\x58\x10\x75\x2E", 5) != 0 ||
         memcmp(reinterpret_cast<void*>(AT_OUTRUN_POINTS_ROW), "\x57\x6A\x54\xE8", 4) != 0 ||
-        memcmp(reinterpret_cast<void*>(FN_OUTRUN_OVER), overStart, sizeof(overStart)) != 0 ||
-        *reinterpret_cast<uint8_t*>(AT_TIME_LIMIT_OPTION) != 0xE8 ||
-        AT_TIME_LIMIT_OPTION + 5 + *reinterpret_cast<int32_t*>(AT_TIME_LIMIT_OPTION + 1) != FN_TIME_LIMIT_OPTION) {
+        !IsCodeAt(FN_OUTRUN_OVER, overStart, sizeof(overStart)) ||
+        !IsCallTo(AT_TIME_LIMIT_OPTION, FN_TIME_LIMIT_OPTION)) {
         Log("outrun: unexpected code, split Outrun keeps the game's 2-player results");
         return;
     }
@@ -340,11 +339,7 @@ static void InstallOutrun() {
 }
 
 static void InstallStandings() {
-    auto isCallTo = [](uintptr_t at_, uintptr_t to) {
-        auto* b = reinterpret_cast<const uint8_t*>(at_);
-        return b[0] == 0xE8 && at_ + 5 + *reinterpret_cast<const int32_t*>(b + 1) == to;
-    };
-    if (!isCallTo(AT_SHOW_STANDINGS_CALL, FN_SHOW_STANDINGS) || !isCallTo(AT_STANDINGS_SETUP_CALL, FN_STANDINGS_SETUP)) {
+    if (!IsCallTo(AT_SHOW_STANDINGS_CALL, FN_SHOW_STANDINGS) || !IsCallTo(AT_STANDINGS_SETUP_CALL, FN_STANDINGS_SETUP)) {
         Log("session: unexpected code, standings not installed");
         return;
     }

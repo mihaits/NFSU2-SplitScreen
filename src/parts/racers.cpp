@@ -98,7 +98,7 @@ static void __cdecl CreateHumanRacers(int count, int p2, int p3) {
         at<int>(AI_COUNT) = SplitOpponents();
         if (SplitOpponents()) Log("race: %d AI opponents", SplitOpponents());
     }
-    reinterpret_cast<Fn>(FN_CREATE_HUMAN_RACERS)(count, p2, p3);
+    reinterpret_cast<Fn>(CallPrev(_ReturnAddress(), FN_CREATE_HUMAN_RACERS))(count, p2, p3);
     int extra = g_extraPlayers < MAX_EXTRA_PLAYERS ? g_extraPlayers : MAX_EXTRA_PLAYERS;
     if (count == 2 && SplitMode()) PadSpeakerDefaults(2 + (extra > 0 ? extra : 0));
     if (count != 2 || extra <= 0) return;
@@ -115,7 +115,7 @@ static void __cdecl CreateHumanRacers(int count, int p2, int p3) {
         Log("extra racers %d..%d: cars %08X %08X (players 1/2: %08X %08X)", shift + 1, shift + n, at<int>(CAR_IDS),
             at<int>(CAR_IDS + 4), ownCar[0], ownCar[1]);
         g_extraRacerShift = shift;
-        reinterpret_cast<Fn>(FN_CREATE_HUMAN_RACERS)(n, p2, p3);
+        reinterpret_cast<Fn>(CallPrev(_ReturnAddress(), FN_CREATE_HUMAN_RACERS))(n, p2, p3);
         g_extraRacerShift = 0;
     }
     at<int>(CAR_IDS) = ownCar[0];
@@ -138,7 +138,7 @@ static void __cdecl BuildStandings(int arg) {
     // drift scoring sort 0x56DDD0 / later on the way back to the menus)
     if (missing > g_extraPlayers) missing = g_extraPlayers;
     at<int>(RACE_COUNT_B) += missing;
-    reinterpret_cast<void(__cdecl*)(int)>(FN_BUILD_STANDINGS)(arg);
+    reinterpret_cast<void(__cdecl*)(int)>(CallPrev(_ReturnAddress(), FN_BUILD_STANDINGS))(arg);
     at<int>(RACE_COUNT_B) -= missing;
 }
 
@@ -199,7 +199,7 @@ static void __fastcall RaceResults(void* results, void*, void* race) {
     at<int>(RACE_COUNT_B) += missing;
     g_resultsExtra = missing;
     g_resultsCountB = at<int>(RACE_COUNT_B);
-    reinterpret_cast<void(__thiscall*)(void*, void*)>(FN_RACE_RESULTS)(results, race);
+    reinterpret_cast<void(__thiscall*)(void*, void*)>(CallPrev(AT_RACE_RESULTS_CALL, FN_RACE_RESULTS))(results, race);
     AwardSessionPoints();                  // standings.cpp
 }
 // A car the post-race scene doesn't feature is driven to the world origin and falls there forever (no ground): a
@@ -239,19 +239,20 @@ static void EndResultsCount() {
 // with flashing on the post-race menu). A car driven by the NIS is not reset.
 #define AT_FALL_RESET_CALL 0x601324      // call 0x6009A0 (thiscall [car+0x18]); esi = car, mover mode at car+0x28
 #define FN_FALL_RESET      0x6009A0
+static uintptr_t g_fallReset = FN_FALL_RESET;   // CallPrev of the site (set at install)
 static __declspec(naked) void FallResetHook() {
     __asm {
         cmp dword ptr [esi + 0x28], MOVER_NIS
         je skip
-        mov eax, FN_FALL_RESET
+        mov eax, g_fallReset
         jmp eax
     skip:
         ret
     }
 }
 static const uintptr_t kRaceSetupCalls[][2] = {{0x5324F2, 0x5260B0}, {0x530A91, 0x526970}, {0x581902, 0x526970}};
-static int __cdecl RaceSetup5260B0(int a) { UncountResultsRacers(); return reinterpret_cast<int(__cdecl*)(int)>(0x5260B0)(a); }
-static int __cdecl RaceSetup526970(int a) { UncountResultsRacers(); return reinterpret_cast<int(__cdecl*)(int)>(0x526970)(a); }
+static int __cdecl RaceSetup5260B0(int a) { UncountResultsRacers(); return reinterpret_cast<int(__cdecl*)(int)>(CallPrev(0x5324F2, 0x5260B0))(a); }
+static int __cdecl RaceSetup526970(int a) { UncountResultsRacers(); return reinterpret_cast<int(__cdecl*)(int)>(CallPrev(_ReturnAddress(), 0x526970))(a); }
 
 // Racer names come from the per-player block (0x83A9E0 + index*0xAB4C, name at +0): players 3-6 reused P1's / P2's
 // (the same name twice on the results). They get P2's name with its digit swapped ("Player 2" -> "Player 3").
@@ -301,11 +302,11 @@ static __declspec(naked) void FreeRunSkinHook() {
 #define FN_CAR_PERFORMANCE   0x5B6990    // float __thiscall (ride + 0x10; 1, -1.0)
 static uint8_t* __fastcall AiReferenceRacer(void* race, void*, int index) {
     using SpecFn = uint8_t*(__thiscall*)(void*, int);
-    uint8_t* best = reinterpret_cast<SpecFn>(FN_RACER_SPEC)(race, index);
+    uint8_t* best = reinterpret_cast<SpecFn>(CallPrev(AT_AI_REFERENCE_CALL, FN_RACER_SPEC))(race, index);
     if (index != 0 || !SplitMode() || at<int>(NUM_PLAYERS) != 2) return best;
     float bestRating = -1e9f;
     for (int k = 0; k < 2 + g_extraPlayers && k < MAX_LOCAL_PLAYERS; ++k) {
-        uint8_t* spec = reinterpret_cast<SpecFn>(FN_RACER_SPEC)(race, k);
+        uint8_t* spec = reinterpret_cast<SpecFn>(CallPrev(AT_AI_REFERENCE_CALL, FN_RACER_SPEC))(race, k);
         if (!spec || *reinterpret_cast<int*>(spec + 4) != 1) continue;          // humans only
         float rating = reinterpret_cast<float(__thiscall*)(void*, int, float)>(FN_CAR_PERFORMANCE)(spec + 0x20, 1, -1.0f);
         Log("AI reference: racer %d car rating %.3f", k, rating);
@@ -322,8 +323,9 @@ static void __fastcall AiSetSkin(void* ride, void*, int n) {
         n += 2 + g_extraPlayers - 1;     // 2 + i -> humans + 1 + i
         Log("AI car: DUMMY_SKIN%d", n);
     }
-    reinterpret_cast<void(__thiscall*)(void*, int)>(FN_RIDE_SET_SKIN)(ride, n);
+    reinterpret_cast<void(__thiscall*)(void*, int)>(CallPrev(AT_AI_SET_SKIN, FN_RIDE_SET_SKIN))(ride, n);
 }
+static uintptr_t g_racerSpecCtor = FN_RACER_SPEC_CTOR;   // CallPrev of the site (set at install)
 static __declspec(naked) void RacerSpecIndexShift() {
     __asm {
         cmp g_extraRacerShift, 0
@@ -342,7 +344,7 @@ static __declspec(naked) void RacerSpecIndexShift() {
         add esp, 8
         pop ecx
     ctor:
-        mov eax, FN_RACER_SPEC_CTOR
+        mov eax, g_racerSpecCtor
         jmp eax
     }
 }

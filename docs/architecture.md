@@ -22,15 +22,26 @@ to the part of its subsystem (or a new part, included where its dependencies are
 
 ## Plugin architecture
 
-- `DllMain` → `Install()`. Install first runs `IsSupportedExe()`, which compares the original bytes at the patched
-  sites; on a mismatch it shows a message box and installs nothing. Then it reads `NFSU2SplitScreen.ini`
-  (`LoadConfig`) and patches.
+- `DllMain` → `Install()`. Install first runs `IsSupportedExe()`, which compares the original bytes at a few patched
+  sites (a call another plugin redirected passes); on a mismatch it shows a message box and installs nothing. Then it
+  reads `NFSU2SplitScreen.ini` (`LoadConfig`) and patches.
 - Patch helpers: `WriteCall(at, fn)` replaces a `call rel32`; `WriteJump(at, fn, len)` writes a `jmp` and pads with NOPs;
-  `MakeTrampoline(at, len)` copies whole instructions out to a callable stub. When a plugin loaded earlier already
-  hooked `at` with a `jmp rel32`, the stub jumps to that plugin's hook instead (`call rel32` is re-aimed too) and
-  `WriteJump` on that site writes only 5 bytes, because the other plugin's trampoline returns to `at + 5`
-  ([bugs/foreign-hook-trampoline.md](bugs/foreign-hook-trampoline.md)). Naked asm hooks return with
+  `MakeTrampoline(at, len)` copies whole instructions out to a callable stub. Naked asm hooks return with
   `push RET; ret`. Some patches rewrite immediates or displacements directly.
+- Other plugins on the same sites ([bugs/foreign-hook-trampoline.md](bugs/foreign-hook-trampoline.md)). The ASI loader
+  loads plugins alphabetically, so a mod named before this one has patched its sites already. Its code stays in the
+  chain:
+  - Function starts: when `at` already holds another plugin's `jmp rel32`, `MakeTrampoline`'s stub is a jump to that
+    plugin's hook, and `WriteJump` on that site writes only 5 bytes, because the other plugin's trampoline returns to
+    `at + 5`. A leading `call rel32` is re-aimed. Installs that check a function's original bytes use `IsCodeAt`,
+    which also accepts such a jump.
+  - Calls: `WriteCall` records the target each call had (`g_callSites`) and logs the ones outside the game
+    (`call at X: chained to another plugin's function Y`). A hook that runs the original calls
+    `CallPrev(site, FN_...)`, which is that target, or the game function when the site had no other plugin. Hooks
+    shared by several sites pass `_ReturnAddress()`, asm hooks read a pointer set right after their `WriteCall`.
+    Installs that check a call's target use `IsCallTo`. Hooks that replace a call instead of wrapping it (the view
+    getters, the car select's seat switches, the time limit option) drop the other plugin's function there.
+  - With Debug = 1 the log lists every call site (`call sites:`), for `tools/chain_test.sh`.
 - **Per-frame entry**: `LayoutApplyHook`, a trampoline on the per-frame layout function 0x5C21E0 (called from
   0x5D2850). Each frame it runs: XInput update, HUD widening state, results counters, per-player settings sync, quad HUD
   mapping, gauge maps, seat logic, the debug mailbox and the split layout (`ApplySplitLayout`).

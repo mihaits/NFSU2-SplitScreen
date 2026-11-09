@@ -40,7 +40,7 @@ static float g_lightGain = 0.8f, g_lightCap = 1.0f;
 // HeadlightColor is the car's bytes / 128 (0x5BDC42), so 255 is 2.0, but ps_1_1 clamps constants to 1 and a bright tuned
 // colour came out white. Scales the largest byte down to 128, which keeps the hue in both the game's and our shaders.
 static uint32_t CarLightColor(void* car) {
-    uint32_t c = reinterpret_cast<uint32_t(__cdecl*)(void*)>(FN_CAR_LIGHT_COLOR)(car);
+    uint32_t c = reinterpret_cast<uint32_t(__cdecl*)(void*)>(CallPrev(AT_LIGHT_COLOR_CALL, FN_CAR_LIGHT_COLOR))(car);
     int r = c & 0xFF, g = (c >> 8) & 0xFF, b = (c >> 16) & 0xFF;
     int top = max(r, max(g, b));
     static std::unordered_set<uint32_t> logged;
@@ -250,12 +250,12 @@ static void __fastcall WorldDrawWithLights(void* world, void*, View* v, int flag
         HookDeviceMethod(dev, 107, reinterpret_cast<void*>(&SetPixelShaderHook), &g_origSetPixelShader);
         n = PrepareOtherLights(world, v);
     }
-    reinterpret_cast<void(__thiscall*)(void*, View*, int)>(FN_WORLD_DRAW)(world, v, flags);
+    reinterpret_cast<void(__thiscall*)(void*, View*, int)>(CallPrev(AT_MAIN_WORLD_DRAW, FN_WORLD_DRAW))(world, v, flags);
     for (int i = 0; i < g_markedCount; ++i) g_marked[i][0x1B] &= 0x7F;   // flagged, not in the view's list
     g_lights.active = n > 0;
 }
 static void __cdecl FlushLitWorld() {
-    reinterpret_cast<void(__cdecl*)()>(FN_FLUSH_DRAWS)();
+    reinterpret_cast<void(__cdecl*)()>(CallPrev(AT_LIT_WORLD_FLUSH, FN_FLUSH_DRAWS))();
     g_lights.active = false;
 }
 

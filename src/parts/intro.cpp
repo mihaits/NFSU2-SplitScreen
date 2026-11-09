@@ -23,7 +23,7 @@ static uint8_t g_gridSpots[6 * 0x20];    // the race's start spots: 0x5EB5D0's e
 static bool g_gridPending = false;       // a scene placed the cars of a split race: PutCarsOnGrid when it lets go
 static bool g_introHideExtra = false;    // 5-6 cars got a 4-car scene: the extra cars are hidden during it
 static bool __fastcall Intro2PFilter(void* ctx, void*, void* scene) {
-    return g_intro2PFallback || reinterpret_cast<bool(__thiscall*)(void*, void*)>(FN_INTRO_2P_FILTER)(ctx, scene);
+    return g_intro2PFallback || reinterpret_cast<bool(__thiscall*)(void*, void*)>(CallPrev(AT_INTRO_2P_FILTER, FN_INTRO_2P_FILTER))(ctx, scene);
 }
 static int __cdecl IntroRetryWanted() {
     if (g_intro2PFallback || GetLocalPlayer(1) == nullptr || GetLocalPlayer(2) != nullptr) return 0;   // 2 players
@@ -51,7 +51,7 @@ static __declspec(naked) void IntroEmptyHook() {
 static void __fastcall IntroContext(int* ctx, void*, int track) {
     g_intro2PFallback = false;
     g_introHideExtra = g_gridPending = false;   // (also when the previous race's scene never started)
-    reinterpret_cast<void(__thiscall*)(int*, int)>(FN_INTRO_CONTEXT)(ctx, track);
+    reinterpret_cast<void(__thiscall*)(int*, int)>(CallPrev(AT_INTRO_CONTEXT_CALL, FN_INTRO_CONTEXT))(ctx, track);
     Log("intro context: racers %d humans %d slots %X ai %X track byte %d (sound fs: %d free handles)", ctx[0], ctx[1],
         ctx[2], ctx[3], ctx[5], SoundFsFreeHandles());
     // 3 or 5-6 cars: the 4-car scenes (they animate their own 4 grid slots; the cars in slots 5/6 are hidden during
@@ -164,7 +164,7 @@ static void PutCarsOnGrid() {
     }
 }
 static void __fastcall NisBindCars(void* scene, void*, int arg) {
-    reinterpret_cast<void(__thiscall*)(void*, int)>(FN_NIS_BIND_CARS)(scene, arg);
+    reinterpret_cast<void(__thiscall*)(void*, int)>(CallPrev(_ReturnAddress(), FN_NIS_BIND_CARS))(scene, arg);
     if (SplitMode() && at<int>(NUM_PLAYERS) == 2 && SceneDrivesCars()) {
         MoveExtraCarsBehindScene();
         g_gridPending = true;
@@ -208,7 +208,7 @@ static const uintptr_t kScenePickSites[4] = {0x436A26, 0x436BC5, 0x436CDF, 0x437
 static const int kScenePickKind[4] = {0, 1, 2, 4};
 static int g_forceScene[4] = {-1, -1, -1, -1};
 static unsigned ScenePick(int site, unsigned count) {
-    unsigned pick = reinterpret_cast<unsigned(__cdecl*)(unsigned)>(FN_SCENE_RANDOM)(count);
+    unsigned pick = reinterpret_cast<unsigned(__cdecl*)(unsigned)>(CallPrev(kScenePickSites[site], FN_SCENE_RANDOM))(count);
     int forced = g_forceScene[site];
     if (forced >= 0 && unsigned(forced) < count) pick = forced;
     Log("scene pick: kind %d, %u candidates -> %u%s", kScenePickKind[site], count, pick,
@@ -223,7 +223,7 @@ static void InstallScenePicks() {
     const void* hooks[4] = {&ScenePickAt<0>, &ScenePickAt<1>, &ScenePickAt<2>, &ScenePickAt<3>};
     for (int i = 0; i < 4; ++i) {
         uint8_t* at = reinterpret_cast<uint8_t*>(kScenePickSites[i]);
-        if (at[0] != 0xE8 || kScenePickSites[i] + 5 + *reinterpret_cast<int32_t*>(at + 1) != FN_SCENE_RANDOM) {
+        if (!IsCallTo(kScenePickSites[i], FN_SCENE_RANDOM)) {
             Log("scene pick: site %p not the expected call, not hooked", at);
             continue;
         }

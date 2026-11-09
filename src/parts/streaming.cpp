@@ -151,7 +151,7 @@ static void LogPoolRecords(uint8_t* streamer, int sections) {
 }
 static void __fastcall StreamPriorities(uint8_t* streamer) {
     if (g_extraPlayers <= 0 || !SplitRacing()) {
-        reinterpret_cast<void(__thiscall*)(void*)>(FN_STREAM_PRIORITY)(streamer);
+        reinterpret_cast<void(__thiscall*)(void*)>(CallPrev(AT_STREAM_PRIORITY_CALL, FN_STREAM_PRIORITY))(streamer);
         return;
     }
     auto distance = reinterpret_cast<int(__thiscall*)(void*, void*, void*)>(FN_SECTION_DISTANCE);
