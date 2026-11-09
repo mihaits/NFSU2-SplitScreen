@@ -31,7 +31,8 @@ Xbox, DualSense and DualShock 4 pads are all supported natively, over USB or Blu
    traffic, ...). **Quit to Main Menu** goes through the options and Press START again, to change players or cars.
 
 Every player has their own controls page (Options → Controls) and their own player options. Pausing opens the
-options of whoever paused.
+options of whoever paused. Any button action (nitro, handbrake, camera, ...) can also go on a stick direction or a
+single trigger: select the row and push the stick, and it shows as e.g. "Right Stick Y+".
 
 **Handy buttons:**
 - **Mute** (DualSense), **touchpad click** (DualShock 4): moves your car's sound between your pad's speaker and the PC.

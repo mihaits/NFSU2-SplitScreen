@@ -310,8 +310,62 @@ startup, and the game crashes at 0x5D2780 (null device 0x870974). Set it to 0 to
 **Device records and bindings.** A record turns its device's state into action bits (+8, 8 bytes, active low) and
 analog values (+0x10..+0x13) every frame: 0x5CF220 → 0x5C1840. For joysticks it reads the slot's DIJOYSTATE2 at
 0x86FFC0 + slot*0x110 (buttons) and at [0x870760] + slot*0x110 (axes, POV). Bindings: 4 action tables of 32 inputs at
-+0x18/+0x98/+0x118/+0x198 (16 buttons, then axis directions/POV), axis setup +0x344..+0x368, POV count +0x36C. The
-profile saves table 0 and the axis setup per device GUID (0x5B9420 called at 0x52A42A; load 0x5B9570 at 0x534660).
++0x18/+0x98/+0x118/+0x198 (16 buttons, then 4 POVs × 4 directions; the POV loop reads rgdwPOV, 0x5C1B00), axis setup
++0x344..+0x368, POV count +0x36C. Axes never set action bits: the decoder reads them only for the analog bytes, so a
+stick or trigger can drive steering, gas and brake but not a button action; the plugin adds that (below). The
+profile saves table 0 and the axis setup per device GUID (0x5B9420, called by the packer 0x52A280 at 0x52A42A; load
+0x5B9570 at 0x534660, in the unpacker 0x5344D0, which runs only when a profile is read). The packer runs three times
+around a save, all before the file is written: for the snapshot taken when Options opens (0x52A460), for the "profile
+changed?" check behind the "save the profile?" prompt (0x52A4C0), and in 0x4D9B80 after that prompt's Yes (through the
+thunk 0x52A450, called at 0x4D9C0A with ecx 0x83A9D0). A second prompt ("overwrite previously saved game?") follows.
+The memory-card step 0x6FCF77 (thiscall, called at 0x6FDBFA) writes the file in state 0xB (+0x64): `_open`
+`<dir>\<name>\<name>` (name at +0x9C), a 0x1C-byte header and the data, `_close`; +0x2DC = 0 on success, then state
+0xC. The loaded profile's name is at 0x83A9E0 (32 bytes, the start of the profile block).
+
+**Button capture and labels (Controls screen).** A row's activate method (vtable [1], e.g. 0x4ADB50) calls
+0x5C2100(record, action, column): +0x33C = action, +0x340 = column (0 primary, 1 secondary). The capture poll 0x5CA720
+(called at 0x5CF23D for joystick records) stores a newly pressed button with 0x5B8460(record, button) and a POV with
+0x5C1720: both clear the entries already holding the action (one is kept as the primary when capturing column 1),
+write table 0[input] = action, and clear +0x33C and 0x870768. The row's label (0x4ACF40, 23 wide chars) comes from
+0x5C20E0 → 0x5B8A90 for joysticks, which walks buttons, then POVs: the first input holding the action is the primary,
+the second the secondary, and the text is that object's `tszName` from the device's `GetObjectInfo` by offset, so on
+the plugin's pads it is the `kObjects` name ("A", "Left Stick", "D-Pad", ...). For actions 1..4 it names the bound axis.
+
+**Axis capture (Controls screen).** The game never learns an axis's rest position or whether it is a stick or a trigger.
+- The role being captured is record +0x33C: 1 gas, 2 brake, 3 steer left, 4 steer right. While it is set, the capture
+  poll (0x5CA7D6) compares the 8 axes (lX, lY, lZ, lRx, lRy, lRz, slider 0, slider 1) with their values from the
+  previous poll (0x86F8B0..0x86F8CC, first taken at 0x5B91C3, retaken at the end of each poll, 0x5CA9E6). The first axis
+  that moved by more than 1000 of its ±10000 (500 for device type 0x16) is bound with sign +1 or −1, the direction it
+  moved: `0x5B8250(record, axis offset, sign)`.
+- 0x5B8250 first unbinds the axis from every role that has it (flags +0x364..+0x367). Steering takes the axis with the
+  sign (left negated). Gas (+0x348, sign +0x358) or brake (+0x34C, sign +0x35C) takes it, and if the other pedal is on
+  **the same axis with the opposite sign**, both become one shared axis (+0x350, sign +0x360, +0x367 = +0x368 = 1):
+  centre = neither, one half gas, the other brake. Otherwise that pedal is a separate channel (+0x365 gas / +0x366
+  brake) and shared mode is off.
+- A separate pedal is 0x7F − sign × value × 0.0127 over the whole travel (0x5C2054), which only suits an axis that rests
+  at one end, like a single trigger. On a stick it rests at half. A trigger moves only one way from rest, so it can only
+  take one pedal; a stick axis or the combined trigger axis Z can be pushed both ways and so carry both, shared.
+- The plugin's virtual pads report the triggers as Z only to the capture: `rglSlider[0..1]` hold raw 0..255, which never
+  moves 1000, so a single trigger can't be captured as its own pedal.
+
+**Stick and trigger bindings.** Each player has 10 more inputs for button actions: both sticks' X−, X+, Y+ (pushed
+up), Y− and the left and right trigger alone (`StickBinds`, the plugin's table next to the record's table 0; one action
+id per input, 0 none). They are captured, named and decoded like a button:
+- Capture (`CapturePoll`, wrapping 0x5CA720 at 0x5CF23D): while a button action (+0x33C > 4) is captured, an input
+  that was under 30 % since the capture began and then passes 50 % is stored with the game's rule (`StoreStick`):
+  capturing the primary clears the action from every other input, the secondary keeps the first one; the order is the
+  game's 32 inputs, then the plugin's. A button or POV the game captures takes the action from the plugin's inputs by
+  the same rule (`CaptureButton` / `CapturePov` at 0x5CA79D / 0x5CA7C5). The axis roles 1..4 stay the game's. The
+  push that binds an input doesn't fire it: it is ignored until released.
+- Label (`BindingName`, wrapping 0x5C20E0 at 0x4ACF67): past the game's matches for the column come the plugin's,
+  named "Left Stick X-" .. "Right Trigger". The row refreshes by itself when the capture ends.
+- Decode (`StickDecode`, in `AnalogBytes`, so after the action bits): an input past 50 % (released under 40 %)
+  clears its action's bit in +8. Sticks are read from the slot's axes (±10000), the triggers from `rglSlider`.
+- "Reset Keys To Default" (0x4ACD90 calls 0x5C11A0 at 0x4ACDE4, `ResetBindings`) clears the player's entries.
+- Storage, in `NFSU2SplitScreen_Players.ini`, where the player's button bindings are: players 1/2 follow the game
+  profile, `[Profile <name>]` `StickP1` / `StickP2`, written when the profile file is (`MemcardStep`: state 0xB to 0xC
+  without an error) and read when a profile loads; a profile never saved with them has none. Players 3..6: `StickBindings` in
+  `[Player3]`..`[Player6]`, saved at each change, copied from player 1's when the seat's bindings are first made.
 
 **Controls for players 3..6.** They have no joystick slot, so their bindings live in the seat store ([players](players.md)).
 - The Controls screen (ctor 0x4ECD10) builds its pages with 0x4ACE00 (call at 0x4ECFD5 → `BuildControlsPages`): table
@@ -324,8 +378,9 @@ profile saves table 0 and the axis setup per device GUID (0x5B9420 called at 0x5
   Default" then work unchanged. The swap is applied when the joypad page is built (`SetJoypadPageTitle`, called at
   0x4DCA18 inside the builder 0x4DC9F0) and checked every frame. It is undone when the page is left and before the
   profile saves or loads bindings (`ProfileSaveBindings` / `ProfileLoadBindings`).
+- The plugin's stick and trigger entries follow the same swap (`StickTableFor` returns the shown player's).
 - In the race, `PollExtraPort` runs 0x5C1840 on a private copy of the slot-0 pad record that holds the player's
-  bindings. For the call, the player's pad state (`XPadDiState`: DIJOYSTATE2 with device 0's axis ranges) is put into
+  bindings (and, through `g_extraRecord`, their stick entries). For the call, the player's pad state (`XPadDiState`: DIJOYSTATE2 with device 0's axis ranges) is put into
   slot 0's two state buffers and restored right after. The result is merged like the game merges a port's devices.
 
 **Force feedback (rumble).** The rumble engine is shared with the PS2 version (SLUS_210.65), so it was restored from

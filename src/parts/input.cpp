@@ -112,13 +112,24 @@ static int RelocateControlsPages() {
     }
     return patched;
 }
+// The profile packer 0x52A280 (which writes the bindings with 0x5B9420) runs for the snapshot taken when Options opens,
+// for the "profile changed?" check behind the save prompt and for the save, all before the player has confirmed both
+// prompts. The file is written by the memory-card step 0x6FCF77: state 0xB (+0x64) opens <dir>\<name>\<name> (name at
+// +0x9C), writes and closes it, +0x2DC = 0 on success, then state 0xC. Loading (0x5344D0) only runs for a profile read.
 #define AT_PROFILE_SAVE_BINDINGS 0x52A42A  // call 0x5B9420 (cdecl (out) -> end)
 #define FN_PROFILE_SAVE_BINDINGS 0x5B9420
 #define AT_PROFILE_LOAD_BINDINGS 0x534660  // call 0x5B9570 (cdecl (in) -> end)
 #define FN_PROFILE_LOAD_BINDINGS 0x5B9570
+#define AT_MEMCARD_STEP          0x6FDBFA  // call 0x6FCF77 (thiscall memcard, arg): the save states 9..0xC
+#define FN_MEMCARD_STEP          0x6FCF77
 static int g_ctrlPageBase = -1;          // index of player 3's page on the open Controls screen (-1: none)
 static int g_bindSwap = -1;              // player 3-6 whose bindings are in the slot-0 pad record
 static uint8_t g_p1Tables[REC_BIND_TABLES_SIZE], g_p1Axes[REC_BIND_AXES_SIZE];   // player 1's, kept aside meanwhile
+static StickBinds g_stickBinds[2];       // players 1/2 (slot 0/1 pad records); saved with the game profile
+static const uint8_t* g_extraRecord;     // PollExtraPort's private record while it runs the decoder
+static int g_extraSeat;
+static void SaveProfileSticks();
+static void LoadProfileSticks();
 
 static uint8_t* PadRecord(int slot) {
     for (int d = 0; d < INPUT_DEVICE_MAX; ++d) {
@@ -149,6 +160,7 @@ static void EnsureSeatBindings(int seat, const uint8_t* rec) {
     P1Bindings(rec, &tables, &axes);
     memcpy(st.tables, tables, REC_BIND_TABLES_SIZE);
     memcpy(st.axes, axes, REC_BIND_AXES_SIZE);
+    memcpy(st.stick.action, g_stickBinds[0].action, sizeof(st.stick.action));
     st.hasBindings = true;
     SaveSeatStore(seat - 2);
 }
@@ -207,9 +219,19 @@ static uint8_t* __cdecl ProfileSaveBindings(uint8_t* out) {
     return reinterpret_cast<uint8_t*(__cdecl*)(uint8_t*)>(CallPrev(AT_PROFILE_SAVE_BINDINGS, FN_PROFILE_SAVE_BINDINGS))(out);
 }
 
+// Players 1/2's stick entries are written when the profile file is: a write state that ended without an error.
+static void __fastcall MemcardStep(uint8_t* mc, void*, int arg) {
+    const int state = *reinterpret_cast<int*>(mc + 0x64);
+    reinterpret_cast<void(__thiscall*)(void*, int)>(CallPrev(AT_MEMCARD_STEP, FN_MEMCARD_STEP))(mc, arg);
+    if (state == 0xB && *reinterpret_cast<int*>(mc + 0x64) == 0xC && *reinterpret_cast<int*>(mc + 0x2DC) == 0)
+        SaveProfileSticks();
+}
+
 static uint8_t* __cdecl ProfileLoadBindings(uint8_t* in) {
     SetBindSwap(-1);
-    return reinterpret_cast<uint8_t*(__cdecl*)(uint8_t*)>(CallPrev(AT_PROFILE_LOAD_BINDINGS, FN_PROFILE_LOAD_BINDINGS))(in);
+    uint8_t* end = reinterpret_cast<uint8_t*(__cdecl*)(uint8_t*)>(CallPrev(AT_PROFILE_LOAD_BINDINGS, FN_PROFILE_LOAD_BINDINGS))(in);
+    LoadProfileSticks();
+    return end;
 }
 
 // Ports 2-5 (players 3-6) have no DirectInput slot: their state is built from their own XInput pad with their own
@@ -239,7 +261,10 @@ static void* PollExtraPort(int port, int* type, void** prev) {
     memcpy(copy, copyState, DI_STATE_SIZE);
     memcpy(liveState, state, DI_STATE_SIZE);
     memcpy(copyState, state, DI_STATE_SIZE);
+    g_extraRecord = record;
+    g_extraSeat = port;
     reinterpret_cast<void(__thiscall*)(void*)>(FN_RECORD_CONVERT)(record);
+    g_extraRecord = nullptr;
     memcpy(liveState, live, DI_STATE_SIZE);
     memcpy(copyState, copy, DI_STATE_SIZE);
     MergeDevice(cur, record);
@@ -410,9 +435,227 @@ static void SteeringStickY(uint8_t* record) {
     record[0x13] = static_cast<uint8_t>(value);
 }
 
+// ---------------------------------------------------------------- stick and trigger bindings (docs/input.md)
+// The game binds button actions to buttons and POV directions only (table 0, 32 inputs); axes only drive steering and
+// the pedals. Stick directions and single triggers get the plugin's table (StickBinds) next to the record's: captured on
+// the Controls screen like a button, named on its rows, decoded into the record's action bits.
+#define AT_CAPTURE_POLL     0x5CF23D     // call 0x5CA720 (thiscall record): the Controls screen's capture poll
+#define FN_CAPTURE_POLL     0x5CA720
+#define AT_CAPTURE_BUTTON   0x5CA79D     // call 0x5B8460 (thiscall record, button): store a captured button
+#define FN_CAPTURE_BUTTON   0x5B8460
+#define AT_CAPTURE_POV      0x5CA7C5     // call 0x5C1720 (thiscall record, pov): store a captured POV direction
+#define FN_CAPTURE_POV      0x5C1720
+#define AT_BINDING_NAME     0x4ACF67     // call 0x5C20E0 (thiscall record, action, column) -> name, in 0x4ACF40
+#define FN_BINDING_NAME     0x5C20E0
+#define AT_RESET_BINDINGS   0x4ACDE4     // call 0x5C11A0 (thiscall record): "Reset Keys To Default" on a pad page
+#define FN_RESET_BINDINGS   0x5C11A0
+#define CAPTURING           0x870768     // byte: a capture is running (the decoder skips every joystick record)
+#define PROFILE_NAME        0x83A9E0     // the loaded profile's name (32 bytes; the profile block, 0x52A280 this)
+#define REC_CAPTURE_ACTION  0x33C        // action being captured (0 none; 1 gas, 2 brake, 3/4 steer: axis capture)
+#define REC_CAPTURE_COLUMN  0x340        // 0 primary, 1 secondary
+static const char* const kStickNames[STICK_INPUTS] = {
+    "Left Stick X-", "Left Stick X+", "Left Stick Y+", "Left Stick Y-",
+    "Right Stick X-", "Right Stick X+", "Right Stick Y+", "Right Stick Y-", "Left Trigger", "Right Trigger"};
+static const int kStickPress = 5000, kStickRelease = 4000, kStickRest = 3000;   // of 10000
+
+static StickBinds* StickTableFor(const uint8_t* rec) {
+    if (!rec) return nullptr;
+    if (rec == g_extraRecord) return &g_seatStore[g_extraSeat - 2].stick;
+    if (rec == PadRecord(0)) return g_bindSwap >= 0 ? &g_seatStore[g_bindSwap - 2].stick : &g_stickBinds[0];
+    if (rec == PadRecord(1)) return &g_stickBinds[1];
+    return nullptr;
+}
+
+static int StickOwner(const StickBinds* sb) {      // player number, for the log
+    for (int k = 0; k < MAX_EXTRA_PLAYERS; ++k) if (sb == &g_seatStore[k].stick) return k + 3;
+    return sb == &g_stickBinds[1] ? 2 : 1;
+}
+
+static void StickChanged(const StickBinds* sb) {   // players 3-6 save now, players 1/2 with the profile
+    for (int k = 0; k < MAX_EXTRA_PLAYERS; ++k)
+        if (sb == &g_seatStore[k].stick) SaveSeatStore(k);
+}
+
+// The input's deflection 0..10000 in its own direction (lY / lRy grow downward; Y+ is the stick pushed up).
+static int StickValue(const uint8_t* rec, int input) {
+    static const int axes[4] = {0x00, 0x04, 0x0C, 0x10};
+    if (input >= 8) {                      // rglSlider[0] = RT, [1] = LT, 0..255 (StateOf)
+        LONG v = AxisOf(rec, input == 8 ? 0x1C : 0x18);
+        return v <= 0 ? 0 : v >= 255 ? 10000 : static_cast<int>(v * 10000 / 255);
+    }
+    LONG v = AxisOf(rec, axes[input / 2]);
+    if (input % 4 == 0 || input % 4 == 2) v = -v;    // X- and Y+ (up) are the negative side
+    return v <= 0 ? 0 : v > 10000 ? 10000 : static_cast<int>(v);
+}
+
+// The game's rule for one more input on an action (0x5B8460): capturing the secondary keeps the first input already
+// holding it (the primary) and clears the others; capturing the primary clears all. The order is the label's: the
+// game's 32 inputs, then the plugin's.
+static bool ClearStickAction(StickBinds* sb, int action, bool keepFirst) {
+    bool changed = false;
+    for (int i = 0; i < STICK_INPUTS; ++i) {
+        if (sb->action[i] != action) continue;
+        if (keepFirst) { keepFirst = false; continue; }
+        sb->action[i] = 0;
+        changed = true;
+    }
+    return changed;
+}
+static bool GameHasAction(const uint8_t* rec, int action) {
+    const int* t = reinterpret_cast<const int*>(rec + REC_BIND_TABLES);
+    for (int j = 0; j < 32; ++j) if (t[j] == action) return true;
+    return false;
+}
+
+static const uint8_t* g_capRec;          // the capture being watched (reset when the record decodes again)
+static int g_capAction;
+static bool g_capArmed[STICK_INPUTS];    // input was back at rest since the capture began
+
+static void StoreStick(uint8_t* rec, StickBinds* sb, int input, int action) {
+    bool keep = *reinterpret_cast<int*>(rec + REC_CAPTURE_COLUMN) == 1;
+    int* t = reinterpret_cast<int*>(rec + REC_BIND_TABLES);
+    for (int j = 0; j < 32; ++j) {
+        if (t[j] != action) continue;
+        if (keep) { keep = false; continue; }
+        t[j] = 0;
+    }
+    ClearStickAction(sb, action, keep);
+    sb->action[input] = action;
+    sb->wait[input] = true;              // the push that bound it doesn't fire it
+    *reinterpret_cast<int*>(rec + REC_CAPTURE_ACTION) = 0;
+    at<uint8_t>(CAPTURING) = 0;
+    g_capRec = nullptr;
+    StickChanged(sb);
+    Log("sticks: %s bound to action %d (column %d)", kStickNames[input], action,
+        *reinterpret_cast<int*>(rec + REC_CAPTURE_COLUMN));
+}
+
+static void __fastcall CapturePoll(uint8_t* rec) {
+    reinterpret_cast<void(__thiscall*)(void*)>(CallPrev(AT_CAPTURE_POLL, FN_CAPTURE_POLL))(rec);
+    const int action = *reinterpret_cast<int*>(rec + REC_CAPTURE_ACTION);
+    StickBinds* sb = StickTableFor(rec);
+    if (action <= 4 || !sb) return;      // none, or an axis role (the game's axis capture)
+    if (rec != g_capRec || action != g_capAction) {
+        g_capRec = rec;
+        g_capAction = action;
+        memset(g_capArmed, 0, sizeof(g_capArmed));
+    }
+    for (int i = 0; i < STICK_INPUTS; ++i) {
+        int v = StickValue(rec, i);
+        if (v < kStickRest) g_capArmed[i] = true;
+        else if (g_capArmed[i] && v > kStickPress) { StoreStick(rec, sb, i, action); return; }
+    }
+}
+
+// A button or POV direction captured by the game takes the action from the plugin's inputs by the same rule.
+static void AfterGameCapture(uint8_t* rec, int action, int column, bool gameHad) {
+    StickBinds* sb = StickTableFor(rec);
+    if (action <= 4 || !sb) return;
+    if (ClearStickAction(sb, action, column == 1 && !gameHad)) StickChanged(sb);
+}
+static void __fastcall CaptureButton(uint8_t* rec, void*, int button) {
+    int action = *reinterpret_cast<int*>(rec + REC_CAPTURE_ACTION), column = *reinterpret_cast<int*>(rec + REC_CAPTURE_COLUMN);
+    bool had = GameHasAction(rec, action);
+    reinterpret_cast<void(__thiscall*)(void*, int)>(CallPrev(AT_CAPTURE_BUTTON, FN_CAPTURE_BUTTON))(rec, button);
+    AfterGameCapture(rec, action, column, had);
+}
+static void __fastcall CapturePov(uint8_t* rec, void*, int pov) {
+    int action = *reinterpret_cast<int*>(rec + REC_CAPTURE_ACTION), column = *reinterpret_cast<int*>(rec + REC_CAPTURE_COLUMN);
+    bool had = GameHasAction(rec, action);
+    reinterpret_cast<void(__thiscall*)(void*, int)>(CallPrev(AT_CAPTURE_POV, FN_CAPTURE_POV))(rec, pov);
+    AfterGameCapture(rec, action, column, had);
+}
+
+// A row's label: the game names its own inputs (column 0 = the first input holding the action, 1 = the second);
+// past them come the plugin's.
+static const char* __fastcall BindingName(uint8_t* rec, void*, int action, int column) {
+    const char* name = reinterpret_cast<const char*(__thiscall*)(void*, int, int)>(
+        CallPrev(AT_BINDING_NAME, FN_BINDING_NAME))(rec, action, column);
+    StickBinds* sb = StickTableFor(rec);
+    if ((name && name[0]) || action <= 4 || !sb) return name;
+    int k = column;
+    const int* t = reinterpret_cast<const int*>(rec + REC_BIND_TABLES);
+    for (int j = 0; j < 32; ++j) if (t[j] == action) --k;
+    if (k < 0) return name;
+    for (int i = 0; i < STICK_INPUTS; ++i) {
+        if (sb->action[i] != action || k-- != 0) continue;
+        static int8_t shown[64][2];      // input + 1 last logged per action and column
+        if (action < 64 && column >= 0 && column < 2 && shown[action][column] != i + 1) {
+            shown[action][column] = static_cast<int8_t>(i + 1);
+            Log("sticks: label action %d column %d = %s (player %d)", action, column, kStickNames[i], StickOwner(sb));
+        }
+        return kStickNames[i];
+    }
+    return name;
+}
+
+static void __fastcall ResetBindings(uint8_t* rec) {
+    reinterpret_cast<void(__thiscall*)(void*)>(CallPrev(AT_RESET_BINDINGS, FN_RESET_BINDINGS))(rec);
+    StickBinds* sb = StickTableFor(rec);
+    if (!sb) return;
+    memset(sb->action, 0, sizeof(sb->action));
+    StickChanged(sb);
+    Log("sticks: cleared with Reset Keys To Default");
+}
+
+// In the decoder (after the action bits): a bound input past its threshold sets its action (bits are active low).
+static void StickDecode(uint8_t* rec) {
+    if (rec == g_capRec) g_capRec = nullptr;   // decoding again: the capture is over
+    StickBinds* sb = StickTableFor(rec);
+    if (!sb) return;
+    auto& bits = *reinterpret_cast<uint64_t*>(rec + 8);
+    for (int i = 0; i < STICK_INPUTS; ++i) {
+        int v = StickValue(rec, i);
+        if (sb->wait[i]) { sb->wait[i] = v > kStickRelease; continue; }
+        bool held = sb->held[i] ? v > kStickRelease : v > kStickPress;
+        if (held != sb->held[i] && sb->action[i])
+            Log("sticks: player %d %s %s (action %d)", StickOwner(sb), kStickNames[i], held ? "pressed" : "released",
+                sb->action[i]);
+        sb->held[i] = held;
+        if (held && sb->action[i] > 0 && sb->action[i] < 64) bits &= ~(1ull << sb->action[i]);
+    }
+}
+
+// Players 1/2's entries follow the game profile, as their button bindings do: saved and loaded with the profile's
+// bindings, in the plugin's ini under the profile's name.
+static void ProfileSection(char* out, size_t n) {
+    char name[32] = {};
+    memcpy(name, reinterpret_cast<const void*>(PROFILE_NAME), 31);
+    for (char* c = name; *c; ++c)
+        if (static_cast<unsigned char>(*c) < 0x20 || *c == '[' || *c == ']' || *c == '=' || *c == ';') *c = '_';
+    sprintf_s(out, n, "Profile %s", name);
+}
+static void SaveProfileSticks() {
+    char section[48], buf[64];
+    ProfileSection(section, sizeof(section));
+    for (int p = 0; p < 2; ++p) {
+        StickToText(g_stickBinds[p], buf, sizeof(buf));
+        WritePrivateProfileStringA(section, p ? "StickP2" : "StickP1", buf, g_playersPath);
+    }
+    Log("sticks: saved for [%s]", section);
+}
+static void LoadProfileSticks() {
+    char section[48], buf[64];
+    ProfileSection(section, sizeof(section));
+    for (int p = 0; p < 2; ++p) {
+        GetPrivateProfileStringA(section, p ? "StickP2" : "StickP1", "", buf, sizeof(buf), g_playersPath);
+        StickFromText(buf, &g_stickBinds[p]);
+    }
+    Log("sticks: loaded for [%s]", section);
+}
+
+static void InstallStickBindings() {
+    WriteCall(AT_CAPTURE_POLL, &CapturePoll);
+    WriteCall(AT_CAPTURE_BUTTON, &CaptureButton);
+    WriteCall(AT_CAPTURE_POV, &CapturePov);
+    WriteCall(AT_BINDING_NAME, &BindingName);
+    WriteCall(AT_RESET_BINDINGS, &ResetBindings);
+}
+
 static void __fastcall AnalogBytes(uint8_t* record, int shared) {
     if (shared) SharedPedals(record);
     SteeringStickY(record);
+    StickDecode(record);
 }
 
 static __declspec(naked) void SharedPedalsEndHook() {

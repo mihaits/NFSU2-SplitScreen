@@ -60,7 +60,12 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
     `menu_stick_check.py [pad n] [--keyboard]` (opens Quick Race options; triggers must not move the selected row,
     stick and D-pad must), `pedal_check.py [--no-pause]` (split race: every player's car pedals for trigger pulls,
     then each player's pause menu gets their stick Y) and `remap_check.py` (race: P1's axis setup set to pedals on the
-    right stick, steering on the right stick and separate pedal axes, then restored).
+    right stick, steering on the right stick and separate pedal axes, then restored). `stick_bind_check.sh` (about 2
+    minutes) tests stick and trigger bindings end to end: a capture through the Controls row, the label, the
+    primary / secondary rules against buttons, the P3 page, a confirmed profile save, the bindings after a restart, and
+    a 3P race. It backs up `NFSU2SplitScreen_Players.ini` and the profile's save file first and restores them at the
+    end; a run that died before that leaves `scripts/stick_bind_check_backup/`, which
+    `python -I stick_bind_check.py restore` puts back.
   - `steer_log.py [--players 4,5] [--speed 20] [--top 200] [--need 200] [--csv path]` compares players' steering live
     (stick, filter output, speed, pedals, velocity) and writes every sample to a csv; read-only. Compare with matched
     throttle: the output depends on it.

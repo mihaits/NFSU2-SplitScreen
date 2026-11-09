@@ -254,6 +254,7 @@ static void Install(HMODULE self) {
     Log("local player arrays relocated: %d refs", relocated);
     InstallCatchup();
     InstallAnalogBytes();
+    InstallStickBindings();
     InstallHurry();
     InstallTraffic();
     InstallFreeRun();
@@ -302,6 +303,7 @@ static void Install(HMODULE self) {
     WriteCall(AT_CONTROLS_PAGES_CALL, &BuildControlsPages);
     WriteCall(AT_PROFILE_SAVE_BINDINGS, &ProfileSaveBindings);
     WriteCall(AT_PROFILE_LOAD_BINDINGS, &ProfileLoadBindings);
+    WriteCall(AT_MEMCARD_STEP, &MemcardStep);
     WriteJump(AT_FE_OBJ_XFORM, &FeObjXformHook, 6);
     WriteJump(AT_QR_SET_MODE, &QuickRaceModeHook, 10);
     WriteJump(AT_PRESSSTART, &PressStartHook, 9);

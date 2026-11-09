@@ -14,13 +14,39 @@
 #define REC_BIND_TABLES_SIZE 0x200
 #define REC_BIND_AXES      0x344         // axis offsets / scales / enable flags (+0x344..+0x368)
 #define REC_BIND_AXES_SIZE 0x25
+// Stick directions and single triggers bound to button actions (docs/input.md, "Stick and trigger bindings"): the
+// plugin's own table next to a record's table 0, one action id per input (0 = none).
+#define STICK_INPUTS 10
+struct StickBinds {
+    int action[STICK_INPUTS];
+    bool held[STICK_INPUTS];             // runtime: input past its press threshold (with hysteresis)
+    bool wait[STICK_INPUTS];             // runtime: just captured, ignored until released
+};
 struct SeatStore {
     bool hasSettings, hasBindings;
     uint8_t settings[PLAYER_SETTING_SIZE];
     uint8_t tables[REC_BIND_TABLES_SIZE];
     uint8_t axes[REC_BIND_AXES_SIZE];
+    StickBinds stick;
     int car;                             // garage car id (0 = none)
 };
+
+static void StickToText(const StickBinds& s, char* out, size_t n) {
+    size_t len = 0;
+    out[0] = 0;
+    for (int i = 0; i < STICK_INPUTS && len + 4 < n; ++i)
+        len += sprintf_s(out + len, n - len, i ? ",%d" : "%d", s.action[i]);
+}
+static void StickFromText(const char* text, StickBinds* s) {
+    memset(s->action, 0, sizeof(s->action));
+    for (int i = 0; i < STICK_INPUTS && *text; ++i) {
+        char* end;
+        long v = strtol(text, &end, 10);
+        if (end == text) break;
+        s->action[i] = v > 0 && v < 64 ? static_cast<int>(v) : 0;
+        text = *end == ',' ? end + 1 : end;
+    }
+}
 static SeatStore g_seatStore[MAX_EXTRA_PLAYERS];   // players 3..6
 static char g_playersPath[MAX_PATH];
 
@@ -54,6 +80,8 @@ static void LoadSeatStore() {
         bool tables = FromHex(buf, s.tables, sizeof(s.tables));
         GetPrivateProfileStringA(section, "JoypadAxes", "", buf, sizeof(buf), g_playersPath);
         s.hasBindings = tables && FromHex(buf, s.axes, sizeof(s.axes));
+        GetPrivateProfileStringA(section, "StickBindings", "", buf, sizeof(buf), g_playersPath);
+        StickFromText(buf, &s.stick);
         GetPrivateProfileStringA(section, "Car", "0", buf, sizeof(buf), g_playersPath);
         s.car = static_cast<int>(strtoul(buf, nullptr, 16));
     }
@@ -70,6 +98,8 @@ static void SaveSeatStore(int i) {
         WritePrivateProfileStringA(section, "JoypadTables", buf, g_playersPath);
         ToHex(s.axes, sizeof(s.axes), buf);
         WritePrivateProfileStringA(section, "JoypadAxes", buf, g_playersPath);
+        StickToText(s.stick, buf, sizeof(buf));
+        WritePrivateProfileStringA(section, "StickBindings", buf, g_playersPath);
     }
     sprintf_s(buf, "%08X", static_cast<unsigned>(s.car));
     WritePrivateProfileStringA(section, "Car", buf, g_playersPath);
