@@ -325,10 +325,11 @@ static void* __cdecl PollPortHook(int port, int* type, void** prev) {
 // A joypad record's analog bytes: +0x10 throttle, +0x11 brake, +0x12 steering stick X, +0x13 steering stick Y.
 // The pedal events all read +0x10/+0x11 (records 0x93/0x96, which read the shared pedal byte +0x13, are retargeted
 // at install), and +0x13 carries the Y of the stick steering is bound to, which the menus (0x2E/0x2F) and hydraulics
-// (0xA8/0xAD) read, as on console. Both ends of the decoder's axis part (0x5C2044 shared pedals, 0x5C20D0 separate
-// pedals) jump to AnalogBytes, then to the common epilogue.
+// (0xA8/0xAD) read, as on console. Both ends of the decoder's axis part (0x5C2044 shared pedals, 0x5C20CD separate
+// pedals) jump to AnalogBytes, then to the common epilogue. The separate end's patch stops before 0x5C20D4: the
+// decoder's early exits (0x5C189E, 0x5C18CA, 0x5C19DE, 0x5C19F3) jump there.
 #define AT_SHARED_PEDALS_END    0x5C2044   // mov byte [esi+0x11], 0; mov byte [esi+0x10], 0 (8 bytes)
-#define AT_SEPARATE_PEDALS_END  0x5C20D0   // mov byte [esi+0x13], 0x80; pop edi (5 bytes)
+#define AT_SEPARATE_PEDALS_END  0x5C20CD   // mov [esi+0x10], cl; mov byte [esi+0x13], 0x80 (7 bytes)
 #define AT_AXES_EPILOGUE        0x5C204C   // pop edi; pop esi; pop ebp; pop ebx; mov esp, ebp; pop ebp; ret
 #define EVENT_RECORDS           0x7FDD10   // 83 records of 0x20: +8 event, +0x12 bit, +0x14 mode, +0x15 curve
 #define EVENT_RECORD_COUNT      83
@@ -426,6 +427,7 @@ static __declspec(naked) void SharedPedalsEndHook() {
 
 static __declspec(naked) void SeparatePedalsEndHook() {
     __asm {
+        mov byte ptr [esi + 0x10], cl    // the replaced throttle store (+0x13 is AnalogBytes')
         mov ecx, esi
         xor edx, edx
         call AnalogBytes
@@ -437,5 +439,5 @@ static __declspec(naked) void SeparatePedalsEndHook() {
 static void InstallAnalogBytes() {
     if (!RetargetPedalEvents()) { Log("input: pedal event records not as expected, analog bytes left to the game"); return; }
     WriteJump(AT_SHARED_PEDALS_END, &SharedPedalsEndHook, 8);
-    WriteJump(AT_SEPARATE_PEDALS_END, &SeparatePedalsEndHook, 5);
+    WriteJump(AT_SEPARATE_PEDALS_END, &SeparatePedalsEndHook, 7);
 }

@@ -227,8 +227,11 @@ false for them and `XPadIsDs4` true, so they get no player LEDs, trigger row or 
   values are scaled by 0.0127 (0x7A3C18; the game sets the axis ranges to ±10000, so ±127) and truncated (0x75BED4).
   On PC that left +0x13, which the console reads as the menu stick's Y, holding the shared pedal axis, so the menus
   scrolled with the triggers. The plugin restores the console meaning:
-  - Both ends of the axis part (0x5C2044, 0x5C20D0) jump to `AnalogBytes`, which returns through the common epilogue
-    0x5C204C. It writes +0x13 from the Y of the stick steering is bound to (the X offset + 4: lX → lY, lRx → lRy),
+  - Both ends of the axis part jump to `AnalogBytes`, which returns through the common epilogue 0x5C204C: 0x5C2044
+    (8 bytes, the shared clears) and 0x5C20CD (7 bytes: the throttle store, which the hook repeats, and +0x13 = 0x80).
+    The second patch must end before 0x5C20D4, the decoder's other exit (`pop edi`, jumped to from 0x5C189E,
+    0x5C18CA, 0x5C19DE and 0x5C19F3): a jump's last byte there runs as an instruction that depends on where the
+    plugin is loaded ([bug](bugs/decoder-exit-patch.md)). It writes +0x13 from the Y of the stick steering is bound to (the X offset + 4: lX → lY, lRx → lRy),
     0x80 + Y × 0.0127, like +0x12: up and left low, down and right high. Steering on buttons or on another axis: 0x80.
   - Shared pedals fill +0x10/+0x11 (`SharedPedals`). Bound to Z, from the triggers, which `StateOf` carries in
     `rglSlider[0..1]` (RT, LT) besides Z = LT − RT, so both pedals work at once. Bound to another axis, it is split at
