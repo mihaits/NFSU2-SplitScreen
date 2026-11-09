@@ -158,14 +158,20 @@ static __declspec(naked) void DirectionArrowHook() {
 // start placement (0x6065B0) calls 0x5EB5D0(6, out) at 0x6065C6 during the loading screen: it reads the track's
 // Forward/BackwardStartingPosition markers into 6 entries of 0x20 bytes (x, y, z floats at +0, heading word +0x10,
 // angle = h * 2pi / 65536, forward = (cos, sin)). The streamer then loads around the placed cars, so moved spots
-// come up fully loaded. A start with a spot gets the game's 6-car grid there (kStartGrid) instead of the marker read:
-// the venues' base tracks (4700, 4300: the areas without a race layout) have no start markers, and 0x5EB5D0's
-// fallback then crashed (null at 0x5DA392). District spots are spot 0
-// of a race there (4101, 4121, 4063, 4142).
+// come up fully loaded. A start with a spot gets one of the game's 6-car grids there instead of the marker read: the
+// venues' base tracks (4700, 4300, 4600: the areas without a race layout) have no start markers, and 0x5EB5D0's
+// fallback then crashed (null at 0x5DA392). Spots are spot 0 of a race there (4101, 4121, 4063, 4142, ...).
 #define AT_START_SPOTS 0x6065C6          // call 0x5EB5D0 (int n, entry* out), cdecl
 #define FN_START_SPOTS 0x5EB5D0
 #define CURRENT_TRACK  0x89E7A0          // the loaded race's track id
-struct FreeRunStart { const char* name; uint16_t track; float x, y, z; uint16_t heading; };
+// The game's grids. {metres back, metres to the side}. Races: 4 abreast 3.5 m apart, 2 more 5.7 m behind (4141's
+// markers). Street X: 2 abreast 3.5 m apart, rows 5 m apart (4601-4608's markers; its streets are narrower).
+static const float kStartGrid[6][2] = {{0, 0}, {0, -3.5f}, {0, 3.5f}, {0, -7}, {5.7f, 0}, {5.7f, -3.5f}};
+static const float kStreetXGrid[6][2] = {{0, 0}, {0, -3.5f}, {5, 0}, {5, -3.5f}, {10, 0}, {10, -3.5f}};
+struct FreeRunStart {
+    const char* name; uint16_t track; float x, y, z; uint16_t heading;
+    const float (*grid)[2] = kStartGrid;
+};
 static const FreeRunStart kFreeRunStarts[] = {
     {"Airport", FREE_RUN_TRACK, 0, 0, 0, 0},                           // 4000's own spots
     {"City Core", FREE_RUN_TRACK, -293.6f, -67.0f, 12.7f, 48352},
@@ -176,12 +182,12 @@ static const FreeRunStart kFreeRunStarts[] = {
     {"Speedway Industrial", 4700, -1646.6f, -1983.0f, -15.0f, 38034},   // base tracks: spots of 4701, 4711,
     {"Speedway Drift Pad", 4700, -1745.2f, -1946.8f, 0.0f, 4915},       // 4708 (SW Drift/StreetX Tune)
     {"Speedway Airport", 4700, 2453.0f, -452.0f, 0.0f, 16384},          // 4311, 4301
-    {"Stadium (drift)", 4300, -1183.9f, -674.9f, 6.6f, 0},
-    {"Vacant Lot (drift)", 4300, 812.7f, -323.9f, 28.8f, 0},
+    {"Stadium (Drift)", 4300, -1183.9f, -674.9f, 6.6f, 0},
+    {"Parkade (Drift)", 4300, 812.7f, -323.9f, 28.8f, 0},
+    {"Industrial Park (Street X)", 4600, -343.0f, -180.5f, 0.1f, 0, kStreetXGrid},          // Street X: 4601 (the port)
+    {"Parkade (Street X)", 4600, -1556.0f, -1934.9f, 32.1f, 32768, kStreetXGrid},          // 4605 (the parking deck)
 };
 static const int kFreeRunRandom = 5, kFreeRunStartCount = sizeof(kFreeRunStarts) / sizeof(kFreeRunStarts[0]);
-// The game's grid (4141's markers): 4 abreast 3.5 m apart, 2 more 5.7 m behind. {metres back, metres to the side}
-static const float kStartGrid[6][2] = {{0, 0}, {0, -3.5f}, {0, 3.5f}, {0, -7}, {5.7f, 0}, {5.7f, -3.5f}};
 static int g_freeRunStart;               // the row's choice; [FREERUN] Start in the ini is the default
 static float g_debugStart[4];            // [DEBUG] FreeRunStart = x y z heading: overrides the district's spot 0
 static bool g_debugStartSet;
@@ -203,7 +209,7 @@ static void __cdecl StartSpots(int n, uint8_t* out) {
     for (int i = 0; i < n; ++i) {
         auto* p = reinterpret_cast<float*>(out + i * 0x20);
         if (move) {
-            float back = kStartGrid[i % 6][0], side = kStartGrid[i % 6][1];
+            float back = to.grid[i % 6][0], side = to.grid[i % 6][1];
             p[0] = to.x - back * fx - side * fy;
             p[1] = to.y - back * fy + side * fx;
             p[2] = to.z;
@@ -237,16 +243,17 @@ static __declspec(naked) void FreeRunTrackCheckHook() {
 // Barriers on the venues' base tracks. Each layout's barriers are a scenery group "BARRIERS_<track>" (list at 0x88F760:
 // node +0x28 name hash, +0x2C on, +0x30 count, +0x34 object ids) that the race load 0x578060 switches on; the base
 // tracks switch none, so every barrier stays hidden (object entry 0x5D6430(id) +4 bit 0x10). Their collision is not
-// part of the group: every layout's barriers have vertical wall polygons in the region's collision mesh (identical in
-// a race and in free roam, no layout tag), so the hidden barriers were invisible walls (user). Removing the walls
-// opened areas without ground collision (cars fell and were reset, user). Per venue (user): the stadium shows the
-// barriers on its wall lines (ShowStadiumBarriers: one per stretch of line, gaps filled with angled pieces); the
-// speedways show none, and the airport one gets its walls drawn (DrawVenueWalls; they stand off the barriers); the
-// vacant lot shows none. Collision packs (0x88F770, per section): records +8 (0x20 each), count +0xC; record +3 flags
-// (0x16: the infinitely tall invisible walls, the ones that collide here; 0x12: finite layout walls, they don't), x / y
-// int16 / 8 at +8 / +0x10 (4 vertices, a wall is two vertical pairs). Instances: section table 0x883EC0 -> +4 -> +0x20
-// array (0x40 each, box +0 / +0xC). Only loaded sections have both, so it runs every 0.5 s from the race load; showing
-// = clear 0x10 and apply to the instance (0x5DB0E0), as the group switch 0x5710A0 does.
+// part of the scenery group: the region's collision mesh has vertical wall polygons in collision groups (record +0 ->
+// table [0x88FF94] +8 on; 0 = NONE, always on, then BARRIERS_<track>). The group 0 walls collide in free roam too, so
+// hidden barriers there were invisible walls (user). Removing the walls opened areas without ground collision (cars
+// fell and were reset, user). Per venue (user): the stadium and Street X show the barriers on their colliding wall
+// lines (ShowWallBarriers: one per stretch of line and deck, gaps filled with angled pieces); the speedways show none,
+// and the airport one gets its walls drawn (DrawVenueWalls; they stand off the barriers); the parkade drift area shows
+// none. Collision packs (0x88F770, per section): records +8 (0x20 each), count +0xC; record +0 group, +3 flags (bit
+// 0x2: wall; 0x16 infinitely tall, 0x12 finite), x / y int16 / 8 at +8 / +0x10 (4 vertices, a wall is two vertical
+// pairs). Instances: section table 0x883EC0 -> +4 -> +0x20 array (0x40 each, box +0 / +0xC). Only loaded sections have
+// both, so it runs every 0.5 s from the race load; showing = clear 0x10 and apply to the instance (0x5DB0E0), as the
+// group switch 0x5710A0 does.
 #define SCENERY_GROUPS         0x88F760
 #define FN_STRING_HASH         0x43DB50   // uint32 __cdecl (const char*)
 #define FN_SCENERY_OBJECT      0x5D6430   // entry* __cdecl (id)
@@ -254,9 +261,8 @@ static __declspec(naked) void FreeRunTrackCheckHook() {
 #define SCENERY_SECTIONS       0x883EC0
 #define COLLISION_PACKS        0x88F770
 #define COLLISION_PACK_COUNT   0x208
+#define COLLISION_GROUPS       0x88FF94   // -> 0x20 each: +8 on, +9 name (0 NONE, then BARRIERS_<track>)
 #define RACE_STATE             0x89E7B0
-#define STADIUM_FIRST_LAYOUT   4311
-#define STADIUM_LAST_LAYOUT    4315
 #define AIRPORT_SPEEDWAY_MIN_X 1000.0f   // 4700: the airport speedway lies east of x 1000, the industrial one west
 struct WallSegment { float x0, y0, x1, y1, z0 = 0, z1 = 0; bool ground = false; };
 static std::vector<WallSegment> g_venueWalls;            // the loaded walls, from the last pass
@@ -280,11 +286,9 @@ static float CenterToWall(const WallSegment& w, float x, float y) {
     return sqrtf(ex * ex + ey * ey);
 }
 static int CellKey(float x, float y) { return (int(floorf(x / 16)) & 0xFFFF) << 16 | (int(floorf(y / 16)) & 0xFFFF); }
-struct ShownBox { float x0, y0, x1, y1; };
-static std::vector<ShownBox> g_shownBoxes;   // stadium barriers shown (layouts overlap their own copies of a spot)
+struct ShownBox { float x0, y0, x1, y1, z0, z1; };
+static std::vector<ShownBox> g_shownBoxes;   // barriers shown (layouts overlap their own copies of a spot)
 static std::unordered_set<int> g_shownIds;   // their object ids, the game's own visible ones included
-// The part of a box's extent along a wall (projected on its direction) that shown barriers on the same line (centre
-// within 1.5 m of the wall) cover, 0..1. Layouts have their own copies of a spot, some parallel just off the shared line.
 // The part of a box's extent along a wall that lies within the wall's own span, 0..1 (a piece across the end of a
 // short wall sticks out of it).
 static float WallSpan(const WallSegment& w, const ShownBox& b) {
@@ -298,6 +302,9 @@ static float WallSpan(const WallSegment& w, const ShownBox& b) {
     }
     return hi > lo ? max(0.0f, min(hi, len) - max(lo, 0.0f)) / (hi - lo) : 0;
 }
+// The part of a box's extent along a wall (projected on its direction) that shown barriers on the same line (centre
+// within 1.5 m of the wall) and deck (height ranges within 2 m) cover, 0..1. Layouts have their own copies of a spot,
+// some parallel just off the shared line; the walls are as tall as every deck of a multi-storey venue.
 static float WallCoverage(const WallSegment& w, const ShownBox& b) {
     float dx = w.x1 - w.x0, dy = w.y1 - w.y0, len = sqrtf(dx * dx + dy * dy);
     if (len <= 0) return 1;
@@ -316,6 +323,7 @@ static float WallCoverage(const WallSegment& w, const ShownBox& b) {
     std::vector<std::pair<float, float>> covered;
     for (const ShownBox& o : g_shownBoxes) {
         if (CenterToWall(w, (o.x0 + o.x1) / 2, (o.y0 + o.y1) / 2) > 1.5f) continue;
+        if (o.z1 < b.z0 - 2 || o.z0 > b.z1 + 2) continue;   // another deck
         float olo, ohi;
         span(o, olo, ohi);
         olo = max(olo, lo), ohi = min(ohi, hi);
@@ -340,14 +348,16 @@ static void CollectVenueWalls() {
         if (!rec || count <= 0 || count > 100000) continue;
         for (int k = 0; k < count; ++k, rec += 0x10) {
             const int16_t* x = rec + 4; const int16_t* y = rec + 8;
-            if ((reinterpret_cast<uint8_t*>(rec)[3] & ~0x20) != 0x16 || x[0] != x[1] || y[0] != y[1] || x[2] != x[3] ||
+            const uint8_t* r = reinterpret_cast<uint8_t*>(rec);
+            bool live = !r[0] || at<uint8_t*>(COLLISION_GROUPS)[r[0] * 0x20 + 8];
+            if (!(r[3] & 0x2) || !live || x[0] != x[1] || y[0] != y[1] || x[2] != x[3] ||
                 y[2] != y[3] ||
                 (x[0] == x[2] && y[0] == y[2])) continue;
             g_venueWalls.push_back({x[0] / 8.0f, y[0] / 8.0f, x[2] / 8.0f, y[2] / 8.0f});
         }
     }
 }
-static int ShowStadiumBarriers() {
+static int ShowWallBarriers(int firstLayout, int lastLayout) {
     std::unordered_map<int, std::vector<int>> cells;
     for (int id = 0; id < static_cast<int>(g_venueWalls.size()); ++id) {
         const WallSegment& w = g_venueWalls[id];
@@ -356,20 +366,20 @@ static int ShowStadiumBarriers() {
                 cells[CellKey(cx * 16, cy * 16)].push_back(id);
     }
     if (cells.empty()) return 0;
-    uint32_t layouts[STADIUM_LAST_LAYOUT - STADIUM_FIRST_LAYOUT + 1];
-    for (int t = STADIUM_FIRST_LAYOUT; t <= STADIUM_LAST_LAYOUT; ++t) {
+    std::vector<uint32_t> layouts;
+    for (int t = firstLayout; t <= lastLayout; ++t) {
         char name[32];
         sprintf_s(name, "BARRIERS_%d", t);
-        layouts[t - STADIUM_FIRST_LAYOUT] = reinterpret_cast<uint32_t(__cdecl*)(const char*)>(FN_STRING_HASH)(name);
+        layouts.push_back(reinterpret_cast<uint32_t(__cdecl*)(const char*)>(FN_STRING_HASH)(name));
     }
-    // hidden stadium barriers a wall runs through, with the number of layouts using them
+    // the venue's hidden barriers a wall runs through, with the number of layouts using them
     std::unordered_map<int, int> uses;
     for (auto* node = at<uint8_t*>(SCENERY_GROUPS); node && node != reinterpret_cast<uint8_t*>(SCENERY_GROUPS);
          node = *reinterpret_cast<uint8_t**>(node)) {
         uint32_t hash = *reinterpret_cast<uint32_t*>(node + 0x28);
-        bool stadium = false;
-        for (uint32_t h : layouts) stadium |= h == hash;
-        if (!stadium || *reinterpret_cast<int*>(node + 0x2C)) continue;
+        bool venue = false;
+        for (uint32_t h : layouts) venue |= h == hash;
+        if (!venue || *reinterpret_cast<int*>(node + 0x2C)) continue;
         int count = *reinterpret_cast<int*>(node + 0x30);
         auto* ids = reinterpret_cast<uint16_t*>(node + 0x34);
         for (int i = 0; i < count; ++i) ++uses[ids[i]];
@@ -385,7 +395,8 @@ static int ShowStadiumBarriers() {
     for (const auto& u : uses) {   // barriers the game shows anyway (shared ones): a candidate must not overlap them
         uint8_t* entry = object(u.first);
         if ((entry[4] & 0x10) || g_shownIds.count(u.first)) continue;
-        if (float* box = boxOf(entry)) g_shownIds.insert(u.first), g_shownBoxes.push_back({box[0], box[1], box[3], box[4]});
+        if (float* box = boxOf(entry))
+            g_shownIds.insert(u.first), g_shownBoxes.push_back({box[0], box[1], box[3], box[4], box[2], box[5]});
     }
     // candidates: hidden barriers a wall crosses, with the wall whose line passes closest to their centre
     struct Candidate { int id, uses; uint8_t* entry; ShownBox box; int wall; float off; };
@@ -408,7 +419,8 @@ static int ShowStadiumBarriers() {
                     if (off < best) best = off, wall = w;
                 }
             }
-        if (wall >= 0) candidates.push_back({u.first, u.second, entry, {box[0], box[1], box[3], box[4]}, wall, best});
+        if (wall >= 0)
+            candidates.push_back({u.first, u.second, entry, {box[0], box[1], box[3], box[4], box[2], box[5]}, wall, best});
     }
     int shown = 0;
     auto show = [&](const Candidate& c) {
@@ -477,11 +489,21 @@ static void FindWallGround(const float* cars, int count) {
     }
     if (open) reinterpret_cast<void(__thiscall*)(void*)>(FN_QUERY_DTOR)(query);
 }
-static int VenuePass(bool stadium, const float* cars, int count) {
+// The layouts whose barriers go up on the walls: the stadium's (track 4300; the parkade drift area's 4301-4306 stay
+// hidden) and every Street X layout (4600: Industrial Park 4601-4604, the Parkade 4605-4608). None on the speedways.
+static bool WallLayouts(int track, int& first, int& last) {
+    if (track == 4300) first = 4311, last = 4315;
+    else if (track == 4600) first = 4601, last = 4608;
+    else return false;
+    return true;
+}
+static int VenuePass(int track, const float* cars, int count) {
     __try {
         CollectVenueWalls();
-        if (!stadium) FindWallGround(cars, count);
-        return stadium ? ShowStadiumBarriers() : 0;
+        int first, last;
+        if (WallLayouts(track, first, last)) return ShowWallBarriers(first, last);
+        FindWallGround(cars, count);
+        return 0;
     }
     __except (EXCEPTION_EXECUTE_HANDLER) { return -1; }
 }
@@ -489,7 +511,8 @@ static int g_venueTimer;
 static bool VenueFreeRun() {
     int track = at<int>(CURRENT_TRACK);
     int state = at<int>(RACE_STATE);   // 0 from the load and through the countdown, 7 once driving
-    return SplitRacing() && at<int>(QR_RACE_TYPE) == RACE_TYPE_FREE_RUN && (state == 0 || state == 7) && (track == 4700 || track == 4300);
+    return SplitRacing() && at<int>(QR_RACE_TYPE) == RACE_TYPE_FREE_RUN && (state == 0 || state == 7) &&
+           (track == 4700 || track == 4300 || track == 4600);
 }
 static void UpdateVenueBarriers() {
     if (!VenueFreeRun()) {
@@ -499,12 +522,11 @@ static void UpdateVenueBarriers() {
     }
     if (g_venueTimer-- > 0) return;
     g_venueTimer = 30;
-    // the stadium and the vacant lot share track 4300: the vacant lot's layouts (4301-4306) stay hidden
     float cars[MAX_LOCAL_PLAYERS * 3];
     int count = 0;
     for (int k = 0; k < g_screenViews && k < MAX_LOCAL_PLAYERS; ++k)
         if (uint8_t* car = PlayerCar(k)) memcpy(cars + 3 * count++, car + 0x60, 12);
-    int shown = VenuePass(at<int>(CURRENT_TRACK) == 4300, cars, count);
+    int shown = VenuePass(at<int>(CURRENT_TRACK), cars, count);
     if (shown) Log("free run: track %d: %d barriers with walls shown%s", at<int>(CURRENT_TRACK), shown,
                    shown < 0 ? " (fault)" : "");
 }

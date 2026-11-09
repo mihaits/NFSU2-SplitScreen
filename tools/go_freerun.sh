@@ -1,6 +1,6 @@
 #!/bin/sh
 # Restart the game and start a split-screen Free Run from start $1 (the Start row's index, [FREERUN] Start: 0 Airport,
-# 1 City Core, ... 10 Vacant Lot; default 0), players joined on virtual pads (the Players row's count: the [DEBUG]
+# 1 City Core, ... 12 Parkade; default 0), players joined on virtual pads (the Players row's count: the [DEBUG]
 # ExtraPlayers default). VIRTUAL=n joins only players 1..n and stops at the next Press START, for real pads.
 # Prints a timestamped line per stage and stops at the first one that fails (timeouts of a few seconds).
 cd "$(dirname "$0")"

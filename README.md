@@ -23,7 +23,7 @@ Xbox, DualSense and DualShock 4 pads are all supported natively, over USB or Blu
 2. Pick the race type, track, the number of **Players**, **Cars** (Pick Each, Pick One: player 1 picks for all, or Random
    cars of about the same performance), **Opponents** (AI) and their **Difficulty**. **Free Run** (the last mode)
    drops you in the city with no race; its **Start** row picks where: a city district, Random, or a closed venue
-   (speedways, drift areas).
+   (speedways, drift areas, Street X areas).
 3. Each player presses **START** on their own pad and picks a car (with Pick One or Random, START is all it takes). On the
    keyboard, press **Enter** on your Press START screen. Back only undoes your own step.
 4. After the race, **Next Race** (first on Post Race) opens the track select: pick a track (or Back for another
@@ -113,6 +113,7 @@ Tested up to 4 players with GE-Proton through Lutris. Setup, pad support and opt
 - [ ] Rear-view mirror in the bumper and hood cameras, like single player
 - [ ] Maybe: everyone picking a car at once; press START to join at any time
 - [ ] Free Run: game modes like a waypoint race (see [Free Run ideas](docs/free-run.md#ideas-not-built-yet))
+- [ ] Free Run: a minimap at every start (the Street X areas show a blank one)
 
 ## For developers
 Build with Visual Studio 2022 Build Tools (C++, x86): run `build.bat`.

@@ -15,7 +15,7 @@ import trackmarkers as tm
 # Maps to embed (texture and calibration of that track). 4701 and 4711 share a calibration but each draws only its own
 # speedway; the 4300 and 4600 overview textures are nearly empty.
 MAPS = [(4000, 'Bayview (city)'), (4701, 'Speedway Industrial'), (4711, 'Speedway Airport'),
-        (4311, 'Stadium drift'), (4301, 'Vacant lot drift'), (4200, 'Drag strips'),
+        (4311, 'Stadium drift'), (4301, 'Parkade drift'), (4200, 'Drag strips'),
         (4601, 'Street X city'), (4605, 'Street X industrial')]
 # Track word for kFreeRunStarts per region (the venue base tracks free_run.cpp uses).
 BASE_TRACK = {'L4RA': 'FREE_RUN_TRACK', 'L4RB': '4200', 'L4RC': '4300', 'L4RD': '4400', 'L4RF': '4600',
