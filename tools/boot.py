@@ -12,6 +12,7 @@ while time.time() < deadline:
 if not g: sys.exit('game not running')
 focused = False
 last = 0
+s = set()
 profile_rows = int(os.environ.get('PROFILE', '0'))
 while time.time() < deadline:
     try:

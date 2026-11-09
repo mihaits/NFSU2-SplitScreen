@@ -11,6 +11,10 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
   - `mod_overlap.py owner/repo ... [--names]` compares our patch sites with another mod's public source (read through
     `gh`, in memory): byte overlaps, near misses, patches on addresses we read or call, and with `--names` that mod's
     function names for our addresses. It sees literal patches only, so a clean result is no substitute for a test.
+  - `chain_test.sh` (live, `RACE=1` also starts a 2P split race) builds `chain_test/ChainTest.cpp` as
+    `scripts/AAChainTest.asi`, a plugin that loads before ours and hooks every `MakeTrampoline` site the way other
+    mods do (5-byte `jmp`, NOPs, a stub that counts calls). It passes when the game runs with no crash and the sites
+    log `chained`. It lists the sites that skip their hook on a byte check, and then removes the test plugin.
   - `trackmarkers.py [--track id] [--type text] [--json out] [--tracks] [--verify]` reads every track's position
     markers from the game files: start grids (`Forward/BackwardStartingPosition`, the ones 0x5EB5D0 returns),
     start and finish lines, and track 4000's shop and crib spots (x y z heading). Also the track table with each

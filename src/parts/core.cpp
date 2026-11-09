@@ -195,9 +195,13 @@ static void Write(uintptr_t addr, const void* data, size_t n) {
     FlushInstructionCache(GetCurrentProcess(), reinterpret_cast<void*>(addr), n);
 }
 
+static uintptr_t g_chainedSites[32];
+static int g_chainedCount;
 static void WriteJump(uintptr_t where, const void* to, size_t len) {
     uint8_t buf[64];
     if (len < 5 || len > sizeof(buf)) return;
+    for (int i = 0; i < g_chainedCount; ++i)
+        if (g_chainedSites[i] == where) len = 5;   // see MakeTrampoline
     buf[0] = 0xE9;
     int32_t rel = static_cast<int32_t>(reinterpret_cast<uintptr_t>(to) - (where + 5));
     memcpy(buf + 1, &rel, 4);
@@ -205,10 +209,34 @@ static void WriteJump(uintptr_t where, const void* to, size_t len) {
     Write(where, buf, len);
 }
 
-// Callable copy of the first `len` bytes at `where` (must be whole, position-independent instructions).
+// Callable copy of the first `len` bytes at `where` (whole instructions; position-independent apart from a leading
+// relative jmp/call). A plugin loaded before this one may already have hooked `where`:
+// - `jmp rel32`: the copy is that jump re-aimed, so the call chains into the other plugin's hook. Its own trampoline
+//   returns to where + 5, so WriteJump on this site then writes only its 5-byte jump (g_chainedSites) and leaves the
+//   original bytes after it in place.
+// - `call rel32`: copied with its displacement re-aimed.
+static void Log(const char* fmt, ...);
 static void* MakeTrampoline(uintptr_t where, size_t len) {
     auto* tramp = static_cast<uint8_t*>(VirtualAlloc(nullptr, 32, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE));
-    memcpy(tramp, reinterpret_cast<void*>(where), len);
+    const auto* src = reinterpret_cast<const uint8_t*>(where);
+    if (src[0] == 0xE9) {
+        uintptr_t target = where + 5 + *reinterpret_cast<const int32_t*>(src + 1);
+        tramp[0] = 0xE9;
+        int32_t rel = static_cast<int32_t>(target - (reinterpret_cast<uintptr_t>(tramp) + 5));
+        memcpy(tramp + 1, &rel, 4);
+        if (g_chainedCount < static_cast<int>(_countof(g_chainedSites))) g_chainedSites[g_chainedCount++] = where;
+        Log("hook at %08X: chained to another plugin's jump to %08X", static_cast<unsigned>(where),
+            static_cast<unsigned>(target));
+        return tramp;
+    }
+    if (src[0] == 0xEB) Log("hook at %08X: another plugin's short jump is there, can't chain it", static_cast<unsigned>(where));
+    memcpy(tramp, src, len);
+    if (src[0] == 0xE8 && len >= 5) {
+        int32_t rel = *reinterpret_cast<const int32_t*>(src + 1) + static_cast<int32_t>(where - reinterpret_cast<uintptr_t>(tramp));
+        memcpy(tramp + 1, &rel, 4);
+        Log("hook at %08X: chained to another plugin's call to %08X", static_cast<unsigned>(where),
+            static_cast<unsigned>(where + 5 + *reinterpret_cast<const int32_t*>(src + 1)));
+    }
     tramp[len] = 0xE9;
     int32_t rel = static_cast<int32_t>((where + len) - (reinterpret_cast<uintptr_t>(tramp) + len + 5));
     memcpy(tramp + len + 1, &rel, 4);

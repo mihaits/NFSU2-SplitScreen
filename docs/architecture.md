@@ -26,7 +26,10 @@ to the part of its subsystem (or a new part, included where its dependencies are
   sites; on a mismatch it shows a message box and installs nothing. Then it reads `NFSU2SplitScreen.ini`
   (`LoadConfig`) and patches.
 - Patch helpers: `WriteCall(at, fn)` replaces a `call rel32`; `WriteJump(at, fn, len)` writes a `jmp` and pads with NOPs;
-  `MakeTrampoline(at, len)` copies whole instructions out to a callable stub. Naked asm hooks return with
+  `MakeTrampoline(at, len)` copies whole instructions out to a callable stub. When a plugin loaded earlier already
+  hooked `at` with a `jmp rel32`, the stub jumps to that plugin's hook instead (`call rel32` is re-aimed too) and
+  `WriteJump` on that site writes only 5 bytes, because the other plugin's trampoline returns to `at + 5`
+  ([bugs/foreign-hook-trampoline.md](bugs/foreign-hook-trampoline.md)). Naked asm hooks return with
   `push RET; ret`. Some patches rewrite immediates or displacements directly.
 - **Per-frame entry**: `LayoutApplyHook`, a trampoline on the per-frame layout function 0x5C21E0 (called from
   0x5D2850). Each frame it runs: XInput update, HUD widening state, results counters, per-player settings sync, quad HUD
