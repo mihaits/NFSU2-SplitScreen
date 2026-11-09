@@ -96,7 +96,7 @@ and attach `scripts\NFSU2SplitScreen.log` (set `Debug = 1` in the ini to write i
 |---|---|
 | [WidescreenFix](https://github.com/ThirteenAG/WidescreenFixesPack/releases/tag/nfsu2) | recommended; works, its free camera per player included |
 | [underground2.net 1.0.3](https://nfsmods.xyz/mod/2004) | works |
-| [NFSU2 Extra Options](https://github.com/ExOptsTeam/NFSU2ExOpts) | works; keep `ExperimentalSplitScreenFix = 0` |
+| [NFSU2 Extra Options](https://github.com/ExOptsTeam/NFSU2ExOpts) | works; keep `ExperimentalSplitScreenFix = 0`. Its G key cycles the headlights for every player and `HeadlightsMode = 0` turns them off |
 | [NFSU2 Unlimiter](https://github.com/nlgxzef/NFSU2Unlimiter) | works |
 | [NFSU2 Upscaled HUD](https://nfsmods.xyz/mod/4319) | works; the Split-Screen menu icon switches to a matching HD one |
 | [NFSU2 Detailed Map](https://nfsmods.xyz/mod/4485) | works |

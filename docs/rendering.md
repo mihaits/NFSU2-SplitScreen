@@ -71,7 +71,9 @@ redirect their view or player choice to the view currently being drawn (`g_curre
 
 **Headlights.**
 - World headlights are one projector (view 9, camera 0x870A20). It's aimed once per frame by 0x5C2AE0(view 9,
-  human 0) and read by the world shaders through 0x5BDAA0(…, GetView(9)).
+  human 0) and read by the world shaders through 0x5BDAA0(…, GetView(9)). Its strength is the float at 0x615950:
+  Extra Options' `HeadlightsMode = 0` (its G hotkey) writes 0 there, and every projector is gone
+  ([bugs/headlights-off-extra-options.md](bugs/headlights-off-extra-options.md)).
 - `HeadlightsForPlayer(k)` (called from `RefreshViewTarget`) re-aims it at player k's car for each view.
 - `RecullWorldEntry` redoes view 9's entry of the world view table per player: frustum 0x5C26E0, cull 0x5E9A30 /
   0x5E99C0 into the space after the cursor (world +0x6C8, limit +0x6CC) without advancing it. This is needed because
