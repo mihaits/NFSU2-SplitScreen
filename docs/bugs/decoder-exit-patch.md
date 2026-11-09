@@ -14,8 +14,16 @@ the decoder's early exits land (0x5C189E keyboard read error, 0x5C18CA no buffer
 top byte of the jump's offset instead of `pop edi`. That byte is (plugin address − 0x5C20D5) >> 24, so it depends on
 where Windows loads the plugin: with the plugin at 0x57xxxxxx it was 0x57, `push edi`, which leaves the stack 8
 bytes off for the epilogue's pops: ebp became −1 at `mov esp, ebp`, and `pop ebp` at 0x5C20DA faulted with ESP = −1.
-With ESP invalid no exception handler could run, so the plugin wrote no report. Earlier load addresses gave a byte
-whose effect went unnoticed.
+With ESP invalid no exception handler could run, so the plugin wrote no report.
+
+The epilogue is `pop edi; pop esi; pop ebp; pop ebx; mov esp, ebp; pop ebp; ret`, so the stack depth at 0x5C20D5
+decides which saved value lands in ebp and then in esp. A stray byte 0x58..0x5F (a one-byte `pop reg`) keeps the depth
+right: only edi and one scratch register come back wrong, which the callers survive. That is a plugin address of about
+0x585C2100..0x605C20D4, where Windows' ASLR often puts it (0x5979E030 in a later run gives 0x59, `pop ecx`), which is
+why the release build passed its tests. Any other byte shifts the pops and crashes: 0x57 `push edi`, or 0x68
+`push imm32`, which swallows the next 4 bytes and runs `in eax, 0x5D` at 0x5C20D9 (exception C0000096, issue #6).
+The base is chosen when the DLL is first mapped and is kept until the file changes or Windows restarts, so one machine
+either crashes on every boot or on none.
 
 ## Measured (2026-11-09)
 - Dumps (`%LOCALAPPDATA%\CrashDumps`): eip 0x5C20DA, esp = ebp = esi = edi = 0xFFFFFFFF, ebx 0x874C40 (record 0,
