@@ -996,23 +996,51 @@ static void UpdateSeats() {
 #define ROW_VTABLE_LAPS    0x7910B8
 static const uintptr_t kQrFinishRowsCalls[] = {0x4E2CAC, 0x4E2CBE, 0x4E2CD0, 0x4E2CE2, 0x4E2CF4, 0x4E2D06, 0x4E2D18,
                                                0x4E2D2A, 0x4E2D4D, 0x4E2D5F};
-static uint32_t g_playersRowVt[18];
-
-static void __fastcall PlayersRowDraw(uint8_t* row) {
-    auto printf_ = reinterpret_cast<void(__cdecl*)(void*, const char*, ...)>(FN_FE_PRINTF);
-    printf_(*reinterpret_cast<void**>(row + 0x2C), "%s", "Players");
-    printf_(*reinterpret_cast<void**>(row + 0x30), "%d", SplitPlayers());
+// The plugin's own rows (Players, Cars, Opponents, Free Run's Start, the pause menu's triggers row): the game's Laps
+// row with the plugin's Act and Draw in a copy of its vtable.
+typedef void(__fastcall* RowDrawFn)(uint8_t* row);
+typedef void(__fastcall* RowActFn)(uint8_t* row, void*, const char* fng, uint32_t msg);
+struct OptionRow { RowActFn act; RowDrawFn draw; uint32_t vt[18]; };
+static void AddRow(uint8_t* screen, OptionRow& kind) {
+    if (!kind.vt[0]) {
+        memcpy(kind.vt, reinterpret_cast<void*>(ROW_VTABLE_LAPS), sizeof(kind.vt));
+        kind.vt[1] = reinterpret_cast<uint32_t>(kind.act);
+        kind.vt[3] = reinterpret_cast<uint32_t>(kind.draw);
+    }
+    auto* row = static_cast<uint8_t*>(reinterpret_cast<void*(__cdecl*)(size_t)>(FN_MALLOC)(0x54));
+    if (!row) return;
+    reinterpret_cast<void(__thiscall*)(void*, void*, void*, void*, void*, int)>(FN_ROW_CTOR)(
+        row, screen + 0xFC, screen + 0x10C, screen + 0x114, screen + 0x11C, 1);
+    *reinterpret_cast<uint32_t**>(row) = kind.vt;
+    reinterpret_cast<void(__thiscall*)(void*, void*, int)>(FN_SCREEN_ADD_ROW)(screen, row, 1);
 }
-
-static void __fastcall PlayersRowAct(uint8_t* row, void*, const char* fng, uint32_t msg) {
-    int n = SplitPlayers(), max = MAX_LOCAL_PLAYERS;
-    if (msg == MSG_LEFT) g_splitPlayers = n > 2 ? n - 1 : max;
-    if (msg == MSG_RIGHT) g_splitPlayers = n < max ? n + 1 : 2;
+// A row's label and value (Draw).
+static void RowText(uint8_t* row, const char* label, const char* value) {
+    auto printf_ = reinterpret_cast<void(__cdecl*)(void*, const char*, ...)>(FN_FE_PRINTF);
+    printf_(*reinterpret_cast<void**>(row + 0x2C), "%s", label);
+    printf_(*reinterpret_cast<void**>(row + 0x30), "%s", value);
+}
+static void RowText(uint8_t* row, const char* label, int value) {
+    char text[16];
+    sprintf_s(text, "%d", value);
+    RowText(row, label, text);
+}
+// The end of every Act: the screen's change message, the row's own left / right handling, a redraw.
+static void RowChanged(uint8_t* row, const char* fng, uint32_t msg) {
     reinterpret_cast<void(__cdecl*)(uint32_t, const char*)>(FN_FE_SEND_MSG)(0x92B703B5, fng);
     auto* vt = *reinterpret_cast<uintptr_t**>(row);
     reinterpret_cast<void(__thiscall*)(void*, uint32_t)>(vt[0x40 / 4])(row, msg);
     reinterpret_cast<void(__thiscall*)(void*)>(vt[3])(row);
 }
+
+static void __fastcall PlayersRowDraw(uint8_t* row) { RowText(row, "Players", SplitPlayers()); }
+static void __fastcall PlayersRowAct(uint8_t* row, void*, const char* fng, uint32_t msg) {
+    int n = SplitPlayers(), max = MAX_LOCAL_PLAYERS;
+    if (msg == MSG_LEFT) g_splitPlayers = n > 2 ? n - 1 : max;
+    if (msg == MSG_RIGHT) g_splitPlayers = n < max ? n + 1 : 2;
+    RowChanged(row, fng, msg);
+}
+static OptionRow g_playersRow = {&PlayersRowAct, &PlayersRowDraw};
 
 // "Opponents" and "Difficulty" rows: AI racers in split races. Quick race types (0x83AAB4; starters 0x53FCF8): 0/1/7
 // circuit/sprint/lap KO, 2 drag, 3 drift, 4 URL, 5/10 Street X, 8 outrun, 9 / 11 others. AI only where single player
@@ -1033,43 +1061,20 @@ static bool AiRaceType() {
     default: return false;
     }
 }
-static uint32_t g_opponentsRowVt[18];
 static int SplitOpponents() {
     int max = MAX_RACERS - SplitPlayers();
     if (!AiRaceType() || max < 0) return 0;
     return g_splitOpponents < 0 ? 0 : g_splitOpponents > max ? max : g_splitOpponents;
 }
-static void __fastcall OpponentsRowDraw(uint8_t* row) {
-    auto printf_ = reinterpret_cast<void(__cdecl*)(void*, const char*, ...)>(FN_FE_PRINTF);
-    printf_(*reinterpret_cast<void**>(row + 0x2C), "%s", "Opponents");
-    printf_(*reinterpret_cast<void**>(row + 0x30), "%d", SplitOpponents());
-}
+static void __fastcall OpponentsRowDraw(uint8_t* row) { RowText(row, "Opponents", SplitOpponents()); }
 static void __fastcall OpponentsRowAct(uint8_t* row, void*, const char* fng, uint32_t msg) {
     int n = SplitOpponents(), max = MAX_RACERS - SplitPlayers();
     if (max < 0) max = 0;
     if (msg == MSG_LEFT) g_splitOpponents = n > 0 ? n - 1 : max;
     if (msg == MSG_RIGHT) g_splitOpponents = n < max ? n + 1 : 0;
-    reinterpret_cast<void(__cdecl*)(uint32_t, const char*)>(FN_FE_SEND_MSG)(0x92B703B5, fng);
-    auto* vt = *reinterpret_cast<uintptr_t**>(row);
-    reinterpret_cast<void(__thiscall*)(void*, uint32_t)>(vt[0x40 / 4])(row, msg);
-    reinterpret_cast<void(__thiscall*)(void*)>(vt[3])(row);
+    RowChanged(row, fng, msg);
 }
-static void AddRow(uint8_t* screen, uint32_t* vt) {
-    auto* row = static_cast<uint8_t*>(reinterpret_cast<void*(__cdecl*)(size_t)>(FN_MALLOC)(0x54));
-    if (!row) return;
-    reinterpret_cast<void(__thiscall*)(void*, void*, void*, void*, void*, int)>(FN_ROW_CTOR)(
-        row, screen + 0xFC, screen + 0x10C, screen + 0x114, screen + 0x11C, 1);
-    *reinterpret_cast<uint32_t**>(row) = vt;
-    reinterpret_cast<void(__thiscall*)(void*, void*, int)>(FN_SCREEN_ADD_ROW)(screen, row, 1);
-}
-static void AddOpponentsRow(uint8_t* screen) {
-    if (!g_opponentsRowVt[0]) {
-        memcpy(g_opponentsRowVt, reinterpret_cast<void*>(ROW_VTABLE_LAPS), sizeof(g_opponentsRowVt));
-        g_opponentsRowVt[1] = reinterpret_cast<uint32_t>(&OpponentsRowAct);
-        g_opponentsRowVt[3] = reinterpret_cast<uint32_t>(&OpponentsRowDraw);
-    }
-    AddRow(screen, g_opponentsRowVt);
-}
+static OptionRow g_opponentsRow = {&OpponentsRowAct, &OpponentsRowDraw};
 #define FN_DIFFICULTY_ROW_CTOR 0x4B3930  // the game's quick race Difficulty row (same args as 0x51E230)
 static void AddDifficultyRow(uint8_t* screen) {
     auto* row = static_cast<uint8_t*>(reinterpret_cast<void*(__cdecl*)(size_t)>(FN_MALLOC)(0x54));
@@ -1078,41 +1083,17 @@ static void AddDifficultyRow(uint8_t* screen) {
         row, screen + 0xFC, screen + 0x10C, screen + 0x114, screen + 0x11C, 1);
     reinterpret_cast<void(__thiscall*)(void*, void*, int)>(FN_SCREEN_ADD_ROW)(screen, row, 1);
 }
-static void AddPlayersRow(uint8_t* screen) {
-    if (!g_playersRowVt[0]) {
-        memcpy(g_playersRowVt, reinterpret_cast<void*>(ROW_VTABLE_LAPS), sizeof(g_playersRowVt));
-        g_playersRowVt[1] = reinterpret_cast<uint32_t>(&PlayersRowAct);
-        g_playersRowVt[3] = reinterpret_cast<uint32_t>(&PlayersRowDraw);
-    }
-    AddRow(screen, g_playersRowVt);
-}
-
-static uint32_t g_carsRowVt[18];
-static void __fastcall CarsRowDraw(uint8_t* row) {
-    auto printf_ = reinterpret_cast<void(__cdecl*)(void*, const char*, ...)>(FN_FE_PRINTF);
-    printf_(*reinterpret_cast<void**>(row + 0x2C), "%s", "Cars");
-    printf_(*reinterpret_cast<void**>(row + 0x30), "%s", kCarsModeText[g_carsMode]);
-}
+static void __fastcall CarsRowDraw(uint8_t* row) { RowText(row, "Cars", kCarsModeText[g_carsMode]); }
 static void __fastcall CarsRowAct(uint8_t* row, void*, const char* fng, uint32_t msg) {
     if (msg == MSG_LEFT) g_carsMode = (g_carsMode + CARS_MODES - 1) % CARS_MODES;
     if (msg == MSG_RIGHT) g_carsMode = (g_carsMode + 1) % CARS_MODES;
-    reinterpret_cast<void(__cdecl*)(uint32_t, const char*)>(FN_FE_SEND_MSG)(0x92B703B5, fng);
-    auto* vt = *reinterpret_cast<uintptr_t**>(row);
-    reinterpret_cast<void(__thiscall*)(void*, uint32_t)>(vt[0x40 / 4])(row, msg);
-    reinterpret_cast<void(__thiscall*)(void*)>(vt[3])(row);
+    RowChanged(row, fng, msg);
 }
-static void AddCarsRow(uint8_t* screen) {
-    if (!g_carsRowVt[0]) {
-        memcpy(g_carsRowVt, reinterpret_cast<void*>(ROW_VTABLE_LAPS), sizeof(g_carsRowVt));
-        g_carsRowVt[1] = reinterpret_cast<uint32_t>(&CarsRowAct);
-        g_carsRowVt[3] = reinterpret_cast<uint32_t>(&CarsRowDraw);
-    }
-    AddRow(screen, g_carsRowVt);
-}
+static OptionRow g_carsRow = {&CarsRowAct, &CarsRowDraw};
 
 static void __fastcall QrFinishRows(uint8_t* screen, void*, int arg) {
-    if (SplitMode()) AddPlayersRow(screen);
-    if (SplitMode()) AddCarsRow(screen);
-    if (SplitMode() && AiRaceType()) AddOpponentsRow(screen), AddDifficultyRow(screen);
+    if (SplitMode()) AddRow(screen, g_playersRow);
+    if (SplitMode()) AddRow(screen, g_carsRow);
+    if (SplitMode() && AiRaceType()) AddRow(screen, g_opponentsRow), AddDifficultyRow(screen);
     reinterpret_cast<void(__thiscall*)(void*, int)>(CallPrev(_ReturnAddress(), FN_QR_FINISH_ROWS))(screen, arg);
 }

@@ -613,29 +613,15 @@ static void DrawVenueWalls(View* v, const float* carPos) {
     for (void* o : {vs, ps, decl, tex})
         if (o) reinterpret_cast<ULONG(__stdcall*)(void*)>((*reinterpret_cast<void***>(o))[2])(o);   // Release
 }
-static uint32_t g_startRowVt[18];
-static void __fastcall StartRowDraw(uint8_t* row) {
-    auto printf_ = reinterpret_cast<void(__cdecl*)(void*, const char*, ...)>(FN_FE_PRINTF);
-    printf_(*reinterpret_cast<void**>(row + 0x2C), "%s", "Start");
-    printf_(*reinterpret_cast<void**>(row + 0x30), "%s", kFreeRunStarts[g_freeRunStart].name);
-}
+static void __fastcall StartRowDraw(uint8_t* row) { RowText(row, "Start", kFreeRunStarts[g_freeRunStart].name); }
 static void __fastcall StartRowAct(uint8_t* row, void*, const char* fng, uint32_t msg) {
     if (msg == MSG_LEFT) g_freeRunStart = (g_freeRunStart + kFreeRunStartCount - 1) % kFreeRunStartCount;
     if (msg == MSG_RIGHT) g_freeRunStart = (g_freeRunStart + 1) % kFreeRunStartCount;
     SetFreeRunTrack();
-    reinterpret_cast<void(__cdecl*)(uint32_t, const char*)>(FN_FE_SEND_MSG)(0x92B703B5, fng);
-    auto* vt = *reinterpret_cast<uintptr_t**>(row);
-    reinterpret_cast<void(__thiscall*)(void*, uint32_t)>(vt[0x40 / 4])(row, msg);
-    reinterpret_cast<void(__thiscall*)(void*)>(vt[3])(row);
+    RowChanged(row, fng, msg);
 }
-static void __cdecl AddStartRow(uint8_t* screen) {
-    if (!g_startRowVt[0]) {
-        memcpy(g_startRowVt, reinterpret_cast<void*>(ROW_VTABLE_LAPS), sizeof(g_startRowVt));
-        g_startRowVt[1] = reinterpret_cast<uint32_t>(&StartRowAct);
-        g_startRowVt[3] = reinterpret_cast<uint32_t>(&StartRowDraw);
-    }
-    AddRow(screen, g_startRowVt);
-}
+static OptionRow g_startRow = {&StartRowAct, &StartRowDraw};
+static void __cdecl AddStartRow(uint8_t* screen) { AddRow(screen, g_startRow); }
 static void InstallFreeRun() {
     g_freeRunStart = GetPrivateProfileIntA("FREERUN", "Start", 0, g_iniPath);
     if (g_freeRunStart < 0 || g_freeRunStart >= kFreeRunStartCount) g_freeRunStart = 0;

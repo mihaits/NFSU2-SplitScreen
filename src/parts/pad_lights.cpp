@@ -164,18 +164,15 @@ static void LoadTriggerChoices() {
 // follows Feedback when the pausing player's pad is a DualSense ("Impulse Triggers" on an Xbox pad with trigger
 // motors); it is built like the Players row (seats.cpp).
 #define AT_PAUSE_FEEDBACK_ADD 0x4C4985
-static uint32_t g_triggersRowVt[18];
 static int PausingLocalPlayer() { return SplitRacing() ? g_pausePort : 0; }
 static int PadOfPlayer(int k) {
     if (!SplitMode()) return XPadLastActive();
     return k >= 0 && k < MAX_LOCAL_PLAYERS ? g_assignedPad[k] : PAD_NONE;
 }
 static void __fastcall TriggersRowDraw(uint8_t* row) {
-    auto printf_ = reinterpret_cast<void(__cdecl*)(void*, const char*, ...)>(FN_FE_PRINTF);
     int k = PausingLocalPlayer();
-    printf_(*reinterpret_cast<void**>(row + 0x2C), "%s",
-            XPadHasImpulseTriggers(PadOfPlayer(k)) ? "Impulse Triggers" : "Adaptive Triggers");
-    printf_(*reinterpret_cast<void**>(row + 0x30), "%s", k >= 0 && TriggersOn(k) ? "On" : "Off");
+    RowText(row, XPadHasImpulseTriggers(PadOfPlayer(k)) ? "Impulse Triggers" : "Adaptive Triggers",
+            k >= 0 && TriggersOn(k) ? "On" : "Off");
 }
 static void __fastcall TriggersRowAct(uint8_t* row, void*, const char* fng, uint32_t msg) {
     int k = PausingLocalPlayer();
@@ -186,22 +183,13 @@ static void __fastcall TriggersRowAct(uint8_t* row, void*, const char* fng, uint
         WritePrivateProfileStringA(section, "AdaptiveTriggers", g_triggersOn[k] ? "1" : "0", g_playersPath);
         Log("adaptive triggers: player %d %s", k + 1, g_triggersOn[k] ? "on" : "off");
     }
-    reinterpret_cast<void(__cdecl*)(uint32_t, const char*)>(FN_FE_SEND_MSG)(0x92B703B5, fng);
-    auto* vt = *reinterpret_cast<uintptr_t**>(row);
-    reinterpret_cast<void(__thiscall*)(void*, uint32_t)>(vt[0x40 / 4])(row, msg);
-    reinterpret_cast<void(__thiscall*)(void*)>(vt[3])(row);
+    RowChanged(row, fng, msg);
 }
+static OptionRow g_triggersRow = {&TriggersRowAct, &TriggersRowDraw};
 static int __fastcall PauseFeedbackAdd(uint8_t* screen, void*, void* row, int flag) {
     int r = reinterpret_cast<int(__thiscall*)(void*, void*, int)>(CallPrev(AT_PAUSE_FEEDBACK_ADD, FN_SCREEN_ADD_ROW))(screen, row, flag);
     int pad = PadOfPlayer(PausingLocalPlayer());
-    if (pad != PAD_NONE && (XPadIsDualSense(pad) || XPadHasImpulseTriggers(pad))) {
-        if (!g_triggersRowVt[0]) {
-            memcpy(g_triggersRowVt, reinterpret_cast<void*>(ROW_VTABLE_LAPS), sizeof(g_triggersRowVt));
-            g_triggersRowVt[1] = reinterpret_cast<uint32_t>(&TriggersRowAct);
-            g_triggersRowVt[3] = reinterpret_cast<uint32_t>(&TriggersRowDraw);
-        }
-        AddRow(screen, g_triggersRowVt);
-    }
+    if (pad != PAD_NONE && (XPadIsDualSense(pad) || XPadHasImpulseTriggers(pad))) AddRow(screen, g_triggersRow);
     return r;                            // the Feedback row's result (kept in screen+0x154)
 }
 
