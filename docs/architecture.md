@@ -80,6 +80,6 @@ to the part of its subsystem (or a new part, included where its dependencies are
   recreate them.
 - `SetRenderTarget` resets the viewport and scissor without calling SetViewport.
 - `0x50CA00` / `0x50CA50` recurse into groups.
-- Patch order matters: hooks inside code that `RelocateLocalPlayers` rewrites (e.g. 0x5D778D) are installed after it.
+- The table relocations (`RelocateTextRefs`: port tables, Controls pages, local players, listeners, one walk of .text) run before any hook is installed, so hooks and trampolines only ever see relocated code.
 - 2-entry tables indexed by `view id - 1` or `player index` are common (weather caches, tint, settings, FF channels):
   check for out-of-bounds use when views 5..8 or players 3..6 reach new code.

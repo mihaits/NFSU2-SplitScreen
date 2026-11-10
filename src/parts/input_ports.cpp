@@ -18,30 +18,14 @@
 #define FN_ADD_BINDING     0x579410          // void __cdecl (port, action, handler, arg)
 alignas(16) static uint8_t g_portTables[INPUT_PORTS * PORT_TABLE_SIZE];
 
-static int RelocatePortTables() {
-    auto* dos = reinterpret_cast<IMAGE_DOS_HEADER*>(0x400000);
-    auto* nt = reinterpret_cast<IMAGE_NT_HEADERS*>(0x400000 + dos->e_lfanew);
-    auto* sec = IMAGE_FIRST_SECTION(nt);
-    auto base = reinterpret_cast<uint32_t>(g_portTables);
-    int patched = 0;
-    for (int i = 0; i < nt->FileHeader.NumberOfSections; ++i, ++sec) {
-        if (memcmp(sec->Name, ".text", 6) != 0) continue;
-        auto* p = reinterpret_cast<uint8_t*>(0x400000 + sec->VirtualAddress);
-        size_t n = sec->Misc.VirtualSize;
-        DWORD old;
-        VirtualProtect(p, n, PAGE_EXECUTE_READWRITE, &old);
-        for (size_t o = 0; o + 4 <= n; ++o) {
-            uint32_t v;
-            memcpy(&v, p + o, 4);
-            if (v < OLD_PORT_TABLES || v >= OLD_PORT_TABLES_END) continue;
-            uint32_t nv = base + (v - OLD_PORT_TABLES);
-            memcpy(p + o, &nv, 4);
-            ++patched;
-            o += 3;
-        }
-        VirtualProtect(p, n, old, &old);
-    }
-    uint32_t end = base + INPUT_PORTS * PORT_TABLE_SIZE;
+static bool PortTablesRef(uint32_t v, uint32_t* nv) {         // for RelocateTextRefs
+    if (v < OLD_PORT_TABLES || v >= OLD_PORT_TABLES_END) return false;
+    *nv = reinterpret_cast<uint32_t>(g_portTables) + (v - OLD_PORT_TABLES);
+    return true;
+}
+// The rest of the move: the two loop bounds, the table count and the node pool, for INPUT_PORTS tables.
+static void ResizePortTables() {
+    uint32_t end = reinterpret_cast<uint32_t>(g_portTables) + INPUT_PORTS * PORT_TABLE_SIZE;
     Write(AT_PORT_BOUND_1, &end, 4);
     Write(AT_PORT_BOUND_2, &end, 4);
     const uint8_t count = INPUT_PORTS;
@@ -49,7 +33,6 @@ static int RelocatePortTables() {
     Write(AT_PORT_TABLES_DTOR_COUNT, &count, 1);
     const uint32_t pool = 0x50 * INPUT_PORTS;   // the game's 0xA0 for 2 ports
     Write(AT_INPUT_NODE_POOL, &pool, 4);
-    return patched;
 }
 
 // Rumble, as on the console. The game's rumble engine is shared with the PS2 version (SLUS_210.65): events

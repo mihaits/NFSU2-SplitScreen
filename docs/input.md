@@ -271,7 +271,7 @@ is up. Its player's pause menus show Feedback greyed and off: `FfCapable` (jump 
 mouse free camera follows the keyboard player (with no keyboard player, the mouse turns no camera).
 
 **Players 3..6.**
-- The port tables are relocated to `g_portTables[INPUT_PORTS]` (6) (`RelocatePortTables`: 15 refs, loop bounds 0x57B3AC/0x580AD4,
+- The port tables are relocated to `g_portTables[INPUT_PORTS]` (6) (`PortTablesRef` and `ResizePortTables`: 15 refs, loop bounds 0x57B3AC/0x580AD4,
   static ctor/dtor counts 0x77D9CB/0x782296). This runs before the game's static init.
 - The binding node pool is raised from 0xA0 (2 ports) to 0x50 per port (0x579559).
 - `InputInit` (call at 0x57ED80) gives ports 2..5 their id, and ports 2/3 action 1. Action 1's handler 0x571A20 keeps
@@ -370,7 +370,7 @@ id per input, 0 none). They are captured, named and decoded like a button:
 **Controls for players 3..6.** They have no joystick slot, so their bindings live in the seat store ([players](players.md)).
 - The Controls screen (ctor 0x4ECD10) builds its pages with 0x4ACE00 (call at 0x4ECFD5 → `BuildControlsPages`): table
   0x835930, stride 12 {type, ?, record}, 6 max, count at screen+0x158, joypad pages at +0x154. The table is relocated
-  to `g_controlsPages[8]` (`RelocateControlsPages`: 77 refs, 0x4ACE69 `mov ebp, 0x835930` and 76 `[reg*4 + 0x835938]`;
+  to `g_controlsPages[8]` (`ControlsPagesRef`: 77 refs, 0x4ACE69 `mov ebp, 0x835930` and 76 `[reg*4 + 0x835938]`;
   the next object starts at 0x835978). Four pages are appended for P3..P6 when they fit in the table (the game's
   own count + 4 <= 8, see [open issues](open-issues.md)), all on the slot-0 pad record.
 - While one of them is shown (`ControlsPageSeat`: page index and UI_Options_PC_Controller.fng active), that record

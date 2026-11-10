@@ -33,30 +33,10 @@ static uintptr_t RelocatePlayerAddr(uint32_t a) {
 }
 
 #define AT_PLAYERS_TEARDOWN_DISP 0x60AA76   // disp32 of `mov esi, [eax*4 + 0x8900B0]` at 0x60AA73
-static int RelocateLocalPlayers() {
-    auto* dos = reinterpret_cast<IMAGE_DOS_HEADER*>(0x400000);
-    auto* nt = reinterpret_cast<IMAGE_NT_HEADERS*>(0x400000 + dos->e_lfanew);
-    auto* sec = IMAGE_FIRST_SECTION(nt);
-    int patched = 0;
-    for (int i = 0; i < nt->FileHeader.NumberOfSections; ++i, ++sec) {
-        if (memcmp(sec->Name, ".text", 6) != 0) continue;
-        auto* p = reinterpret_cast<uint8_t*>(0x400000 + sec->VirtualAddress);
-        size_t n = sec->Misc.VirtualSize;
-        DWORD old;
-        VirtualProtect(p, n, PAGE_EXECUTE_READWRITE, &old);
-        for (size_t o = 0; o + 4 <= n; ++o) {
-            uint32_t v;
-            memcpy(&v, p + o, 4);
-            if (v < OLD_PLAYERS_P || v >= OLD_PLAYERS_END || (v - OLD_PLAYERS_P) % 4) continue;
-            uint32_t nv = static_cast<uint32_t>(RelocatePlayerAddr(v));
-            memcpy(p + o, &nv, 4);
-            ++patched;
-            o += 3;
-        }
-        VirtualProtect(p, n, old, &old);
-        FlushInstructionCache(GetCurrentProcess(), p, n);
-    }
-    return patched;
+static bool LocalPlayersRef(uint32_t v, uint32_t* nv) {       // for RelocateTextRefs
+    if (v < OLD_PLAYERS_P || v >= OLD_PLAYERS_END || (v - OLD_PLAYERS_P) % 4) return false;
+    *nv = static_cast<uint32_t>(RelocatePlayerAddr(v));
+    return true;
 }
 
 // Car light glares (model render 0x5D6570): a car's light glare slots (0x48AB20(type, view mask 1/2)) are only made

@@ -47,7 +47,7 @@
 #define FN_SET_TEXT_FMT    0x537BE0    // int __cdecl (FEObject*, const char* fmt, ...)
 #define FN_LOCALIZE        0x4FFA80    // const char* __cdecl (languageHash)
 #define CONTROLS_PAGE      0x8364EC    // current Controls page
-#define CONTROLS_PAGE_MAX  8           // Controls pages, relocated from the game's 6 (RelocateControlsPages)
+#define CONTROLS_PAGE_MAX  8           // Controls pages, relocated from the game's 6 (ControlsPagesRef)
 static uint8_t g_controlsPages[CONTROLS_PAGE_MAX * 12];
 #define CONTROLS_PAGE_DEV  (reinterpret_cast<uintptr_t>(g_controlsPages) + 8)   // [page * 3] = device record of the page
 #define AT_FE_OBJ_XFORM    0x51B0B0    // FE object transform (thiscall: data, out mtx, out color, level, scale) entry
@@ -193,6 +193,32 @@ static void Write(uintptr_t addr, const void* data, size_t n) {
     memcpy(reinterpret_cast<void*>(addr), data, n);
     VirtualProtect(reinterpret_cast<void*>(addr), n, old, &old);
     FlushInstructionCache(GetCurrentProcess(), reinterpret_cast<void*>(addr), n);
+}
+
+// Moves the game's references to relocated tables: every dword in .text, at any byte offset, that remap() takes
+// (bool remap(uint32_t value, uint32_t* newValue)) is replaced. The tables' references are all absolute operands in
+// .text, and no other dword there has a value inside them (each relocation's count is logged). One walk for all of
+// them, before any hook is installed.
+template <class F> static void RelocateTextRefs(F remap) {
+    auto* dos = reinterpret_cast<IMAGE_DOS_HEADER*>(0x400000);
+    auto* nt = reinterpret_cast<IMAGE_NT_HEADERS*>(0x400000 + dos->e_lfanew);
+    auto* sec = IMAGE_FIRST_SECTION(nt);
+    for (int i = 0; i < nt->FileHeader.NumberOfSections; ++i, ++sec) {
+        if (memcmp(sec->Name, ".text", 6) != 0) continue;
+        auto* p = reinterpret_cast<uint8_t*>(0x400000 + sec->VirtualAddress);
+        size_t n = sec->Misc.VirtualSize;
+        DWORD old;
+        VirtualProtect(p, n, PAGE_EXECUTE_READWRITE, &old);
+        for (size_t o = 0; o + 4 <= n; ++o) {
+            uint32_t v, nv;
+            memcpy(&v, p + o, 4);
+            if (!remap(v, &nv)) continue;
+            memcpy(p + o, &nv, 4);
+            o += 3;
+        }
+        VirtualProtect(p, n, old, &old);
+        FlushInstructionCache(GetCurrentProcess(), p, n);
+    }
 }
 
 static uintptr_t g_chainedSites[32];

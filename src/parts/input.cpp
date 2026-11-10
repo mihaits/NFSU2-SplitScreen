@@ -86,31 +86,11 @@ static void MergeKeyboard(uint8_t* out, int port) {
 #define CONTROLS_PAGES     reinterpret_cast<uintptr_t>(g_controlsPages)
 // Every .text reference to the table is a disp32/imm32 inside it (77: `mov ebp, 0x835930` at 0x4ACE69 and 76
 // `[reg*4 + 0x835938]`; a blind scan finds the same 77).
-static int RelocateControlsPages() {
-    memcpy(g_controlsPages, reinterpret_cast<void*>(OLD_CONTROLS_PAGES), 6 * 12);
-    auto* dos = reinterpret_cast<IMAGE_DOS_HEADER*>(0x400000);
-    auto* nt = reinterpret_cast<IMAGE_NT_HEADERS*>(0x400000 + dos->e_lfanew);
-    auto* sec = IMAGE_FIRST_SECTION(nt);
-    int patched = 0;
-    for (int i = 0; i < nt->FileHeader.NumberOfSections; ++i, ++sec) {
-        if (memcmp(sec->Name, ".text", 6) != 0) continue;
-        auto* p = reinterpret_cast<uint8_t*>(0x400000 + sec->VirtualAddress);
-        size_t n = sec->Misc.VirtualSize;
-        DWORD old;
-        VirtualProtect(p, n, PAGE_EXECUTE_READWRITE, &old);
-        for (size_t o = 0; o + 4 <= n; ++o) {
-            uint32_t v;
-            memcpy(&v, p + o, 4);
-            if (v < OLD_CONTROLS_PAGES || v >= OLD_CONTROLS_PAGES + 6 * 12) continue;
-            uint32_t nv = static_cast<uint32_t>(CONTROLS_PAGES) + (v - OLD_CONTROLS_PAGES);
-            memcpy(p + o, &nv, 4);
-            ++patched;
-            o += 3;
-        }
-        VirtualProtect(p, n, old, &old);
-        FlushInstructionCache(GetCurrentProcess(), p, n);
-    }
-    return patched;
+static void InitControlsPages() { memcpy(g_controlsPages, reinterpret_cast<void*>(OLD_CONTROLS_PAGES), 6 * 12); }
+static bool ControlsPagesRef(uint32_t v, uint32_t* nv) {      // for RelocateTextRefs
+    if (v < OLD_CONTROLS_PAGES || v >= OLD_CONTROLS_PAGES + 6 * 12) return false;
+    *nv = static_cast<uint32_t>(CONTROLS_PAGES) + (v - OLD_CONTROLS_PAGES);
+    return true;
 }
 // The profile packer 0x52A280 (which writes the bindings with 0x5B9420) runs for the snapshot taken when Options opens,
 // for the "profile changed?" check behind the save prompt and for the save, all before the player has confirmed both

@@ -3,7 +3,7 @@
 **Local player arrays.** These are 0x8900AC byIndex[2], 0x8900B4 inOrder[2] and 0x8900BC count, with about 300 code
 references. Many of them are address-bounded loops (`p < 0x8900B4`). They are relocated as one block,
 `g_localPlayers {byIndex[4], inOrder[4], count}`, so that "end of byIndex == inOrder" and "end of inOrder == count" stay
-true (`RelocateLocalPlayers` rewrites every disp32). One indexed reference is "inOrder - 4": the race teardown loop at
+true (`LocalPlayersRef` rewrites every disp32). One indexed reference is "inOrder - 4": the race teardown loop at
 0x60AA76 (`while (count) delete inOrder[count-1]`). It is patched to &inOrder[0]-4; otherwise quitting with 3 players
 hung. The game no longer touches its own block; every frame `MirrorLocalPlayers` copies players 1-2 and the count
 (at most 2) into it, for other mods that read it (CrashingForeignCars's health bar).

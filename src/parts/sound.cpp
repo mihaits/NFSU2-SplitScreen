@@ -20,39 +20,22 @@ static uint8_t g_listenerMem[4096];
 static bool g_listenerParked[MAX_LOCAL_PLAYERS];      // stale since the race load (see ListenerUpdate)
 static float g_listenerParkPos[MAX_LOCAL_PLAYERS][2];
 
-static int RelocateListenerArrays() {
+static void InitListenerArrays() {
     size_t used = 0;
     for (ListenerArray& a : g_listenerArrays) {
         a.newBase = g_listenerMem + used;
         memcpy(a.newBase, reinterpret_cast<void*>(a.oldBase), a.stride * 2);   // current values for 0/1
         used += a.stride * MAX_LOCAL_PLAYERS;
     }
-    auto* dos = reinterpret_cast<IMAGE_DOS_HEADER*>(0x400000);
-    auto* nt = reinterpret_cast<IMAGE_NT_HEADERS*>(0x400000 + dos->e_lfanew);
-    auto* sec = IMAGE_FIRST_SECTION(nt);
-    int patched = 0;
-    for (int i = 0; i < nt->FileHeader.NumberOfSections; ++i, ++sec) {
-        if (memcmp(sec->Name, ".text", 6) != 0) continue;
-        auto* p = reinterpret_cast<uint8_t*>(0x400000 + sec->VirtualAddress);
-        size_t n = sec->Misc.VirtualSize;
-        DWORD old;
-        VirtualProtect(p, n, PAGE_EXECUTE_READWRITE, &old);
-        for (size_t o = 0; o + 4 <= n; ++o) {
-            uint32_t v;
-            memcpy(&v, p + o, 4);
-            for (const ListenerArray& a : g_listenerArrays)
-                if (v >= a.oldBase && v < a.oldBase + a.stride * 2) {
-                    uint32_t nv = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(a.newBase)) + (v - a.oldBase);
-                    memcpy(p + o, &nv, 4);
-                    ++patched;
-                    o += 3;
-                    break;
-                }
+}
+static bool ListenerArraysRef(uint32_t v, uint32_t* nv) {     // for RelocateTextRefs
+    if (v < 0x82BB40 || v >= 0x82C6C4 + 2 * 8) return false;  // outside the first..last of the arrays
+    for (const ListenerArray& a : g_listenerArrays)
+        if (v >= a.oldBase && v < a.oldBase + a.stride * 2) {
+            *nv = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(a.newBase)) + (v - a.oldBase);
+            return true;
         }
-        VirtualProtect(p, n, old, &old);
-        FlushInstructionCache(GetCurrentProcess(), p, n);
-    }
-    return patched;
+    return false;
 }
 
 static uint8_t* ListenerSlot(const ListenerArray& a, int k) { return a.newBase + a.stride * k; }

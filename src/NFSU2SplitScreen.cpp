@@ -219,10 +219,21 @@ static void Install(HMODULE self) {
         Log("XInput runtime not found; using DirectInput controllers");
 
     bool tablesBuilt = *reinterpret_cast<uint32_t*>(OLD_PORT_TABLES) == OLD_PORT_TABLES;
-    int portRefs = RelocatePortTables();
-    Log("port tables relocated: %d refs%s", portRefs, tablesBuilt ? " (WARNING: already constructed)" : "");
+    InitControlsPages();
+    InitListenerArrays();
+    int refs[4] = {};                    // port tables, Controls pages, local players, listeners
+    RelocateTextRefs([&refs](uint32_t v, uint32_t* nv) {
+        int which = PortTablesRef(v, nv) ? 0 : ControlsPagesRef(v, nv) ? 1 : LocalPlayersRef(v, nv) ? 2 :
+                    ListenerArraysRef(v, nv) ? 3 : -1;
+        if (which >= 0) ++refs[which];
+        return which >= 0;
+    });
+    ResizePortTables();
+    Log("port tables relocated: %d refs%s", refs[0], tablesBuilt ? " (WARNING: already constructed)" : "");
+    Log("controls page table relocated: %d refs", refs[1]);
+    Log("local player arrays relocated: %d refs", refs[2]);
+    Log("sound listener arrays relocated: %d refs", refs[3]);
     WriteCall(AT_INPUT_INIT_CALL, &InputInit);
-    Log("controls page table relocated: %d refs", RelocateControlsPages());
     g_origRumble = MakeTrampoline(FN_RUMBLE, 5);
     WriteJump(FN_RUMBLE, &RumbleHook, 5);
     WriteCall(AT_FF_UPDATE_CALL, &FfUpdate);
@@ -245,13 +256,11 @@ static void Install(HMODULE self) {
     WriteJump(FN_IMPACT_RUMBLE, &ImpactRumbleHook, 6);
     WriteJump(FN_JOY_SLOT_PRESENT, &JoySlotPresent, 5);
     WriteJump(FN_JOY_SLOT_WHEEL, &JoySlotWheel, 5);
-    int relocated = RelocateLocalPlayers();
     // the one indexed reference that is "inOrder - 4" (0x8900B0 = old byIndex[1]): the race teardown loop
     // `while (count) delete inOrder[count - 1]` (mov esi,[eax*4+0x8900B0]); relocated as byIndex+4 it read
     // byIndex[count] (3 players: null forever -> hang on quit; 4 players: wrong player freed)
     uint32_t inOrderMinus1 = reinterpret_cast<uint32_t>(&g_localPlayers.inOrder[0]) - 4;
     Write(AT_PLAYERS_TEARDOWN_DISP, &inOrderMinus1, 4);
-    Log("local player arrays relocated: %d refs", relocated);
     InstallCatchup();
     InstallAnalogBytes();
     InstallStickBindings();
@@ -261,7 +270,6 @@ static void Install(HMODULE self) {
     InstallScenePicks();
     PatchViewUpdateLoop();
     Log("frame scratch: %d of 4 size sites -> %u KB", EnlargeFrameScratch(), FRAME_SCRATCH_SIZE / 1024);
-    Log("sound listener arrays relocated: %d refs", RelocateListenerArrays());
     WriteCall(AT_LISTENER_UPDATE_CALL, &ListenerUpdate);
     WriteJump(AT_LISTENER_CHOICE, &ListenerChoiceHook, 5);
     WriteJump(AT_EMITTER_RANGE, &EmitterRangeHook, 6);
