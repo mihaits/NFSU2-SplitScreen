@@ -64,9 +64,35 @@ static void __fastcall DestroyMinimapManager(uint8_t* mgr) {
     reinterpret_cast<void(__fastcall*)(void*)>(CallPrev(_ReturnAddress(), FN_MINIMAP_DESTROY))(mgr);
 }
 
+// The update centres the map on car entity (type 4, id 0): `push 0; push 4; mov ecx, esi` before its call 0x4CA800 at
+// 0x4CA906. The id comes from g_mmCentreId instead, set per run by MinimapUpdate.
+#define AT_MINIMAP_CENTRE     0x4CA900   // push 0; push 4; mov ecx, esi (6 bytes)
+#define AT_MINIMAP_CENTRE_RET 0x4CA906
+static int g_mmCentreId = 0;
+static bool g_mmCentreHooked = false;
+static __declspec(naked) void MinimapCentreHook() {
+    __asm {
+        push g_mmCentreId
+        push 4
+        mov ecx, esi
+        push AT_MINIMAP_CENTRE_RET
+        ret
+    }
+}
+static void InstallMinimapCentre() {
+    static const uint8_t original[6] = {0x6A, 0x00, 0x6A, 0x04, 0x8B, 0xCE};
+    if (memcmp(reinterpret_cast<void*>(AT_MINIMAP_CENTRE), original, sizeof(original)) != 0) {
+        Log("minimap: unexpected code at the centre id, one minimap for everyone");
+        return;
+    }
+    WriteJump(AT_MINIMAP_CENTRE, &MinimapCentreHook, 6);
+    g_mmCentreHooked = true;
+}
+
 static void __fastcall MinimapUpdate(uint8_t* mgr, void*) {
     auto update = reinterpret_cast<void(__fastcall*)(void*, void*)>(CallPrev(AT_MINIMAP_UPDATE_CALL, FN_MINIMAP_UPDATE));
     int n = (g_quadHud || g_mm2p) && g_mmObjCount > 0 ? (g_screenViews < 2 + g_extraPlayers ? g_screenViews : 2 + g_extraPlayers) : 0;
+    if (!g_mmCentreHooked) n = 0;
     g_mmPlayers = 0;
     if (!n) { update(mgr, nullptr); return; }
     ExtendMinimapManager(mgr);
@@ -78,8 +104,7 @@ static void __fastcall MinimapUpdate(uint8_t* mgr, void*) {
             *reinterpret_cast<uint32_t*>(icon + 0x1C) &= ~1u;            // shown (P3's copy starts hidden)
         }
     for (int k = n - 1; k >= 0; --k) {                                    // ends with the game's own (centre P1)
-        uint8_t id = static_cast<uint8_t>(k);
-        Write(AT_MINIMAP_CENTRE_ID, &id, 1);
+        g_mmCentreId = k;
         update(mgr, nullptr);
         TakeMinimapSnapshot(k);
     }

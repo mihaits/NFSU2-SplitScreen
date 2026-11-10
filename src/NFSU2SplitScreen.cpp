@@ -359,6 +359,7 @@ static void Install(HMODULE self) {
     WriteCall(AT_FE_RENDER_OBJ_CALL, &RenderFeObject);
     g_feRenderObj = CallPrev(AT_FE_RENDER_OBJ_CALL, FN_FE_RENDER_OBJ);
     WriteCall(AT_MINIMAP_UPDATE_CALL, &MinimapUpdate);
+    InstallMinimapCentre();
     WriteCall(AT_MINIMAP_DESTROY_CALL, &DestroyMinimapManager);
     WriteCall(AT_MINIMAP_REBUILD_DESTROY_CALL, &DestroyMinimapManager);
     for (uintptr_t at : kBuildStandingsCalls) WriteCall(at, &BuildStandings);

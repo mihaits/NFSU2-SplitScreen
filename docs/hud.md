@@ -71,7 +71,8 @@ parked off-screen) are moved 2000 further out. Pivots are scaled too.
 - `ExtendMinimapManager` adds P3..P6's car markers (PlayerCarIndicator_1/_2 of P3's copy for P3/P4 and of P5's copy
   for P5/P6, recoloured: P3 blue, P4 yellow, P5 purple, P6 cyan). The other packages' own minimap objects are hidden
   (`MapMinimapObjects`). 6P fits the 0x7F descriptor pool.
-- `MinimapUpdate` (call 0x4DA650) runs the update once per player, centred on that player (the id imm8 at 0x4CA901).
+- `MinimapUpdate` (call 0x4DA650) runs the update once per player, centred on that player: the update's `push 0` (the car
+  entity's id, 0x4CA900) is hooked to push `g_mmCentreId` (`MinimapCentreHook`).
   After each run it snapshots the minimap objects' data, **keyed by data pointer**. Lists are rebuilt as markers come
   and go.
 - `RenderFeObjectWith` draws each minimap object once per player from that player's snapshot (`MinimapPlace`:

@@ -535,7 +535,6 @@ static __declspec(naked) void RenderFeObject() {
 
 #define AT_MINIMAP_UPDATE_CALL 0x4DA650  // `call 0x4CA840` (minimap manager update, thiscall, no args)
 #define FN_MINIMAP_UPDATE  0x4CA840
-#define AT_MINIMAP_CENTRE_ID 0x4CA901    // imm8 of `push 0`: id of the car entity the map centres on
 #define MARKER_POOL        0x836560      // list of free marker descriptors {obj, type} (filled by 0x4DB900(fng))
 #define MARKER_ALLOCATOR   0x8364B4      // fixed allocator of the descriptors (0x66 x 8 bytes, made at 0x4AC6D0)
 #define AT_MARKER_POOL_SIZE 0x4AC6D8     // imm8 of `push 0x66`
