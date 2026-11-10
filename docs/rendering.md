@@ -95,7 +95,8 @@ redirect their view or player choice to the view currently being drawn (`g_curre
   (q = pos · HeadlightWVP, beam stage projective; the ramp clips behind the projector and fades towards 100 m).
   The world shaders compute the same without L.
 - `WorldDrawWithLights` (0x5CB23B): for each other player whose lights are on within 250 m it aims view 9 at that car,
-  flags its culled list too (`MarkLitMesh`; flags of meshes outside the view's list are cleared after the draw) and
+  flags its culled list too (`MarkLitMesh`; flags of meshes outside the view's list are cleared after the draw, at most 4096 a view, any more
+  stay unflagged) and
   keeps `VP_k · B`; then re-aims at the view's car. `T_k = inv(VP_own · B) · (VP_k · B)` gives `q_k = q · T_k` for
   any draw. Until the flush (`FlushLitWorld`), SetVertexShader / SetPixelShader hooks (device slots 92 / 107) swap the
   game's headlight shaders (recognised by a hash of their tokens) for: the game's vs with `src/shaders/hl_vs_extra.asm`

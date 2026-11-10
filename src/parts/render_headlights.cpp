@@ -160,8 +160,13 @@ static int g_markedCount;
 static void __cdecl MarkLitMesh(uint8_t* item) {
     uint8_t* inst = *reinterpret_cast<uint8_t**>(item + 8);
     if (inst[0x1B] & 0x80) return;
+    if (g_markedCount >= 4096) {         // no room to remember it: left unflagged (not lit by the other lights)
+        static bool logged;
+        if (!logged) { logged = true; Log("headlights: more than 4096 meshes lit by other players, the rest skipped"); }
+        return;
+    }
     inst[0x1B] |= 0x80;
-    if (g_markedCount < 4096) g_marked[g_markedCount++] = inst;
+    g_marked[g_markedCount++] = inst;
 }
 
 // view 9's view * projection, then * B
