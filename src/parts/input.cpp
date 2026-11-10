@@ -236,12 +236,13 @@ static uint8_t* __cdecl ProfileLoadBindings(uint8_t* in) {
 
 // Ports 2-5 (players 3-6) have no DirectInput slot: their state is built from their own XInput pad with their own
 // bindings (see above), merged like the game merges a port's devices.
+// A port with nothing pressed: no action bit (active low), pedals released, steering stick centred (X, Y).
+static const uint8_t kPortIdle[12] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0x80, 0x80};
 static void* PollExtraPort(int port, int* type, void** prev) {
-    static const uint8_t idle[12] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0x80, 0x7F};
     static uint8_t record[DEVICE_RECORD_SIZE], state[DI_STATE_SIZE], live[DI_STATE_SIZE], copy[DI_STATE_SIZE];
     uint8_t* cur = g_portCur[port];
     memcpy(g_portPrev[port], cur, 16);
-    memcpy(cur, idle, 12);
+    memcpy(cur, kPortIdle, 12);
     memcpy(cur + 12, g_portCur[0] + 12, 4);
     *type = g_port0Type;
     *prev = g_portPrev[port];
@@ -323,12 +324,11 @@ static void* __cdecl PollPortHook(int port, int* type, void** prev) {
     if (!SplitMode() || port < 0 || port > 1) return merged;
 
     if (port == 0) {
-        static const uint8_t idle[12] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0x80, 0x80};
         const uint8_t* all = static_cast<const uint8_t*>(merged);
         UpdateKeyboardPort();
         for (int p = 0; p < 2; ++p) {
             memcpy(g_portPrev[p], g_portCur[p], 16);
-            memcpy(g_portCur[p], idle, 12);
+            memcpy(g_portCur[p], kPortIdle, 12);
             memcpy(g_portCur[p] + 12, all + 12, 4);
             if (!at<int>(INPUT_FOCUS)) continue;
             for (int d = 0; d < INPUT_DEVICE_MAX; ++d) {
