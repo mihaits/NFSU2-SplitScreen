@@ -5,11 +5,20 @@
 // Player view k renders into its screen region (top/bottom halves, or quadrants); the game always passes (0,0).
 static int g_regionX[MAX_LOCAL_PLAYERS], g_regionY[MAX_LOCAL_PLAYERS];
 
+// Render target 0, for the viewport hooks (only the pointer is compared). SetRenderTargetHook sees every change, so
+// the device is only asked when the target isn't known: at the start of each frame and after the game released its
+// targets (a device reset puts the backbuffer back without a SetRenderTarget call).
+static void* g_rt0;
+static bool g_rt0Known;
+static void ForgetRenderTarget() { g_rt0Known = false; }
 static void* CurrentRenderTarget(void* dev) {
-    void* rt0 = nullptr;           // IDirect3DDevice9::GetRenderTarget (slot 38); only the pointer is needed
+    if (g_rt0Known) return g_rt0;
+    void* rt0 = nullptr;           // IDirect3DDevice9::GetRenderTarget (slot 38)
     auto getRt = reinterpret_cast<HRESULT(__stdcall*)(void*, DWORD, void**)>((*reinterpret_cast<void***>(dev))[38]);
     if (SUCCEEDED(getRt(dev, 0, &rt0)) && rt0)
         reinterpret_cast<ULONG(__stdcall*)(void*)>((*reinterpret_cast<void***>(rt0))[2])(rt0);   // Release
+    g_rt0 = rt0;
+    g_rt0Known = true;
     return rt0;
 }
 
@@ -73,6 +82,7 @@ extern int g_obScissorSlotExt;
 void ReapplyOverbrightScissor(void* dev);
 static HRESULT __stdcall SetRenderTargetHook(void* dev, DWORD index, void* surface) {
     HRESULT hr = reinterpret_cast<HRESULT(__stdcall*)(void*, DWORD, void*)>(g_origSetRenderTarget)(dev, index, surface);
+    if (index == 0) { g_rt0 = surface; g_rt0Known = SUCCEEDED(hr); }
     if (SUCCEEDED(hr) && index == 0 && g_obScissorSlotExt >= 0) ReapplyOverbrightScissor(dev);
     if (SUCCEEDED(hr) && index == 0 && surface && SplitRacing() && IsStreakSurface(surface))
         for (int k = 0; k < g_screenViews; ++k)

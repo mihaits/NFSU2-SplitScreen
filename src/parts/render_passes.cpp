@@ -85,6 +85,7 @@ static __declspec(naked) void StreaksBranchHook() {
 
 static void ApplySplitLayout() {
     auto* bb = reinterpret_cast<RenderTarget*>(RT_BACKBUFFER);
+    ForgetRenderTarget();
     if (SplitRacing()) {
         HookDeviceSetViewport();
         int w = at<int>(SCREEN_W), h = at<int>(SCREEN_H);

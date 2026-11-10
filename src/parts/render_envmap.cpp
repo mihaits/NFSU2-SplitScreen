@@ -133,7 +133,9 @@ static void __cdecl ReleaseTargetsHook() {
     g_gameReflTex = g_gameReflSurf = nullptr;
     ReleaseReflectionTextures();
     ReleaseEnvCubes();
+    ForgetRenderTarget();
     g_origReleaseTargets();
+    ForgetRenderTarget();
 }
 
 // The extra player views share one world view table entry (RegisterExtraWorldViews): before each of them after the
