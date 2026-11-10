@@ -16,7 +16,8 @@ static LONG CALLBACK WatchHandler(EXCEPTION_POINTERS* e) {
         uint32_t rets[10] = {};
         int n = 0;
         auto* sp = reinterpret_cast<const uint32_t*>(e->ContextRecord->Esp);
-        for (int k = 0; k < 2048 && n < 10; ++k) {
+        auto* top = reinterpret_cast<const uint32_t*>(reinterpret_cast<NT_TIB*>(NtCurrentTeb())->StackBase);
+        for (int k = 0; sp + k < top && k < 2048 && n < 10; ++k) {
             if (k == 4 && n == 1) k = 0x204;   // skip the 0x800-byte text buffer of 0x532670 (FE text setter)
             uint32_t v = sp[k];
             if (v < 0x401005 || v >= 0x780000) continue;
