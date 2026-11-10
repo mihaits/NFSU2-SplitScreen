@@ -64,8 +64,10 @@ every other sound stays on the PC, and a player on another pad keeps their car t
 speakers" block of `parts/sound.cpp`; the pad side is `DsSpeakerWrite` in `DualSense.cpp` (docs/input.md).
 - **Which voice is whose** (main thread; voice → local player + 1 in `g_engineVoicePlayer`, with the channel handle
   and a time stamp). A voice is routed while its stamp is under 500 ms old, its channel still has that handle (EA
-  reuses voices) and its player's pad (`g_assignedPad`, split racing only) is a native DualSense that took the last
-  samples and isn't muted.
+  reuses voices) and its player's buffers are live for the chunk being rendered (`g_speakerLive`, set by `RenderChunk`
+  when it clears them): the player's pad (`g_assignedPad`, split racing only) is a native DualSense that took the last
+  samples and isn't muted, and the player's engine object updated in the last 500 ms. A voice mixed into a player's
+  buffers is therefore always sent to the pad; any other voice stays in the PC mix.
   - Engine master: the engine object's per-frame update (vtable 0x78AF30 +0x48 = 0x474310, hooked in the vtable)
     records voice = [obj+0xE0] & 0xFF → player [[[obj+0x9C]+0x30]+0x18] matched in `g_localPlayers`. Always routed.
   - Patches: the master alone is a small part of the engine; the audible layers, and turbo, shifts, nitrous, skids

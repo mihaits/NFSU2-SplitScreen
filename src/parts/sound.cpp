@@ -430,6 +430,9 @@ static volatile LONG g_speakerPad[MAX_LOCAL_PLAYERS] = {-1, -1, -1, -1, -1, -1};
 static volatile DWORD g_speakerSeen[MAX_LOCAL_PLAYERS];
 static volatile LONG g_speakerFailed[MAX_LOCAL_PLAYERS];   // the pad took no samples (no audio endpoint yet): PC mix
 static float g_speakerMix[MAX_LOCAL_PLAYERS][2][256];
+// Mixer thread: player k's buffers are cleared for the chunk being rendered and go to the pad after it (RenderChunk).
+// A voice is only mixed into buffers that are (SpeakerPlayerOfVoice); otherwise it stays in the PC mix.
+static bool g_speakerLive[MAX_LOCAL_PLAYERS];
 // The player's mute button turns their pad speaker off and on during split races (pad_lights.cpp; the mute LED is lit
 // while it's off); kept per seat until the game closes.
 static bool g_speakerOn[MAX_LOCAL_PLAYERS] = {true, true, true, true, true, true};
@@ -652,7 +655,7 @@ static int SpeakerPlayerOfVoice(const uint8_t* voice) {
     if (v < 0 || v >= 64 || GetTickCount() - g_engineVoiceSeen[v] > 500) return -1;
     if (*reinterpret_cast<int32_t*>(at<uint8_t*>(EA_CHANNELS) + v * 0x90) != g_engineVoiceHandle[v]) return -1;   // reused
     int k = g_engineVoicePlayer[v] - 1;
-    return k >= 0 && k < MAX_LOCAL_PLAYERS && g_speakerPad[k] >= 0 && !g_speakerFailed[k] ? k : -1;
+    return k >= 0 && k < MAX_LOCAL_PLAYERS && g_speakerLive[k] ? k : -1;
 }
 static void __cdecl MixChannel(const uint8_t* voice, const uint8_t* gainPtr, int frames, float gain,
                                const float* src, float* dst) {
@@ -767,6 +770,7 @@ static void __cdecl RenderChunk(void* channels, int frames) {
     for (int k = 0; k < MAX_LOCAL_PLAYERS; ++k) {
         on[k] = g_speakerPad[k] >= 0 && !g_speakerFailed[k] && now - g_speakerSeen[k] < 500 && frames <= 256;
         if (on[k]) memset(g_speakerMix[k], 0, sizeof(g_speakerMix[k]));
+        g_speakerLive[k] = on[k];
     }
     reinterpret_cast<void(__cdecl*)(void*, int)>(CallPrev(AT_RENDER_CALL, FN_RENDER))(channels, frames);
     if (g_speakerDumpSeconds > 0 && on[0]) {   // debug: float32 frames {PC left, PC right, player 1's pad (16-bit scale)}
