@@ -11,6 +11,9 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
   - `mod_overlap.py owner/repo ... [--names]` compares our patch sites with another mod's public source (read through
     `gh`, in memory): byte overlaps, near misses, patches on addresses we read or call, and with `--names` that mod's
     function names for our addresses. It sees literal patches only, so a clean result is no substitute for a test.
+  - `gen_patch_sites.py` writes `src/parts/patch_sites.h`, the game's bytes at every `WriteJump` site of the source
+    (read from the exe on disk). Run it after adding, moving or resizing a `WriteJump`; the plugin checks the running
+    game against it at load (`VerifyPatchSites`).
   - `chain_test.sh` (live, `RACE=1` also starts a 2P split race) builds `chain_test/ChainTest.cpp` as
     `scripts/AAChainTest.asi`, a plugin that loads before ours and hooks the way other mods do: a 5-byte `jmp` on
     every `MakeTrampoline` site and a redirect on every `WriteCall` site, each through a stub that counts calls. A

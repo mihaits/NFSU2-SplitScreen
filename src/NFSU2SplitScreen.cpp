@@ -208,6 +208,8 @@ static void Install(HMODULE self) {
             if (uintptr_t a = strtoul(val, nullptr, 0)) SetWatch(i, a);
         }
     }
+    Log("patch sites: %d of %d differ from the game's code", VerifyPatchSites(),
+        static_cast<int>(sizeof(kPatchSites) / sizeof(kPatchSites[0])));
     Log("mailbox at %p", &g_mailbox);
     LogInstalledMods(self);
     WarnConflictingSettings(self);
