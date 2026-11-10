@@ -29,6 +29,7 @@ everything here was verified in game, except [physics](physics.md), which says s
 | [open-issues](open-issues.md) | known open bugs and leads |
 | [linux-technical](linux-technical.md) | Linux (Lutris, Proton) test results, causes, what is left to fix; the player page is [linux](linux.md) |
 | [tooling](tooling.md) | static and live tools, debug mailbox, automation |
+| [external-sources](external-sources.md) | other projects' symbol lists, address notes and same-engine decompilations, and what each is good for |
 | [bug-report](bug-report.md) | bug report template and the session handoff format |
 
 When a feature changes, update the subsystem doc it belongs to (and [addresses](addresses.md) for new shared globals).
