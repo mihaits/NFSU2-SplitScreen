@@ -36,6 +36,8 @@ Tested with real controllers, 4 native DualSense pads over Bluetooth at once plu
   after adding the row). Not reproduced in 10 runs since, also with `CarsMode` missing from the ini; cause unknown. The
   join logs "cars: <mode>, player N gets a car / picks" and "cars: player N gets <car>", which show the failing step
   if it happens again.
+- **Traffic popping up close in plain view** (user, 2026-11-10; straight road, at least P1's view): not reproduced with
+  the AI driving; leads that need a real session in [traffic-pop-in](bugs/traffic-pop-in.md).
 - **A DualSense can drop with error 1167,** seen several times on one pad, also mid-race: likely its Bluetooth link (range,
   battery).
 - **Controls pages of P3-P6 need room in the page table** (code review, 2026-11-08; never seen). `BuildControlsPages`

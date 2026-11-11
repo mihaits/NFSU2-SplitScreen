@@ -120,6 +120,14 @@ frame on a throwaway copy, because it also hides the mouse cursor while racing.
 position +0x80 + 0x10·i, road position +0xE0 + 4·i (car +0x8FC). Traffic runs from there every ~1 s (0x42F910): each
 tick it takes the next traffic car, and if 0x417BB0 says it is out of range it respawns it next to a random local
 player (0x42F800: a cross-traffic emitter 0x42E790, or ahead on that player's road 0x42E9F0 / 0x42E620).
+- Parking: when the range check 0x417BB0 calls a car out of range and no spawn spot is free, the tick parks it
+  (0x4020D0: mover off 0x5F46A0(0), car +0x550 = 0, model hide counter +0x17 of car +0x3C) and sets mover +0x77C
+  (0x42FAB0); a respawn clears it (0x42A0D1). A parked car is not drawn (the car loop 0x6316D0 skips it without
+  +0x550) and counts as out of range, so it comes back on a later tick. 0x417BB0 also calls a car with mover +0x798
+  out of range when no local player faster than 20 is within 50 of it on the route (0x4094A0). 0x4099B0 parks every
+  traffic car at once (traffic tick when traffic +8 is set, and game event objects with flag +0x62: 0x4302C0,
+  0x43B930, 0x43BAA0). The keep and spawn distances are along the race route, so where the route bends a car is parked
+  or spawned in a straight line nearer than 250, in single player too. Open report: [traffic-pop-in](bugs/traffic-pop-in.md).
 - "Out of range" and "in view" use the World distance helpers 0x5F0FB0 (xy), 0x5F1160 (xyz) and 0x5F12A0 (road), which
   read slots 0/1 only outside online races. Keep a car: within 250 of a slot (0x409800). Reject a spawn point: within
   250 (0x409840 / 0x409890 from 0x418110). Parked cars (0x40BEE0) and TrafficController moves (0x42A5E0) also use

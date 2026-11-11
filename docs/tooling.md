@@ -48,8 +48,11 @@ folder (the nearest parent holding speed2.exe). They read `<game>/speed2.exe` an
     isn't build/'s (an A/B test with an older build), the map doesn't fit: `LocalPlayers` then reads the players from
     the race's human cars (`race_players`, needs a race).
   - `traffic_watch.py [sample_s] [seconds] [--radius 250]` streams the traffic around each local player (count within
-    the radius, nearest car) and logs traffic cars that teleport (recycled) within the radius of a player ("pop-in");
-    totals at the end. Read-only.
+    the radius, nearest car) and logs, within the radius of a player: cars parked out of the world (`hidden`: they
+    vanish there), recycled cars landing (`pop-in`) and leaving (`pop-out`; with +77c 1 the car was parked earlier and
+    already invisible), cars no longer drawn without a park (`undrawn`, car +0x550 off), each with the distance along
+    the route and ahead / behind, and `FLUSH` when 3 or more cars are parked in one sample; totals at the end.
+    Read-only.
   - `teleport_watch.py [seconds] [--min m] [--grid] [--csv path]` samples every race car about 500 times a second and
     prints each move its velocity can't explain, with the car's state on both sides; every sample goes to the csv.
     Traffic cars that jump are the game recycling them and print as `RECYCLED` (counted apart), so `JUMP` lines are
