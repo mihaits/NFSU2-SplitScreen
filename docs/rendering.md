@@ -104,6 +104,10 @@ redirect their view or player choice to the view currently being drawn (`g_curre
   from oT1.w), and a ps_2_0 per variant (`src/shaders/hl_ps_*.asm`) that sums up to 5 other lights:
   `L = min(L_own + gain · ΣL_k, cap)` (c1..c5 colours × gain, c6 cap; `[DEBUG] HeadlightGain` 80 /
   `HeadlightCap` 100, percent). The rest is the game's formula, so fog, reflection and alpha are unchanged.
+- Each light's texcoord is read one way only: the ramp from `.w`, the beam divided by w in the shader and sampled with
+  `texld`, never `texldp`. NVIDIA's D3D9 compiler up to 391.35 (the last driver for Fermi cards) counts a projected
+  and a plain read of one texcoord as two inputs in a fixed-size table and overflows it when it adds fog: a crash on
+  the first race frame ([nvidia-388-shader-compiler-crash](bugs/nvidia-388-shader-compiler-crash.md)).
 - Don't use extra subtract/add passes per other light: they force depth bias over the coplanar kerb decals (glitches at
   beam edges), clamp where a redrawn mesh isn't the pixel's surface (whole objects brighten as a car comes near) and add
   every beam at full strength (blown-out overlaps).
